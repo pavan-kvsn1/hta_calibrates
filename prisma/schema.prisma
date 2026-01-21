@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// USERS
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  passwordHash  String
+  role          String   @default("ENGINEER") // ENGINEER, HOD, ADMIN
+  assignedHodId String?
+  assignedHod   User?    @relation("EngineerToHod", fields: [assignedHodId], references: [id])
+  engineers     User[]   @relation("EngineerToHod")
+  signatureUrl  String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdCertificates Certificate[]        @relation("CreatedBy")
+  submittedVersions   CertificateVersion[] @relation("SubmittedBy")
+  reviewComments      ReviewComment[]
+}
+
+model CustomerUser {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  companyName  String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  signatures     Signature[]
+  approvalTokens ApprovalToken[]
+}
+
+// MASTER INSTRUMENTS
+model MasterInstrument {
+  id                   String   @id @default(uuid())
+  category             String   // ELECTRO_TECHNICAL, THERMAL, MECHANICAL, OTHERS, SOURCE_INSTRUMENTS
+  description          String
+  rangeSopReference    String
+  make                 String
+  model                String
+  assetNumber          String?
+  serialNumber         String
+  calibratedAtLocation String?
+  calibrationDueDate   DateTime
+  remarks              String?
+  isActive             Boolean  @default(true)
+
+  certificateLinks CertificateMasterInstrument[]
+
+  @@index([category])
+  @@index([description])
+}
+
+// CERTIFICATES
+model Certificate {
+  id                String   @id @default(uuid())
+  certificateNumber String   @unique
+  status            String   @default("DRAFT") // DRAFT, PENDING_HOD_REVIEW, REVISION_REQUIRED, PENDING_CUSTOMER_APPROVAL, CUSTOMER_REVISION_REQUIRED, APPROVED, REJECTED
+  currentVersion    Int      @default(1)
+  createdById       String
+  createdBy         User     @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  versions       CertificateVersion[]
+  signatures     Signature[]
+  approvalTokens ApprovalToken[]
+}
+
+model CertificateVersion {
+  id            String      @id @default(uuid())
+  certificateId String
+  certificate   Certificate @relation(fields: [certificateId], references: [id])
+  versionNumber Int
+
+  // Section 1: Summary
+  calibratedAt        String   // LAB, SITE
+  dateOfCalibration   DateTime
+  calibrationDueDate  DateTime
+  calibrationTenure   Int
+  customerName        String
+  customerAddress     String
+
+  // Section 2: UUC
+  uucDescription   String
+  uucMake          String
+  uucModel         String
+  uucInstrumentId  String?
+  uucSerialNumber  String
+  uucLocationName  String?
+  uucMachineName   String?
+
+  // Section 4: Environmental
+  ambientTemperature Float
+  relativeHumidity   Float
+
+  // Section 6: Uncertainty
+  uncertaintyValue Float?
+  uncertaintyUnit  String?
+
+  // Section 7: Traceability
+  traceabilityStatement String?
+
+  // Section 8: Remarks
+  calibrationStatus String?  // JSON array stored as string
+  statusNotes       String?
+  stickerOldRemoved Boolean  @default(false)
+  stickerNewAffixed Boolean  @default(false)
+
+  // Metadata
+  submittedAt   DateTime?
+  submittedById String?
+  submittedBy   User?     @relation("SubmittedBy", fields: [submittedById], references: [id])
+  createdAt     DateTime  @default(now())
+
+  parameters        CertificateParameter[]
+  masterInstruments CertificateMasterInstrument[]
+  reviewComments    ReviewComment[]
+
+  @@unique([certificateId, versionNumber])
+}
+
+model CertificateParameter {
+  id        String             @id @default(uuid())
+  versionId String
+  version   CertificateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  parameterName       String
+  parameterUnit       String
+  rangeValue          String
+  rangeUnit           String
+  operatingRangeValue String?
+  operatingRangeUnit  String?
+  leastCountValue     String
+  leastCountUnit      String
+  accuracyValue       Float
+  accuracyUnit        String
+  errorFormula        String  @default("A-B")
+  displayOrder        Int
+
+  results           CalibrationResult[]
+  masterInstruments CertificateMasterInstrument[]
+}
+
+model CalibrationResult {
+  id          String               @id @default(uuid())
+  parameterId String
+  parameter   CertificateParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  pointNumber      Int
+  standardReading  Float
+  beforeAdjustment Float
+  afterAdjustment  Float?
+  errorObserved    Float
+  isOutOfLimit     Boolean @default(false)
+
+  @@unique([parameterId, pointNumber])
+}
+
+model CertificateMasterInstrument {
+  id                 String               @id @default(uuid())
+  versionId          String
+  version            CertificateVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  parameterId        String?
+  parameter          CertificateParameter? @relation(fields: [parameterId], references: [id])
+  masterInstrumentId String
+  masterInstrument   MasterInstrument     @relation(fields: [masterInstrumentId], references: [id])
+  sopReference       String
+}
+
+// REVIEW
+model ReviewComment {
+  id               String             @id @default(uuid())
+  versionId        String
+  version          CertificateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  authorUserId     String?
+  authorUser       User?              @relation(fields: [authorUserId], references: [id])
+  sectionReference String
+  commentText      String
+  status           String             @default("OPEN") // OPEN, RESOLVED
+  createdAt        DateTime           @default(now())
+}
+
+model Signature {
+  id            String       @id @default(uuid())
+  certificateId String
+  certificate   Certificate  @relation(fields: [certificateId], references: [id])
+  signerType    String       // ENGINEER, HOD, CUSTOMER
+  signerName    String
+  signerEmail   String
+  signatureData String
+  signedAt      DateTime     @default(now())
+  customerId    String?
+  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+}
+
+model ApprovalToken {
+  id            String       @id @default(uuid())
+  certificateId String
+  certificate   Certificate  @relation(fields: [certificateId], references: [id])
+  customerId    String
+  customer      CustomerUser @relation(fields: [customerId], references: [id])
+  token         String       @unique
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime     @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String
+  entityId   String
+  action     String
+  actorId    String?
+  actorType  String
+  changes    String?  // JSON stored as string for SQLite
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}
