@@ -1,0 +1,109 @@
+'use client'
+
+import { useSession, signOut } from 'next-auth/react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { Button } from '@/components/ui/button'
+import { LogOut, User, Bell } from 'lucide-react'
+
+interface DashboardHeaderProps {
+  title?: string
+}
+
+export function DashboardHeader({ title }: DashboardHeaderProps) {
+  const { data: session } = useSession()
+
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/login' })
+  }
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'ENGINEER':
+        return 'Engineer'
+      case 'HOD':
+        return 'Head of Department'
+      case 'ADMIN':
+        return 'Administrator'
+      case 'CUSTOMER':
+        return 'Customer'
+      default:
+        return role
+    }
+  }
+
+  const getDashboardLink = (role: string) => {
+    switch (role) {
+      case 'HOD':
+        return '/hod/dashboard'
+      case 'CUSTOMER':
+        return '/customer/dashboard'
+      default:
+        return '/dashboard'
+    }
+  }
+
+  return (
+    <header className="bg-white border-b border-gray-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo and Title */}
+          <div className="flex items-center gap-4">
+            <Link href={getDashboardLink(session?.user?.role || 'ENGINEER')}>
+              <Image
+                src="/hta-logo.jpg"
+                alt="HTA Instrumentation"
+                width={80}
+                height={40}
+                className="object-contain"
+              />
+            </Link>
+            {title && (
+              <>
+                <div className="h-6 w-px bg-gray-300" />
+                <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+              </>
+            )}
+          </div>
+
+          {/* User Info and Actions */}
+          <div className="flex items-center gap-4">
+            {/* Notifications (placeholder) */}
+            <Button variant="ghost" size="sm" className="relative">
+              <Bell className="h-5 w-5 text-gray-500" />
+              <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
+                3
+              </span>
+            </Button>
+
+            {/* User Info */}
+            <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">
+                    {session?.user?.name || 'User'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {getRoleLabel(session?.user?.role || '')}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  )
+}
