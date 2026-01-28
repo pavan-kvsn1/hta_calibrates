@@ -1,33 +1,23 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { DashboardHeader } from '@/components/dashboard/DashboardHeader'
+import { Header } from '@/components/layout/Header'
 import { CertificateTable, CertificateListItem } from '@/components/dashboard/CertificateTable'
 import { Clock, CheckCircle, XCircle, FileText } from 'lucide-react'
 
-async function getPendingCertificates(hodId: string): Promise<CertificateListItem[]> {
-  // Get certificates from engineers assigned to this HoD
+async function getTeamCertificates(hodId: string): Promise<CertificateListItem[]> {
+  // Get certificates from engineers assigned to this HoD (excluding drafts)
   const certificates = await prisma.certificate.findMany({
     where: {
-      OR: [
-        { status: 'PENDING_HOD_REVIEW' },
-        {
-          createdBy: {
-            assignedHodId: hodId,
-          },
-        },
-      ],
+      createdBy: {
+        assignedHodId: hodId,
+      },
+      // Exclude drafts - HoD should only see submitted certificates
+      status: {
+        not: 'DRAFT',
+      },
     },
     include: {
-      versions: {
-        orderBy: { versionNumber: 'desc' },
-        take: 1,
-        select: {
-          customerName: true,
-          uucDescription: true,
-          dateOfCalibration: true,
-        },
-      },
       createdBy: {
         select: { name: true },
       },
@@ -35,23 +25,21 @@ async function getPendingCertificates(hodId: string): Promise<CertificateListIte
     orderBy: { updatedAt: 'desc' },
   })
 
-  return certificates.map((cert) => {
-    const latestVersion = cert.versions[0]
-    return {
-      id: cert.id,
-      certificateNumber: cert.certificateNumber,
-      status: cert.status,
-      customerName: latestVersion?.customerName || '-',
-      uucDescription: latestVersion?.uucDescription || '-',
-      dateOfCalibration: latestVersion?.dateOfCalibration?.toISOString() || '',
-      currentVersion: cert.currentVersion,
-      createdAt: cert.createdAt.toISOString(),
-    }
-  })
+  return certificates.map((cert) => ({
+    id: cert.id,
+    certificateNumber: cert.certificateNumber,
+    status: cert.status,
+    customerName: cert.customerName || '-',
+    uucDescription: cert.uucDescription || '-',
+    dateOfCalibration: cert.dateOfCalibration?.toISOString() || '',
+    currentVersion: cert.currentRevision,
+    createdAt: cert.createdAt.toISOString(),
+    createdBy: cert.createdBy.name,
+  }))
 }
 
 async function getStats(hodId: string) {
-  // Get certificates from engineers assigned to this HoD
+  // Get certificates from engineers assigned to this HoD (excluding drafts)
   const [pendingReview, approved, revision, total] = await Promise.all([
     prisma.certificate.count({
       where: {
@@ -74,6 +62,8 @@ async function getStats(hodId: string) {
     prisma.certificate.count({
       where: {
         createdBy: { assignedHodId: hodId },
+        // Exclude drafts from total count
+        status: { not: 'DRAFT' },
       },
     }),
   ])
@@ -94,7 +84,7 @@ export default async function HoDDashboard() {
   }
 
   const [certificates, stats] = await Promise.all([
-    getPendingCertificates(session.user.id),
+    getTeamCertificates(session.user.id),
     getStats(session.user.id),
   ])
 
@@ -105,7 +95,7 @@ export default async function HoDDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="HoD Dashboard" />
+      <Header title="HoD Dashboard" showAutoSave={false} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}

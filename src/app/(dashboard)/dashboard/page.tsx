@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { DashboardHeader } from '@/components/dashboard/DashboardHeader'
+import { Header } from '@/components/layout/Header'
 import { CertificateTable, CertificateListItem } from '@/components/dashboard/CertificateTable'
 import { Button } from '@/components/ui/button'
 import { Plus, FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react'
@@ -12,33 +12,19 @@ async function getCertificates(userId: string): Promise<CertificateListItem[]> {
     where: {
       createdById: userId,
     },
-    include: {
-      versions: {
-        orderBy: { versionNumber: 'desc' },
-        take: 1,
-        select: {
-          customerName: true,
-          uucDescription: true,
-          dateOfCalibration: true,
-        },
-      },
-    },
     orderBy: { updatedAt: 'desc' },
   })
 
-  return certificates.map((cert) => {
-    const latestVersion = cert.versions[0]
-    return {
-      id: cert.id,
-      certificateNumber: cert.certificateNumber,
-      status: cert.status,
-      customerName: latestVersion?.customerName || '-',
-      uucDescription: latestVersion?.uucDescription || '-',
-      dateOfCalibration: latestVersion?.dateOfCalibration?.toISOString() || '',
-      currentVersion: cert.currentVersion,
-      createdAt: cert.createdAt.toISOString(),
-    }
-  })
+  return certificates.map((cert) => ({
+    id: cert.id,
+    certificateNumber: cert.certificateNumber,
+    status: cert.status,
+    customerName: cert.customerName || '-',
+    uucDescription: cert.uucDescription || '-',
+    dateOfCalibration: cert.dateOfCalibration?.toISOString() || '',
+    currentVersion: cert.currentRevision,
+    createdAt: cert.createdAt.toISOString(),
+  }))
 }
 
 async function getStats(userId: string) {
@@ -85,7 +71,7 @@ export default async function EngineerDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="Engineer Dashboard" />
+      <Header title="Engineer Dashboard" showAutoSave={false} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}

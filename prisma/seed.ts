@@ -13,51 +13,65 @@ const prisma = new PrismaClient({ adapter })
 async function main() {
   console.log('Seeding database...')
 
-  // Create HoD user first
+  // Create two HoD users
   const hodPassword = await bcrypt.hash('hod123', 12)
-  const hod = await prisma.user.upsert({
-    where: { email: 'hod@htaipl.com' },
+
+  const hod1 = await prisma.user.upsert({
+    where: { email: 'kiran@htaipl.com' },
     update: {},
     create: {
-      email: 'hod@htaipl.com',
+      email: 'kiran@htaipl.com',
       name: 'Kiran Kumar',
       passwordHash: hodPassword,
       role: 'HOD',
       isActive: true,
     },
   })
-  console.log('Created HoD:', hod.email)
+  console.log('Created HoD 1:', hod1.email)
 
-  // Create Engineer users
+  const hod2 = await prisma.user.upsert({
+    where: { email: 'rajesh@htaipl.com' },
+    update: {},
+    create: {
+      email: 'rajesh@htaipl.com',
+      name: 'Rajesh Sharma',
+      passwordHash: hodPassword,
+      role: 'HOD',
+      isActive: true,
+    },
+  })
+  console.log('Created HoD 2:', hod2.email)
+
+  // Create Engineer users - each assigned to a different HoD
   const engineerPassword = await bcrypt.hash('engineer123', 12)
 
   const engineer1 = await prisma.user.upsert({
     where: { email: 'thiyagarajan@htaipl.com' },
-    update: {},
+    update: { assignedHodId: hod1.id }, // Update assignment if exists
     create: {
       email: 'thiyagarajan@htaipl.com',
       name: 'Thiyagarajan',
       passwordHash: engineerPassword,
       role: 'ENGINEER',
-      assignedHodId: hod.id,
+      assignedHodId: hod1.id, // Reports to Kiran Kumar
       isActive: true,
     },
   })
-  console.log('Created Engineer:', engineer1.email)
+  console.log('Created Engineer:', engineer1.email, '-> Reports to:', hod1.name)
 
   const engineer2 = await prisma.user.upsert({
     where: { email: 'chandrashekar@htaipl.com' },
-    update: {},
+    update: { assignedHodId: hod2.id }, // Update assignment if exists
     create: {
       email: 'chandrashekar@htaipl.com',
       name: 'Chandrashekar',
       passwordHash: engineerPassword,
       role: 'ENGINEER',
-      assignedHodId: hod.id,
+      assignedHodId: hod2.id, // Reports to Rajesh Sharma
       isActive: true,
     },
   })
-  console.log('Created Engineer:', engineer2.email)
+  console.log('Created Engineer:', engineer2.email, '-> Reports to:', hod2.name)
 
   // Create Admin user
   const adminPassword = await bcrypt.hash('admin123', 12)
@@ -90,9 +104,10 @@ async function main() {
   console.log('Created Customer:', customer.email)
 
   console.log('\n--- Test Credentials ---')
-  console.log('Engineer: thiyagarajan@htaipl.com / engineer123')
-  console.log('Engineer: chandrashekar@htaipl.com / engineer123')
-  console.log('HoD: hod@htaipl.com / hod123')
+  console.log('Engineer 1: thiyagarajan@htaipl.com / engineer123 (Reports to Kiran)')
+  console.log('Engineer 2: chandrashekar@htaipl.com / engineer123 (Reports to Rajesh)')
+  console.log('HoD 1: kiran@htaipl.com / hod123 (Manages Thiyagarajan)')
+  console.log('HoD 2: rajesh@htaipl.com / hod123 (Manages Chandrashekar)')
   console.log('Admin: admin@htaipl.com / admin123')
   console.log('Customer: customer@example.com / customer123')
   console.log('------------------------\n')

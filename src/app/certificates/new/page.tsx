@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { ArrowLeft, Eye, Send, Cloud, Clock } from 'lucide-react'
+import { ArrowLeft, Eye, Send, Cloud, Clock, Save } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
 import {
   SummarySection,
@@ -30,31 +30,27 @@ const SECTIONS = [
 ]
 
 export default function NewCertificatePage() {
-  const { formData, isDirty, isSaving, setIsSaving, setLastSaved, hydrate, isHydrated } = useCertificateStore()
+  const { formData, isDirty, isSaving, saveDraft, hydrate } = useCertificateStore()
   const [activeSection, setActiveSection] = useState('summary')
   const [isScrolled, setIsScrolled] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Hydrate store on mount (generates certificate number on client)
   useEffect(() => {
     hydrate()
   }, [hydrate])
 
-  // Auto-save functionality
+  // Auto-save functionality - calls the real API
   const autoSave = useCallback(async () => {
     if (!isDirty) return
 
-    setIsSaving(true)
-    try {
-      // In production, this would save to API
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      setLastSaved(new Date())
-      console.log('Auto-saved:', formData)
-    } catch (error) {
-      console.error('Auto-save failed:', error)
-    } finally {
-      setIsSaving(false)
+    setSaveError(null)
+    const result = await saveDraft()
+    if (!result.success) {
+      setSaveError(result.error || 'Failed to save')
+      console.error('Auto-save failed:', result.error)
     }
-  }, [isDirty, formData, setIsSaving, setLastSaved])
+  }, [isDirty, saveDraft])
 
   // Auto-save every 30 seconds
   useEffect(() => {
@@ -143,13 +139,22 @@ export default function NewCertificatePage() {
                 <Cloud className="size-4 animate-pulse" />
                 <span>Saving...</span>
               </>
+            ) : saveError ? (
+              <span className="text-red-500">{saveError}</span>
             ) : (
               <>
                 <Clock className="size-4" />
-                <span>Auto-saved {formatLastSaved()}</span>
+                <span>Saved {formatLastSaved()}</span>
               </>
             )}
           </div>
+          <button
+            onClick={autoSave}
+            disabled={isSaving || !isDirty}
+            className="bg-slate-100 text-slate-700 text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
+          >
+            Save Draft
+          </button>
           <button className="bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
             Submit
           </button>
@@ -188,6 +193,14 @@ export default function NewCertificatePage() {
             </div>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={autoSave}
+              disabled={isSaving || !isDirty}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2 disabled:opacity-50"
+            >
+              <Save className="size-4" />
+              {isSaving ? 'Saving...' : 'Save Draft'}
+            </button>
             <button className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2">
               <Eye className="size-4" />
               Preview PDF

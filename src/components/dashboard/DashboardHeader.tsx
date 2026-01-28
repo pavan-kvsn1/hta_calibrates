@@ -44,24 +44,24 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200">
+    <header className="bg-white border-b-2 border-gray-200 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-20">
           {/* Logo and Title */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <Link href={getDashboardLink(session?.user?.role || 'ENGINEER')}>
               <Image
                 src="/hta-logo.jpg"
                 alt="HTA Instrumentation"
-                width={80}
-                height={40}
+                width={100}
+                height={50}
                 className="object-contain"
               />
             </Link>
             {title && (
               <>
-                <div className="h-6 w-px bg-gray-300" />
-                <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+                <div className="h-8 w-px bg-gray-300" />
+                <h1 className="text-xl font-bold text-gray-900">{title}</h1>
               </>
             )}
           </div>

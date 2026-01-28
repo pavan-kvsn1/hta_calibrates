@@ -137,6 +137,7 @@ interface CertificateStore {
   isSaving: boolean
   validationErrors: Record<string, string>
   isHydrated: boolean
+  certificateId: string | null // Database ID for the certificate
 
   // Actions
   hydrate: () => void
@@ -160,6 +161,8 @@ interface CertificateStore {
   setLastSaved: (date: Date) => void
   resetForm: () => void
   loadForm: (data: Partial<CertificateFormData>) => void
+  setCertificateId: (id: string | null) => void
+  saveDraft: () => Promise<{ success: boolean; error?: string }>
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9)
@@ -370,6 +373,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
   isSaving: false,
   validationErrors: {},
   isHydrated: false,
+  certificateId: null,
 
   hydrate: () => {
     const state = get()
@@ -658,10 +662,58 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     isDirty: false,
   })),
 
-  resetForm: () => set({ formData: initialFormData, isDirty: false, validationErrors: {} }),
+  resetForm: () => set({ formData: initialFormData, isDirty: false, validationErrors: {}, certificateId: null }),
 
   loadForm: (data) => set((state) => ({
     formData: { ...state.formData, ...data },
     isDirty: false,
   })),
+
+  setCertificateId: (id) => set({ certificateId: id }),
+
+  saveDraft: async () => {
+    const state = get()
+    const { formData, certificateId } = state
+
+    set({ isSaving: true })
+
+    try {
+      const url = certificateId
+        ? `/api/certificates/${certificateId}`
+        : '/api/certificates'
+
+      const method = certificateId ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        set({ isSaving: false })
+        return { success: false, error: data.error || 'Failed to save' }
+      }
+
+      const data = await response.json()
+
+      // If this was a new certificate, save the ID
+      if (!certificateId && data.certificate?.id) {
+        set({ certificateId: data.certificate.id })
+      }
+
+      set({
+        isSaving: false,
+        isDirty: false,
+        formData: { ...state.formData, lastSaved: new Date() },
+      })
+
+      return { success: true }
+    } catch (error) {
+      console.error('Error saving draft:', error)
+      set({ isSaving: false })
+      return { success: false, error: 'Network error' }
+    }
+  },
 }))

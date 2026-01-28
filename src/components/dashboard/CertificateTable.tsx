@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Eye, Edit, FileText, Search } from 'lucide-react'
+import { Eye, Edit, FileText, Search, Filter, X } from 'lucide-react'
 
 export interface CertificateListItem {
   id: string
@@ -23,6 +23,7 @@ export interface CertificateListItem {
   dateOfCalibration: string
   currentVersion: number
   createdAt: string
+  createdBy?: string // Engineer name (for HoD view)
 }
 
 interface CertificateTableProps {
@@ -48,6 +49,11 @@ export function CertificateTable({
 }: CertificateTableProps) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [showDateFilter, setShowDateFilter] = useState(false)
+
+  const hasDateFilter = dateFrom || dateTo
 
   const filteredCertificates = certificates.filter((cert) => {
     const matchesStatus =
@@ -56,8 +62,29 @@ export function CertificateTable({
       searchQuery === '' ||
       cert.certificateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       cert.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cert.uucDescription.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesStatus && matchesSearch
+      cert.uucDescription.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (cert.createdBy && cert.createdBy.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    // Date filter
+    let matchesDate = true
+    if (dateFrom || dateTo) {
+      const certDate = cert.dateOfCalibration ? new Date(cert.dateOfCalibration) : null
+      if (certDate) {
+        if (dateFrom) {
+          const fromDate = new Date(dateFrom)
+          matchesDate = matchesDate && certDate >= fromDate
+        }
+        if (dateTo) {
+          const toDate = new Date(dateTo)
+          toDate.setHours(23, 59, 59, 999) // Include the entire day
+          matchesDate = matchesDate && certDate <= toDate
+        }
+      } else {
+        matchesDate = false // No date, exclude if filtering by date
+      }
+    }
+
+    return matchesStatus && matchesSearch && matchesDate
   })
 
   const formatDate = (dateStr: string) => {
@@ -69,21 +96,27 @@ export function CertificateTable({
     })
   }
 
+  const clearDateFilters = () => {
+    setDateFrom('')
+    setDateTo('')
+    setShowDateFilter(false)
+  }
+
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Search by certificate no., customer, or instrument..."
+            placeholder={userRole === 'HOD' ? "Search by certificate no., customer, instrument, or engineer..." : "Search by certificate no., customer, or instrument..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[200px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
@@ -94,7 +127,54 @@ export function CertificateTable({
             ))}
           </SelectContent>
         </Select>
+
+        {/* Date Filter Toggle Button */}
+        <Button
+          variant={hasDateFilter ? "default" : "outline"}
+          size="default"
+          onClick={() => setShowDateFilter(!showDateFilter)}
+          className={hasDateFilter ? "bg-blue-600 hover:bg-blue-700" : ""}
+        >
+          <Filter className="h-4 w-4 mr-2" />
+          Date Filter
+          {hasDateFilter && (
+            <span className="ml-2 bg-white/20 text-xs px-1.5 py-0.5 rounded">1</span>
+          )}
+        </Button>
       </div>
+
+      {/* Collapsible Date Filter Panel */}
+      {showDateFilter && (
+        <div className="bg-gray-50 border rounded-lg p-4 flex flex-wrap items-center gap-4">
+          <span className="text-sm font-medium text-gray-700">Calibration Date:</span>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="w-[160px] bg-white"
+            />
+            <span className="text-gray-500">to</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="w-[160px] bg-white"
+            />
+          </div>
+          {hasDateFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearDateFilters}
+              className="text-gray-500 hover:text-red-600"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white rounded-lg border overflow-hidden">
@@ -111,6 +191,11 @@ export function CertificateTable({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Instrument
                 </th>
+                {userRole === 'HOD' && (
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Engineer
+                  </th>
+                )}
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cal. Date
                 </th>
@@ -118,7 +203,7 @@ export function CertificateTable({
                   Status
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Version
+                  Revision
                 </th>
                 {showActions && (
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -131,7 +216,7 @@ export function CertificateTable({
               {filteredCertificates.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={showActions ? 7 : 6}
+                    colSpan={showActions ? (userRole === 'HOD' ? 8 : 7) : (userRole === 'HOD' ? 7 : 6)}
                     className="px-4 py-8 text-center text-gray-500"
                   >
                     No certificates found
@@ -153,9 +238,14 @@ export function CertificateTable({
                         {cert.uucDescription}
                       </span>
                     </td>
+                    {userRole === 'HOD' && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-gray-700">{cert.createdBy || '-'}</span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="text-gray-600">
-                        {formatDate(cert.dateOfCalibration)}
+                        {cert.dateOfCalibration ? formatDate(cert.dateOfCalibration) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">

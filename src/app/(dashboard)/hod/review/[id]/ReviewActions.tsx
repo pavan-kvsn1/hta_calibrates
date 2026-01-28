@@ -9,13 +9,11 @@ import { CheckCircle, XCircle, MessageSquare } from 'lucide-react'
 interface ReviewActionsProps {
   certificateId: string
   currentStatus: string
-  versionId: string
 }
 
 export function ReviewActions({
   certificateId,
   currentStatus,
-  versionId,
 }: ReviewActionsProps) {
   const router = useRouter()
   const [comment, setComment] = useState('')
@@ -40,7 +38,6 @@ export function ReviewActions({
         body: JSON.stringify({
           action,
           comment: comment.trim() || undefined,
-          versionId,
         }),
       })
 

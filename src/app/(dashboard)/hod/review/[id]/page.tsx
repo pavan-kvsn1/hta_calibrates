@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { DashboardHeader } from '@/components/dashboard/DashboardHeader'
+import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import { ReviewActions } from './ReviewActions'
 import { ArrowLeft } from 'lucide-react'
@@ -18,27 +18,22 @@ async function getCertificateDetails(id: string) {
       createdBy: {
         select: { name: true, email: true },
       },
-      versions: {
-        orderBy: { versionNumber: 'desc' },
-        take: 1,
+      parameters: {
         include: {
-          parameters: {
-            include: {
-              results: true,
-            },
-          },
-          masterInstruments: {
-            include: {
-              masterInstrument: true,
-            },
-          },
-          reviewComments: {
-            orderBy: { createdAt: 'desc' },
-            include: {
-              authorUser: {
-                select: { name: true },
-              },
-            },
+          results: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+      masterInstruments: {
+        include: {
+          masterInstrument: true,
+        },
+      },
+      feedbacks: {
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: { name: true },
           },
         },
       },
@@ -66,8 +61,6 @@ export default async function HoDReviewPage({ params }: Props) {
     notFound()
   }
 
-  const latestVersion = certificate.versions[0]
-
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -78,7 +71,7 @@ export default async function HoDReviewPage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader title="Review Certificate" />
+      <Header title="Review Certificate" showAutoSave={false} />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Link */}
@@ -100,7 +93,7 @@ export default async function HoDReviewPage({ params }: Props) {
                   <h1 className="text-2xl font-bold text-gray-900">
                     {certificate.certificateNumber}
                   </h1>
-                  <p className="text-gray-500">Version {certificate.currentVersion}</p>
+                  <p className="text-gray-500">Revision {certificate.currentRevision}</p>
                 </div>
                 <StatusBadge status={certificate.status} />
               </div>
@@ -112,21 +105,21 @@ export default async function HoDReviewPage({ params }: Props) {
                 </div>
                 <div>
                   <p className="text-gray-500">Customer</p>
-                  <p className="font-medium">{latestVersion?.customerName || '-'}</p>
+                  <p className="font-medium">{certificate.customerName || '-'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">Date of Calibration</p>
                   <p className="font-medium">
-                    {latestVersion?.dateOfCalibration
-                      ? formatDate(latestVersion.dateOfCalibration)
+                    {certificate.dateOfCalibration
+                      ? formatDate(certificate.dateOfCalibration)
                       : '-'}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-500">Calibration Due</p>
                   <p className="font-medium">
-                    {latestVersion?.calibrationDueDate
-                      ? formatDate(latestVersion.calibrationDueDate)
+                    {certificate.calibrationDueDate
+                      ? formatDate(certificate.calibrationDueDate)
                       : '-'}
                   </p>
                 </div>
@@ -141,30 +134,30 @@ export default async function HoDReviewPage({ params }: Props) {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500">Description</p>
-                  <p className="font-medium">{latestVersion?.uucDescription || '-'}</p>
+                  <p className="font-medium">{certificate.uucDescription || '-'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">Make</p>
-                  <p className="font-medium">{latestVersion?.uucMake || '-'}</p>
+                  <p className="font-medium">{certificate.uucMake || '-'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">Model</p>
-                  <p className="font-medium">{latestVersion?.uucModel || '-'}</p>
+                  <p className="font-medium">{certificate.uucModel || '-'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500">Serial Number</p>
-                  <p className="font-medium">{latestVersion?.uucSerialNumber || '-'}</p>
+                  <p className="font-medium">{certificate.uucSerialNumber || '-'}</p>
                 </div>
               </div>
             </div>
 
             {/* Calibration Results */}
-            {latestVersion?.parameters && latestVersion.parameters.length > 0 && (
+            {certificate.parameters && certificate.parameters.length > 0 && (
               <div className="bg-white rounded-lg border p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                   Calibration Results
                 </h2>
-                {latestVersion.parameters.map((param) => (
+                {certificate.parameters.map((param) => (
                   <div key={param.id} className="mb-6 last:mb-0">
                     <h3 className="font-medium text-gray-800 mb-2">
                       {param.parameterName} ({param.parameterUnit})
@@ -204,27 +197,29 @@ export default async function HoDReviewPage({ params }: Props) {
               </div>
             )}
 
-            {/* Previous Comments */}
-            {latestVersion?.reviewComments && latestVersion.reviewComments.length > 0 && (
+            {/* Review Feedback */}
+            {certificate.feedbacks && certificate.feedbacks.length > 0 && (
               <div className="bg-white rounded-lg border p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                  Review Comments
+                  Review Feedback
                 </h2>
                 <div className="space-y-4">
-                  {latestVersion.reviewComments.map((comment) => (
-                    <div key={comment.id} className="border-l-4 border-gray-200 pl-4">
+                  {certificate.feedbacks.map((feedback) => (
+                    <div key={feedback.id} className="border-l-4 border-gray-200 pl-4">
                       <div className="flex justify-between text-sm">
                         <span className="font-medium">
-                          {comment.authorUser?.name || 'System'}
+                          {feedback.user?.name || 'System'}
                         </span>
                         <span className="text-gray-500">
-                          {formatDate(comment.createdAt)}
+                          {formatDate(feedback.createdAt)}
                         </span>
                       </div>
-                      <p className="text-gray-700 mt-1">{comment.commentText}</p>
-                      <span className="text-xs text-gray-500">
-                        Section: {comment.sectionReference}
-                      </span>
+                      <p className="text-gray-700 mt-1">{feedback.comment}</p>
+                      {feedback.targetSection && (
+                        <span className="text-xs text-gray-500">
+                          Section: {feedback.targetSection}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -237,7 +232,6 @@ export default async function HoDReviewPage({ params }: Props) {
             <ReviewActions
               certificateId={certificate.id}
               currentStatus={certificate.status}
-              versionId={latestVersion?.id || ''}
             />
           </div>
         </div>

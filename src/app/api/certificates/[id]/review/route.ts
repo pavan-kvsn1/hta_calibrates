@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
     const body = await request.json()
-    const { action, comment, versionId } = body
+    const { action, comment } = body
 
     if (!action || !['approve', 'reject', 'revision'].includes(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -59,26 +59,78 @@ export async function POST(request: NextRequest, context: RouteContext) {
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
 
-    // Update certificate and add comment if provided
+    // Update certificate and add feedback/events
     await prisma.$transaction(async (tx) => {
-      // Update certificate status
-      await tx.certificate.update({
-        where: { id },
-        data: { status: newStatus },
+      // Get next event sequence number
+      const lastEvent = await tx.certificateEvent.findFirst({
+        where: { certificateId: id },
+        orderBy: { sequenceNumber: 'desc' },
+      })
+      const nextSequence = (lastEvent?.sequenceNumber ?? 0) + 1
+
+      // Determine event type based on action
+      let eventType: string
+      let feedbackType: string
+      switch (action) {
+        case 'approve':
+          eventType = 'APPROVED'
+          feedbackType = 'APPROVAL_NOTE'
+          break
+        case 'reject':
+          eventType = 'REJECTED'
+          feedbackType = 'REJECTION_REASON'
+          break
+        case 'revision':
+          eventType = 'REVISION_REQUESTED'
+          feedbackType = 'REVISION_REQUEST'
+          break
+        default:
+          throw new Error('Invalid action')
+      }
+
+      // Create event
+      await tx.certificateEvent.create({
+        data: {
+          certificateId: id,
+          sequenceNumber: nextSequence,
+          revision: certificate.currentRevision,
+          eventType,
+          eventData: JSON.stringify({
+            revisionNumber: certificate.currentRevision,
+            notes: comment || null,
+          }),
+          userId: session.user.id,
+          userRole: session.user.role,
+        },
       })
 
-      // Add review comment if provided
-      if (comment && versionId) {
-        await tx.reviewComment.create({
+      // Add review feedback if comment provided
+      if (comment) {
+        await tx.reviewFeedback.create({
           data: {
-            versionId,
-            authorUserId: session.user.id,
-            sectionReference: 'HoD Review',
-            commentText: comment,
-            status: 'OPEN',
+            certificateId: id,
+            revisionNumber: certificate.currentRevision,
+            feedbackType,
+            comment,
+            userId: session.user.id,
           },
         })
       }
+
+      // Update certificate status (and increment revision if requesting changes)
+      const updateData: Record<string, unknown> = {
+        status: newStatus,
+        lastModifiedById: session.user.id,
+      }
+
+      if (action === 'revision') {
+        updateData.currentRevision = certificate.currentRevision + 1
+      }
+
+      await tx.certificate.update({
+        where: { id },
+        data: updateData,
+      })
 
       // Create audit log entry
       await tx.auditLog.create({
