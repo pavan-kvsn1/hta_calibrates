@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       statusNotes,
       selectedConclusionStatements,
       parameters,
+      masterInstruments,
     } = body
 
     // Create certificate with event sourcing
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
               requiresBinning: param.requiresBinning || false,
               bins: param.bins ? JSON.stringify(param.bins) : null,
               sopReference: param.sopReference || null,
+              masterInstrumentId: param.masterInstrumentId ? String(param.masterInstrumentId) : null,
               sortOrder: i,
             },
           })
@@ -150,6 +152,31 @@ export async function POST(request: NextRequest) {
                 errorObserved: result.errorObserved,
                 isOutOfLimit: result.isOutOfLimit || false,
               })),
+            })
+          }
+        }
+      }
+
+      // Create master instrument links with full details snapshot
+      if (masterInstruments && masterInstruments.length > 0) {
+        for (const mi of masterInstruments) {
+          // Only save if a master instrument was actually selected
+          if (mi.masterInstrumentId && mi.masterInstrumentId > 0) {
+            await tx.certificateMasterInstrument.create({
+              data: {
+                certificateId: cert.id,
+                masterInstrumentId: String(mi.masterInstrumentId),
+                category: mi.category || null,
+                description: mi.description || null,
+                make: mi.make || null,
+                model: mi.model || null,
+                assetNo: mi.assetNo || null,
+                serialNumber: mi.serialNumber || null,
+                calibratedAt: mi.calibratedAt || null,
+                reportNo: mi.reportNo || null,
+                calibrationDueDate: mi.calibrationDueDate || null,
+                sopReference: mi.sopReference || '',
+              },
             })
           }
         }

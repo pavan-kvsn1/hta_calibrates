@@ -44,18 +44,16 @@ interface ApiMasterInstrument {
   id: string
   masterInstrumentId: string
   sopReference: string
-  masterInstrument: {
-    id: string
-    category: string
-    description: string
-    make: string
-    model: string
-    assetNo: string
-    serialNumber: string
-    calibratedAt: string | null
-    reportNo: string | null
-    calibrationDueDate: string | null
-  }
+  // Details are now stored directly (not nested under masterInstrument)
+  category: string | null
+  description: string | null
+  make: string | null
+  model: string | null
+  assetNo: string | null
+  serialNumber: string | null
+  calibratedAt: string | null
+  reportNo: string | null
+  calibrationDueDate: string | null
 }
 
 interface ApiCertificate {
@@ -110,6 +108,7 @@ interface ApiParameter {
   requiresBinning: boolean
   bins: string | null // JSON string
   sopReference: string | null
+  masterInstrumentId: string | null // Assigned master instrument ID
   results: ApiResult[]
 }
 
@@ -157,7 +156,7 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     bins: parseBins(param.bins),
     errorFormula: param.errorFormula || 'A-B',
     showAfterAdjustment: param.showAfterAdjustment || false,
-    masterInstrumentId: null,
+    masterInstrumentId: param.masterInstrumentId ? parseInt(param.masterInstrumentId) : null,
     sopReference: param.sopReference || '',
     results: param.results.map((result): CalibrationResult => ({
       id: generateId(),
@@ -221,26 +220,25 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     selectedConclusionStatements = []
   }
 
-  // Transform master instruments
+  // Transform master instruments (details are now stored directly, not nested)
   const masterInstruments = apiData.masterInstruments && apiData.masterInstruments.length > 0
     ? apiData.masterInstruments.map((mi) => {
-        const inst = mi.masterInstrument
-        const dueDate = inst.calibrationDueDate ? new Date(inst.calibrationDueDate) : null
+        const dueDate = mi.calibrationDueDate ? new Date(mi.calibrationDueDate) : null
         const now = new Date()
         const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
 
         return {
           id: generateId(),
           masterInstrumentId: parseInt(mi.masterInstrumentId) || 0,
-          category: inst.category || '',
-          description: inst.description || '',
-          make: inst.make || '',
-          model: inst.model || '',
-          assetNo: inst.assetNo || '',
-          serialNumber: inst.serialNumber || '',
-          calibratedAt: inst.calibratedAt ? inst.calibratedAt.split('T')[0] : '',
-          reportNo: inst.reportNo || '',
-          calibrationDueDate: inst.calibrationDueDate ? inst.calibrationDueDate.split('T')[0] : '',
+          category: mi.category || '',
+          description: mi.description || '',
+          make: mi.make || '',
+          model: mi.model || '',
+          assetNo: mi.assetNo || '',
+          serialNumber: mi.serialNumber || '',
+          calibratedAt: mi.calibratedAt || '',
+          reportNo: mi.reportNo || '',
+          calibrationDueDate: mi.calibrationDueDate || '',
           isExpired: dueDate ? dueDate < now : false,
           isExpiringSoon: dueDate ? (dueDate >= now && dueDate <= thirtyDaysFromNow) : false,
         }
@@ -554,11 +552,17 @@ export default function EditCertificatePage() {
               <Save className="size-4" />
               {isSaving ? 'Saving...' : 'Save Draft'}
             </button>
-            <button className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2">
+            <button
+              onClick={() => scrollToSection('submit')}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2"
+            >
               <Eye className="size-4" />
               Preview PDF
             </button>
-            <button className="px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-all shadow-md flex items-center gap-2">
+            <button
+              onClick={() => scrollToSection('submit')}
+              className="px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-all shadow-md flex items-center gap-2"
+            >
               <Send className="size-4" />
               Submit for Review
             </button>

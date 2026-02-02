@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle, AlertCircle, Save, Send, Eye, EyeOff } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { CheckCircle, AlertCircle, Save, Send, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FormSection } from './FormSection'
 import { useCertificateStore } from '@/lib/certificate-store'
@@ -16,8 +17,11 @@ interface ValidationItem {
 }
 
 export function FinalizeSection() {
-  const { formData, isSaving } = useCertificateStore()
+  const router = useRouter()
+  const { formData, isSaving, certificateId, saveDraft } = useCertificateStore()
   const [showPDFPreview, setShowPDFPreview] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Validation checks
   const validationItems: ValidationItem[] = [
@@ -76,18 +80,59 @@ export function FinalizeSection() {
     .filter((item) => !item.isOptional)
     .every((item) => item.isValid)
 
-  const handleSaveDraft = () => {
-    // In production, this would save to API
-    console.log('Saving draft...', formData)
+  const handleSaveDraft = async () => {
+    const result = await saveDraft()
+    if (!result.success) {
+      alert(`Failed to save draft: ${result.error}`)
+    }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!requiredItemsValid) {
       alert('Please complete all required fields before submitting.')
       return
     }
-    // In production, this would submit for review
-    console.log('Submitting for review...', formData)
+
+    setIsSubmitting(true)
+    setSubmitError(null)
+
+    try {
+      // First, save the current draft to ensure all data is persisted
+      const saveResult = await saveDraft()
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Failed to save draft before submitting')
+      }
+
+      // Get the certificate ID (either from store or from save result)
+      const certId = certificateId
+      if (!certId) {
+        throw new Error('Certificate ID not found. Please save the certificate first.')
+      }
+
+      // Submit for review
+      const response = await fetch(`/api/certificates/${certId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (data.validationErrors) {
+          throw new Error(`Validation failed:\n${data.validationErrors.join('\n')}`)
+        }
+        throw new Error(data.error || 'Failed to submit certificate')
+      }
+
+      // Success - redirect to dashboard
+      alert('Certificate submitted successfully for HoD review!')
+      router.push('/dashboard')
+    } catch (error) {
+      console.error('Submit error:', error)
+      setSubmitError(error instanceof Error ? error.message : 'An error occurred')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handlePreviewPDF = () => {
@@ -149,12 +194,20 @@ export function FinalizeSection() {
         {/* PDF Preview Section */}
         <PDFPreviewSection showPreview={showPDFPreview} />
 
+        {/* Error Display */}
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <p className="text-red-700 text-sm font-medium whitespace-pre-line">{submitError}</p>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4">
           <Button
             type="button"
             variant="outline"
             onClick={handlePreviewPDF}
+            disabled={isSubmitting}
             className={cn(
               "flex-1 py-6 px-6 rounded-2xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2",
               showPDFPreview && "border-primary bg-primary/5 text-primary"
@@ -168,21 +221,21 @@ export function FinalizeSection() {
             type="button"
             variant="outline"
             onClick={handleSaveDraft}
-            disabled={isSaving}
+            disabled={isSaving || isSubmitting}
             className="flex-1 py-6 px-6 rounded-2xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
           >
-            <Save className="size-5" />
+            {isSaving ? <Loader2 className="size-5 animate-spin" /> : <Save className="size-5" />}
             {isSaving ? 'Saving...' : 'Save Draft'}
           </Button>
 
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={!requiredItemsValid || isSaving}
+            disabled={!requiredItemsValid || isSaving || isSubmitting}
             className="flex-[2] py-6 px-6 rounded-2xl bg-primary text-white font-bold shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send className="size-5" />
-            Submit for Internal Approval
+            {isSubmitting ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
+            {isSubmitting ? 'Submitting...' : 'Submit for Internal Approval'}
           </Button>
         </div>
 

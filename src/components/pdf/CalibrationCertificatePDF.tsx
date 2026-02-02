@@ -321,23 +321,23 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   masterBlock: {
-    marginBottom: 8,
+    marginBottom: 6,
   },
   masterLine: {
     flexDirection: 'row',
     marginBottom: 2,
   },
   masterLabel: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontFamily: 'Helvetica-Bold',
     width: 115,
   },
   masterColon: {
-    fontSize: 9,
+    fontSize: 8.5,
     width: 15,
   },
   masterValue: {
-    fontSize: 9,
+    fontSize: 8.5,
     flex: 1,
   },
   masterDualLine: {
@@ -353,16 +353,16 @@ const styles = StyleSheet.create({
     width: '50%',
   },
   masterDualLabel: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontFamily: 'Helvetica-Bold',
     width: 115,
   },
   masterDualColon: {
-    fontSize: 9,
+    fontSize: 8.5,
     width: 15,
   },
   masterDualValue: {
-    fontSize: 9,
+    fontSize: 8.5,
     flex: 1,
   },
 
@@ -561,7 +561,7 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* ================================================================ */}
         {/* SECTION C: CUSTOMER INFO TABLE (4-column paired) */}
         {/* ================================================================ */}
-        <View style={styles.customerTable}>
+        <View style={styles.customerTable} wrap={false}>
           {/* Row 1: Customer Name & Address / Date of Calibration */}
           <View style={styles.customerRow}>
             <View style={styles.customerLabelCell}>
@@ -600,7 +600,7 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* ================================================================ */}
         {/* SECTION D: UUC DETAILS TABLE (4-column paired) */}
         {/* ================================================================ */}
-        <View style={styles.uucTable}>
+        <View style={styles.uucTable} wrap={false}>
           {/* Row 1: UUC / Make */}
           <View style={styles.uucRow}>
             <View style={styles.uucLabelCell}>
@@ -685,7 +685,7 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* ================================================================ */}
         {/* SECTION E: ENVIRONMENTAL CONDITION */}
         {/* ================================================================ */}
-        <View style={styles.infoLine}>
+        <View style={styles.infoLine} wrap={false}>
           <Text style={styles.infoLabel}>Environmental Condition :</Text>
           <Text style={styles.infoValue}>
             {data.ambientTemperature ? `${data.ambientTemperature} °C` : '-'}
@@ -696,7 +696,7 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* ================================================================ */}
         {/* SECTION F: CALIBRATION PROCEDURE REFERENCE */}
         {/* ================================================================ */}
-        <View style={styles.infoLine}>
+        <View style={styles.infoLine} wrap={false}>
           <Text style={styles.infoLabel}>Calibration procedure reference :</Text>
           <Text style={styles.infoValue}>
             {sopReferences.length > 0
@@ -847,7 +847,7 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* ================================================================ */}
         {/* SECTION H: MASTER INSTRUMENTS USED DETAILS */}
         {/* ================================================================ */}
-        <View style={styles.masterSection}>
+        <View style={styles.masterSection} wrap={false}>
           <Text style={styles.masterHeader}>MASTER INSTRUMENTS USED DETAILS:-</Text>
 
           {data.masterInstruments
@@ -910,7 +910,7 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* SECTION I: CONCLUSION */}
         {/* ================================================================ */}
         {data.selectedConclusionStatements.length > 0 && (
-          <View style={styles.conclusionSection}>
+          <View style={styles.conclusionSection} wrap={false}>
             <View style={styles.conclusionHeader}>
               <Text style={styles.conclusionLabel}>Conclusion</Text>
               <View style={styles.conclusionStatements}>
@@ -927,14 +927,14 @@ export function CalibrationCertificatePDF({ data }: CalibrationCertificatePDFPro
         {/* ================================================================ */}
         {/* SECTION J: VALIDITY STATEMENT */}
         {/* ================================================================ */}
-        <View style={styles.validitySection}>
+        <View style={styles.validitySection} wrap={false}>
           <Text style={styles.validityText}>{VALIDITY_STATEMENT}</Text>
         </View>
 
         {/* ================================================================ */}
         {/* SECTION K: SIGNATURE BLOCK (3-column) */}
         {/* ================================================================ */}
-        <View style={styles.signatureSection}>
+        <View style={styles.signatureSection} wrap={false}>
           <View style={styles.signatureRow}>
             {/* Column 1: Calibrated By / Report Prepared By */}
             <View style={styles.signatureColumn}>

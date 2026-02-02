@@ -28,11 +28,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           },
           orderBy: { sortOrder: 'asc' },
         },
-        masterInstruments: {
-          include: {
-            masterInstrument: true,
-          },
-        },
+        masterInstruments: true, // Details are now stored directly, no FK relation needed
         createdBy: {
           select: { id: true, name: true, email: true },
         },
@@ -124,6 +120,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       statusNotes,
       selectedConclusionStatements,
       parameters,
+      masterInstruments,
     } = body
 
     // Update certificate with event
@@ -178,6 +175,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         where: { certificateId: id },
       })
 
+      // Delete existing master instrument links (will recreate)
+      await tx.certificateMasterInstrument.deleteMany({
+        where: { certificateId: id },
+      })
+
       // Create new parameters and results
       if (parameters && parameters.length > 0) {
         for (let i = 0; i < parameters.length; i++) {
@@ -203,6 +205,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
               requiresBinning: param.requiresBinning || false,
               bins: param.bins ? JSON.stringify(param.bins) : null,
               sopReference: param.sopReference || null,
+              masterInstrumentId: param.masterInstrumentId ? String(param.masterInstrumentId) : null,
               sortOrder: i,
             },
           })
@@ -226,6 +229,31 @@ export async function PUT(request: NextRequest, context: RouteContext) {
                 errorObserved: result.errorObserved,
                 isOutOfLimit: result.isOutOfLimit || false,
               })),
+            })
+          }
+        }
+      }
+
+      // Create master instrument links with full details snapshot
+      if (masterInstruments && masterInstruments.length > 0) {
+        for (const mi of masterInstruments) {
+          // Only save if a master instrument was actually selected
+          if (mi.masterInstrumentId && mi.masterInstrumentId > 0) {
+            await tx.certificateMasterInstrument.create({
+              data: {
+                certificateId: cert.id,
+                masterInstrumentId: String(mi.masterInstrumentId),
+                category: mi.category || null,
+                description: mi.description || null,
+                make: mi.make || null,
+                model: mi.model || null,
+                assetNo: mi.assetNo || null,
+                serialNumber: mi.serialNumber || null,
+                calibratedAt: mi.calibratedAt || null,
+                reportNo: mi.reportNo || null,
+                calibrationDueDate: mi.calibrationDueDate || null,
+                sopReference: mi.sopReference || '',
+              },
             })
           }
         }

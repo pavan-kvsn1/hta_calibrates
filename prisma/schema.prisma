@@ -72,7 +72,8 @@ model MasterInstrument {
   remarks              String?
   isActive             Boolean  @default(true)
 
-  certificateLinks CertificateMasterInstrument[]
+  // Note: CertificateMasterInstrument does NOT have a FK to this table
+  // Master instruments are loaded from JSON file, this table is for future database-backed instruments
 
   @@index([category])
   @@index([description])
@@ -273,8 +274,9 @@ model Parameter {
   requiresBinning Boolean @default(false)
   bins            String? // JSON array of bin objects
 
-  // SOP reference
-  sopReference    String?
+  // SOP reference and master instrument assignment
+  sopReference       String?
+  masterInstrumentId String?  // Reference to JSON master instrument ID (for parameter assignment)
 
   sortOrder Int @default(0)
 
@@ -304,20 +306,33 @@ model CalibrationResult {
 }
 
 // ====================
-// MASTER INSTRUMENT LINKS
+// MASTER INSTRUMENT LINKS (stores snapshot of instrument details at time of certificate creation)
 // ====================
 
 model CertificateMasterInstrument {
   id                 String  @id @default(uuid())
   certificateId      String
   parameterId        String?
-  masterInstrumentId String
+
+  // Reference to JSON source (not a FK - instruments come from JSON file, not database)
+  masterInstrumentId String   // ID from master-instruments.json
+
+  // Snapshot of instrument details at time of certificate creation
+  category           String?  // Electro-Technical, Thermal, Mechanical, etc.
+  description        String?
+  make               String?
+  model              String?
+  assetNo            String?
+  serialNumber       String?
+  calibratedAt       String?  // Where it was calibrated
+  reportNo           String?  // Calibration report number
+  calibrationDueDate String?  // Due date at time of certificate
+
   sopReference       String
 
-  // Relations
+  // Relations (no FK to MasterInstrument - data comes from JSON)
   certificate      Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   parameter        Parameter?        @relation(fields: [parameterId], references: [id])
-  masterInstrument MasterInstrument  @relation(fields: [masterInstrumentId], references: [id])
 
   @@index([certificateId])
 }

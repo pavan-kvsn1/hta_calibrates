@@ -106,12 +106,6 @@ export default function Home() {
             >
               Customer Login
             </Link>
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors font-medium"
-            >
-              Dashboard
-            </Link>
           </div>
         </div>
       </main>

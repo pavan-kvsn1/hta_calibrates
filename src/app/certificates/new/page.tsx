@@ -201,11 +201,17 @@ export default function NewCertificatePage() {
               <Save className="size-4" />
               {isSaving ? 'Saving...' : 'Save Draft'}
             </button>
-            <button className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2">
+            <button
+              onClick={() => scrollToSection('submit')}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition-all flex items-center gap-2"
+            >
               <Eye className="size-4" />
               Preview PDF
             </button>
-            <button className="px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-all shadow-md flex items-center gap-2">
+            <button
+              onClick={() => scrollToSection('submit')}
+              className="px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-sm hover:bg-primary/90 transition-all shadow-md flex items-center gap-2"
+            >
               <Send className="size-4" />
               Submit for Review
             </button>

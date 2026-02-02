@@ -19,7 +19,6 @@ const CALIBRATION_STATUS_OPTIONS = [
 const STICKER_OPTIONS = [
   { value: 'yes', label: 'Yes', colorClass: 'sticker-label-yes' },
   { value: 'no', label: 'No', colorClass: 'sticker-label-no' },
-  { value: 'na', label: 'N/A', colorClass: 'sticker-label-na' },
 ] as const
 
 export function RemarksSection() {

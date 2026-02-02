@@ -92,6 +92,26 @@ function MasterInstrumentCard({
   const [selectedDescription, setSelectedDescription] = useState('')
   const [selectedMake, setSelectedMake] = useState('')
 
+  // Initialize local state from instrument prop (for loading saved drafts)
+  useEffect(() => {
+    if (instrument.masterInstrumentId && instrument.masterInstrumentId > 0 && isLoaded) {
+      // Find the original instrument in the master list to get the exact description
+      const originalInstrument = instruments.find(inst => inst.id === instrument.masterInstrumentId)
+
+      if (originalInstrument) {
+        // Use data from the master list for accurate dropdown matching
+        setSelectedCategory(originalInstrument.type)
+        setSelectedDescription(originalInstrument.instrument_desc)
+        setSelectedMake(getSimpleValue(originalInstrument.make))
+      } else if (instrument.category) {
+        // Fallback to saved data if instrument not found in master list
+        setSelectedCategory(instrument.category as InstrumentCategory)
+        setSelectedDescription(instrument.description || '')
+        setSelectedMake(instrument.make || '')
+      }
+    }
+  }, [instrument.masterInstrumentId, instrument.category, instrument.description, instrument.make, instruments, isLoaded])
+
   // Get unique categories
   const categories = useMemo(() => {
     const cats = new Set<InstrumentCategory>()
