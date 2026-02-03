@@ -101,6 +101,7 @@ export interface CertificateFormData {
   calibrationTenure: 3 | 6 | 9 | 12
   dueDateAdjustment: -3 | -2 | -1 | 0  // Adjustment in days (negative only)
   calibrationDueDate: string
+  dueDateNotApplicable: boolean  // If true, due date shows as "Not Applicable" on certificate
   customerName: string
   customerAddress: string
 
@@ -129,6 +130,9 @@ export interface CertificateFormData {
 
   // Section 7: Conclusion Statements
   selectedConclusionStatements: string[]
+
+  // Engineer notes (for responding to HoD feedback)
+  engineerNotes: string
 }
 
 interface CertificateStore {
@@ -163,6 +167,7 @@ interface CertificateStore {
   loadForm: (data: Partial<CertificateFormData>) => void
   setCertificateId: (id: string | null) => void
   saveDraft: () => Promise<{ success: boolean; error?: string }>
+  setEngineerNotes: (notes: string) => void
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9)
@@ -337,6 +342,7 @@ const initialFormData: CertificateFormData = {
   calibrationTenure: 12,
   dueDateAdjustment: 0,
   calibrationDueDate: '', // Generated on client side to avoid hydration mismatch
+  dueDateNotApplicable: false,
   customerName: '',
   customerAddress: '',
 
@@ -365,6 +371,9 @@ const initialFormData: CertificateFormData = {
 
   // Section 7: Conclusion Statements
   selectedConclusionStatements: [],
+
+  // Engineer notes (for responding to HoD feedback)
+  engineerNotes: '',
 }
 
 export const useCertificateStore = create<CertificateStore>((set, get) => ({
@@ -716,4 +725,9 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
       return { success: false, error: 'Network error' }
     }
   },
+
+  setEngineerNotes: (notes) => set((state) => ({
+    formData: { ...state.formData, engineerNotes: notes },
+    isDirty: true,
+  })),
 }))

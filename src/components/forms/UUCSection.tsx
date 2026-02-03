@@ -457,7 +457,7 @@ function ParameterCard({
             {/* Least Count */}
             <div className="space-y-2">
               <Label className="text-[10px] font-bold text-slate-400 uppercase">
-                Least Count {displayUnit && <span className="text-slate-500">({displayUnit})</span>}
+                Decimal Points {displayUnit && <span className="text-slate-500">({displayUnit})</span>}
               </Label>
               <Input
                 type="text"
@@ -534,7 +534,7 @@ function ParameterCard({
                 <div>From {displayUnit && `(${displayUnit})`}</div>
                 <div>To {displayUnit && `(${displayUnit})`}</div>
                 <div>Accuracy {parameter.accuracyType === 'ABSOLUTE' && displayUnit ? `(± ${displayUnit})` : '(%)'}</div>
-                <div>Least Count {displayUnit && `(${displayUnit})`}</div>
+                <div>Decimal Points {displayUnit && `(${displayUnit})`}</div>
               </div>
               {/* Table rows */}
               {(parameter.bins || []).map((bin, binIndex) => (
@@ -631,7 +631,7 @@ export function UUCSection() {
           </div>
           <div>
             <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              Serial Number <span className="text-red-500">*</span>
+              Serial Number <span className="text-red-500">*</span> <span className="normal-case font-normal text-slate-400">(If not found, enter "Not Available")</span>
             </Label>
             <Input
               type="text"
@@ -643,7 +643,7 @@ export function UUCSection() {
           </div>
           <div>
             <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-              Instrument ID
+              Instrument ID <span className="text-red-500">*</span> <span className="normal-case font-normal text-slate-400">(If not found, enter "Not Available")</span>
             </Label>
             <Input
               type="text"

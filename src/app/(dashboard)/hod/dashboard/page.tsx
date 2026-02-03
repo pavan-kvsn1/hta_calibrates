@@ -88,11 +88,6 @@ export default async function HoDDashboard() {
     getStats(session.user.id),
   ])
 
-  // Filter to show only pending review by default
-  const pendingCertificates = certificates.filter(
-    (cert) => cert.status === 'PENDING_HOD_REVIEW'
-  )
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Header title="HoD Dashboard" showAutoSave={false} />
@@ -147,17 +142,6 @@ export default async function HoDDashboard() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Pending Review Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Pending Review ({pendingCertificates.length})
-          </h2>
-          <CertificateTable
-            certificates={pendingCertificates}
-            userRole="HOD"
-          />
         </div>
 
         {/* All Certificates Section */}

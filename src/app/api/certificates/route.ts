@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
       calibrationTenure,
       dueDateAdjustment,
       calibrationDueDate,
+      dueDateNotApplicable,
       customerName,
       customerAddress,
       uucDescription,
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
           calibrationTenure: calibrationTenure || 12,
           dueDateAdjustment: dueDateAdjustment || 0,
           calibrationDueDate: calibrationDueDate ? new Date(calibrationDueDate) : null,
+          dueDateNotApplicable: dueDateNotApplicable || false,
           customerName,
           customerAddress,
           uucDescription,
@@ -126,7 +128,7 @@ export async function POST(request: NextRequest) {
               errorFormula: param.errorFormula || 'A-B',
               showAfterAdjustment: param.showAfterAdjustment || false,
               requiresBinning: param.requiresBinning || false,
-              bins: param.bins ? JSON.stringify(param.bins) : null,
+              bins: param.bins && Array.isArray(param.bins) && param.bins.length > 0 ? JSON.stringify(param.bins) : null,
               sopReference: param.sopReference || null,
               masterInstrumentId: param.masterInstrumentId ? String(param.masterInstrumentId) : null,
               sortOrder: i,
@@ -226,8 +228,10 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('Error creating certificate:', error)
+    // Return more specific error message for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Failed to create certificate: ${errorMessage}` },
       { status: 500 }
     )
   }

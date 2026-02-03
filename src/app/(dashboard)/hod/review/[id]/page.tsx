@@ -3,8 +3,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
-import { ReviewActions } from './ReviewActions'
-import { ReviewContent } from './ReviewContent'
+import { ReviewPageWrapper } from './ReviewPageWrapper'
+import { ReviewPageClient } from './ReviewPageClient'
 import { ArrowLeft, Shield, FileText } from 'lucide-react'
 import Link from 'next/link'
 import { CONCLUSION_STATEMENTS } from '@/components/pdf/pdf-utils'
@@ -32,7 +32,19 @@ async function getCertificateDetails(id: string) {
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
-            select: { name: true },
+            select: { name: true, role: true },
+          },
+          event: {
+            select: { id: true, createdAt: true },
+          },
+        },
+      },
+      events: {
+        where: { eventType: 'HOD_DATE_OVERRIDE' },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: { name: true, role: true },
           },
         },
       },
@@ -40,6 +52,134 @@ async function getCertificateDetails(id: string) {
   })
 
   return certificate
+}
+
+// Individual edit type
+interface HoDEdit {
+  field: string
+  fieldLabel: string
+  previousValue: string | null
+  newValue: string
+  reason: string
+  autoCalculated: boolean
+}
+
+// Helper to merge date adjustments with feedbacks
+function mergeDateAdjustmentsWithFeedbacks(
+  feedbacks: Array<{
+    id: string
+    feedbackType: string
+    comment: string | null
+    createdAt: Date
+    revisionNumber: number
+    user: { name: string; role: string }
+    event?: { id: string; createdAt: Date } | null
+  }>,
+  dateEvents: Array<{
+    id: string
+    eventData: string
+    createdAt: Date
+    revision: number
+    user: { name: string; role: string }
+  }>
+) {
+  // Create a map of event times to date adjustments with individual edits
+  const dateAdjustmentMap = new Map<string, {
+    edits: HoDEdit[]
+  }>()
+
+  dateEvents.forEach((event) => {
+    try {
+      const data = JSON.parse(event.eventData)
+      const eventTime = new Date(event.createdAt).getTime()
+
+      // Extract edits array (new format) or construct from legacy format
+      let edits: HoDEdit[] = []
+
+      if (data.edits && Array.isArray(data.edits)) {
+        // New format with individual edits
+        edits = data.edits.map((edit: {
+          field: string
+          fieldLabel: string
+          previousValue: string | null
+          newValue: string
+          reason: string
+          autoCalculated?: boolean
+        }) => ({
+          field: edit.field,
+          fieldLabel: edit.fieldLabel,
+          previousValue: edit.previousValue,
+          newValue: edit.newValue,
+          reason: edit.reason,
+          autoCalculated: edit.autoCalculated || false,
+        }))
+      } else {
+        // Legacy format - construct edits from flat fields
+        if (data.newDateOfCalibration) {
+          edits.push({
+            field: 'dateOfCalibration',
+            fieldLabel: 'Date of Calibration',
+            previousValue: data.previousDateOfCalibration,
+            newValue: data.newDateOfCalibration,
+            reason: data.reason || '',
+            autoCalculated: false,
+          })
+        }
+        if (data.newDueDate) {
+          edits.push({
+            field: 'calibrationDueDate',
+            fieldLabel: 'Calibration Due Date',
+            previousValue: data.previousDueDate,
+            newValue: data.newDueDate,
+            reason: data.newDateOfCalibration ? 'Auto-adjusted based on Date of Calibration change' : data.reason || '',
+            autoCalculated: !!data.newDateOfCalibration,
+          })
+        }
+      }
+
+      dateAdjustmentMap.set(eventTime.toString(), { edits })
+    } catch (e) {
+      console.error('Error parsing date event data:', e)
+    }
+  })
+
+  // Match feedbacks with date adjustments by time proximity
+  return feedbacks.map((feedback) => {
+    const feedbackTime = new Date(feedback.createdAt).getTime()
+
+    // Find a date adjustment within 10 seconds of this feedback
+    let matchedAdjustment = null
+    for (const [eventTimeStr, adjustment] of dateAdjustmentMap.entries()) {
+      const eventTime = parseInt(eventTimeStr)
+      if (Math.abs(feedbackTime - eventTime) < 10000) { // Within 10 seconds
+        matchedAdjustment = adjustment
+        dateAdjustmentMap.delete(eventTimeStr) // Remove to prevent duplicate matching
+        break
+      }
+    }
+
+    // Strip "[HoD Edits Applied]" section from comment if edits are shown separately
+    let cleanComment = feedback.comment
+    if (matchedAdjustment && cleanComment) {
+      const editsSectionIndex = cleanComment.indexOf('[HoD Edits Applied]')
+      if (editsSectionIndex !== -1) {
+        cleanComment = cleanComment.substring(0, editsSectionIndex).trim()
+      }
+    }
+
+    return {
+      id: feedback.id,
+      feedbackType: feedback.feedbackType,
+      comment: cleanComment,
+      createdAt: feedback.createdAt.toISOString(),
+      revisionNumber: feedback.revisionNumber,
+      user: {
+        name: feedback.user.name,
+        role: feedback.user.role,
+      },
+      hodEdits: matchedAdjustment?.edits || null,
+    }
+  })
 }
 
 // Status color mapping for header
@@ -72,11 +212,17 @@ export default async function HoDReviewPage({ params }: Props) {
 
   const statusColors = STATUS_COLORS[certificate.status] || STATUS_COLORS.DRAFT
 
+  // Merge date adjustments with feedbacks
+  const mergedFeedbacks = mergeDateAdjustmentsWithFeedbacks(
+    certificate.feedbacks,
+    certificate.events
+  )
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header title="Review Certificate" showAutoSave={false} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-6">
         {/* Back Link */}
         <Link
           href="/hod/dashboard"
@@ -128,26 +274,18 @@ export default async function HoDReviewPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Certificate Details - Left Column (2/3) */}
-          <div className="lg:col-span-2">
-            <ReviewContent
-              certificate={certificate}
-              conclusionStatements={CONCLUSION_STATEMENTS}
-            />
-          </div>
+        {/* Main Content Grid - Client Wrapper for state sharing */}
+        <ReviewPageWrapper
+          certificate={certificate}
+          feedbacks={mergedFeedbacks}
+          conclusionStatements={CONCLUSION_STATEMENTS}
+        />
 
-          {/* Review Actions Sidebar - Right Column (1/3) */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-[80px]">
-              <ReviewActions
-                certificateId={certificate.id}
-                currentStatus={certificate.status}
-              />
-            </div>
-          </div>
-        </div>
+        {/* Feedback History Sidebar - Client Component */}
+        <ReviewPageClient
+          feedbacks={mergedFeedbacks}
+          currentRevision={certificate.currentRevision}
+        />
       </main>
     </div>
   )

@@ -94,10 +94,11 @@ model Certificate {
   srfNumber          String?
   srfDate            DateTime?
   dateOfCalibration  DateTime?
-  calibrationTenure  Int      @default(12)
-  dueDateAdjustment  Int      @default(0)
-  calibrationDueDate DateTime?
-  customerName       String?
+  calibrationTenure      Int      @default(12)
+  dueDateAdjustment      Int      @default(0)
+  calibrationDueDate     DateTime?
+  dueDateNotApplicable   Boolean  @default(false)
+  customerName           String?
   customerAddress    String?
 
   // Section 2: UUC Details

@@ -45,7 +45,6 @@ const SECTIONS = [
   { id: 'results', label: 'Results', icon: ClipboardCheck, color: 'blue' },
   { id: 'status', label: 'Status', icon: Target, color: 'blue' },
   { id: 'conclusion', label: 'Conclusion', icon: Award, color: 'blue' },
-  { id: 'feedback', label: 'Feedback', icon: MessageSquare, color: 'blue' },
 ] as const
 
 type SectionId = typeof SECTIONS[number]['id']
@@ -87,6 +86,52 @@ function SummaryStats({
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      
+      {/* Master Instruments / Days Pending */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "p-2 rounded-lg",
+            daysSinceSubmission !== null && daysSinceSubmission > 3 ? "bg-amber-100" : "bg-blue-100"
+          )}>
+            {daysSinceSubmission !== null ? (
+              <Clock className={cn(
+                "h-5 w-5",
+                daysSinceSubmission > 3 ? "text-amber-600" : "text-blue-600"
+              )} />
+            ) : (
+              <Wrench className="h-5 w-5 text-blue-600" />
+            )}
+          </div>
+          <div>
+            {daysSinceSubmission !== null ? (
+              <>
+                <p className="text-2xl font-bold text-gray-900">{daysSinceSubmission}d</p>
+                <p className="text-xs text-gray-500 font-medium">Pending Review</p>
+              </>
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-gray-900">{masterInstrumentsCount}</p>
+                <p className="text-xs text-gray-500 font-medium">Master Instruments</p>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Parameters */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Cpu className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-gray-900">{parametersCount}</p>
+            <p className="text-xs text-gray-500 font-medium">Parameters</p>
+          </div>
+        </div>
+      </div>
+
       {/* Calibration Points */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
         <div className="flex items-center gap-3">
@@ -127,50 +172,6 @@ function SummaryStats({
         </div>
       </div>
 
-      {/* Parameters */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Cpu className="h-5 w-5 text-blue-600" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900">{parametersCount}</p>
-            <p className="text-xs text-gray-500 font-medium">Parameters</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Master Instruments / Days Pending */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "p-2 rounded-lg",
-            daysSinceSubmission !== null && daysSinceSubmission > 3 ? "bg-amber-100" : "bg-blue-100"
-          )}>
-            {daysSinceSubmission !== null ? (
-              <Clock className={cn(
-                "h-5 w-5",
-                daysSinceSubmission > 3 ? "text-amber-600" : "text-blue-600"
-              )} />
-            ) : (
-              <Wrench className="h-5 w-5 text-blue-600" />
-            )}
-          </div>
-          <div>
-            {daysSinceSubmission !== null ? (
-              <>
-                <p className="text-2xl font-bold text-gray-900">{daysSinceSubmission}d</p>
-                <p className="text-xs text-gray-500 font-medium">Pending Review</p>
-              </>
-            ) : (
-              <>
-                <p className="text-2xl font-bold text-gray-900">{masterInstrumentsCount}</p>
-                <p className="text-xs text-gray-500 font-medium">Master Instruments</p>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
@@ -255,7 +256,7 @@ function StickyNav({ activeSection, onSectionClick, visibleSections }: StickyNav
   const filteredSections = SECTIONS.filter(s => visibleSections.includes(s.id))
 
   return (
-    <nav className="sticky top-[61px] z-40 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-sm mb-6 overflow-x-auto">
+    <nav className="sticky top-[75px] z-40 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-sm mb-6 overflow-x-auto">
       <div className="flex items-center gap-1 p-2 min-w-max">
         {filteredSections.map((section) => {
           const colors = COLOR_CLASSES[section.color]
@@ -366,10 +367,55 @@ interface ReviewContentProps {
   }
   conclusionStatements: Record<string, string>
   children?: ReactNode
+  // Enhanced feedbacks with user role for HoD view
+  feedbacks?: Array<{
+    id: string
+    feedbackType: string
+    comment: string | null
+    createdAt: string
+    revisionNumber: number
+    user: {
+      name: string
+      role: string
+    }
+    hodEdits?: Array<{
+      field: string
+      fieldLabel: string
+      previousValue: string | null
+      newValue: string
+      reason: string
+      autoCalculated: boolean
+    }> | null
+  }>
+  currentRevision?: number
+  // Pending edits from HoD Edit Actions
+  pendingEdits?: Array<{
+    field: 'dateOfCalibration' | 'calibrationDueDate'
+    fieldLabel: string
+    originalValue: string
+    newValue: string
+    reason: string
+    autoCalculated?: boolean
+  }>
 }
 
-export function ReviewContent({ certificate, conclusionStatements, children }: ReviewContentProps) {
+// Helper to format pending edit date
+function formatPendingDate(dateStr: string): string {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+export function ReviewContent({ certificate, conclusionStatements, children, feedbacks = [], currentRevision = 1, pendingEdits = [] }: ReviewContentProps) {
   const [activeSection, setActiveSection] = useState<SectionId>('summary')
+  const [isPreviousFeedbackExpanded, setIsPreviousFeedbackExpanded] = useState(false)
+
+  // Check if this is a resubmission (revision > 1)
+  const isResubmission = currentRevision > 1
+
+  // Get engineer's response and HoD's previous feedback from enhanced feedbacks
+  const engineerResponse = feedbacks.find(f => f.feedbackType === 'ENGINEER_RESPONSE')
+  const previousHoDFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
 
   // Calculate stats
   const totalPoints = certificate.parameters.reduce(
@@ -437,7 +483,6 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
     ...(certificate.parameters.length > 0 ? ['results' as SectionId] : []),
     'status',
     'conclusion',
-    ...(certificate.feedbacks.length > 0 ? ['feedback' as SectionId] : []),
   ]
 
   // Format accuracy type label
@@ -463,6 +508,101 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
         submittedAt={certificate.status === 'PENDING_HOD_REVIEW' ? certificate.createdAt : undefined}
       />
 
+      {/* Engineer Resubmission Banner - Shows when this is a resubmission */}
+      {isResubmission && (engineerResponse || previousHoDFeedback) && (
+        <div className="mb-6 rounded-2xl border-2 border-blue-200 bg-blue-50 overflow-hidden">
+          {/* Engineer Response */}
+          {engineerResponse && (
+            <div className="p-6 border-b border-blue-200">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-blue-100">
+                  <User className="h-5 w-5 text-blue-700" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-blue-900 text-sm">Engineer Resubmission Notes</h3>
+                  <p className="text-xs text-blue-700">Response to your revision request</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl border border-blue-200 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-semibold text-slate-900 text-sm">{engineerResponse.user.name}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">
+                        Engineer
+                      </span>
+                      <span className="text-xs text-slate-400">
+                        {new Date(engineerResponse.createdAt).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    {engineerResponse.comment && (
+                      <p className="text-slate-700 whitespace-pre-wrap text-sm">{engineerResponse.comment}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Previous HoD Feedback (Collapsible) */}
+          {previousHoDFeedback && (
+            <div>
+              <button
+                onClick={() => setIsPreviousFeedbackExpanded(!isPreviousFeedbackExpanded)}
+                className="w-full px-6 py-4 flex items-center justify-between hover:bg-blue-100/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="h-5 w-5 text-blue-600" />
+                  <span className="font-semibold text-blue-900 text-sm">Your Previous Feedback</span>
+                </div>
+                {isPreviousFeedbackExpanded ? (
+                  <ChevronDown className="h-5 w-5 text-blue-600" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 text-blue-600" />
+                )}
+              </button>
+              {isPreviousFeedbackExpanded && (
+                <div className="px-6 pb-6">
+                  <div className="bg-white rounded-xl border border-orange-200 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-full bg-orange-100">
+                        <AlertTriangle className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-semibold text-slate-900 text-sm">{previousHoDFeedback.user.name}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                            HoD
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {new Date(previousHoDFeedback.createdAt).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        {previousHoDFeedback.comment && (
+                          <p className="text-slate-700 whitespace-pre-wrap text-sm">{previousHoDFeedback.comment}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Sticky Navigation */}
       <StickyNav
         activeSection={activeSection}
@@ -479,32 +619,72 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
           icon={FileText}
           color="blue"
         >
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-6 text-sm">
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Created By</p>
-              <p className="font-medium text-gray-900">{certificate.createdBy.name}</p>
+              <p className="font-medium text-gray-900 text-sm">{certificate.createdBy.name}</p>
             </div>
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Calibrated At</p>
-              <p className="font-medium text-gray-900">{certificate.calibratedAt === 'LAB' ? 'Laboratory' : 'Site'}</p>
+              <p className="font-medium text-gray-900 text-sm">{certificate.calibratedAt === 'LAB' ? 'Laboratory' : 'Site'}</p>
             </div>
             <div>
-              <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Date of Calibration</p>
-              <p className="font-medium text-gray-900">{formatDate(certificate.dateOfCalibration)}</p>
+              <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1 flex items-center gap-1.5">
+                Date of Calibration
+                {pendingEdits.some(e => e.field === 'dateOfCalibration') && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-bold normal-case">
+                    PENDING EDIT
+                  </span>
+                )}
+              </p>
+              {pendingEdits.some(e => e.field === 'dateOfCalibration') ? (
+                <div className="p-2 bg-amber-50 border border-amber-200 rounded">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-500 line-through">{formatDate(certificate.dateOfCalibration)}</span>
+                    <span className="text-amber-600">→</span>
+                    <span className="font-semibold text-amber-700">
+                      {formatPendingDate(pendingEdits.find(e => e.field === 'dateOfCalibration')!.newValue)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-600 mt-1">Pending HoD Change</p>
+                </div>
+              ) : (
+                <p className="font-medium text-gray-900 text-sm">{formatDate(certificate.dateOfCalibration)}</p>
+              )}
             </div>
             <div>
-              <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Calibration Due</p>
-              <p className="font-medium text-gray-900">{formatDate(certificate.calibrationDueDate)}</p>
+              <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1 flex items-center gap-1.5">
+                Calibration Due
+                {pendingEdits.some(e => e.field === 'calibrationDueDate') && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold normal-case">
+                    AUTO-ADJUSTED
+                  </span>
+                )}
+              </p>
+              {pendingEdits.some(e => e.field === 'calibrationDueDate') ? (
+                <div className="p-2 bg-blue-50 border border-blue-200 rounded">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-500 line-through">{formatDate(certificate.calibrationDueDate)}</span>
+                    <span className="text-blue-600">→</span>
+                    <span className="font-semibold text-blue-700">
+                      {formatPendingDate(pendingEdits.find(e => e.field === 'calibrationDueDate')!.newValue)}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-blue-600 mt-1">Auto-calculated</p>
+                </div>
+              ) : (
+                <p className="font-medium text-gray-900 text-sm">{formatDate(certificate.calibrationDueDate)}</p>
+              )}
             </div>
             {certificate.srfNumber && (
               <>
                 <div>
                   <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">SRF Number</p>
-                  <p className="font-medium text-gray-900">{certificate.srfNumber}</p>
+                  <p className="font-medium text-gray-900 text-sm">{certificate.srfNumber}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">SRF Date</p>
-                  <p className="font-medium text-gray-900">{formatDate(certificate.srfDate)}</p>
+                  <p className="font-medium text-gray-900 text-sm">{formatDate(certificate.srfDate)}</p>
                 </div>
               </>
             )}
@@ -518,14 +698,14 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
           icon={User}
           color="blue"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Customer Name</p>
-              <p className="font-medium text-gray-900">{certificate.customerName || '-'}</p>
+              <p className="font-medium text-gray-900 whitespace-pre-line text-sm">{certificate.customerName || '-'}</p>
             </div>
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Customer Address</p>
-              <p className="font-medium text-gray-900 whitespace-pre-line">{certificate.customerAddress || '-'}</p>
+              <p className="font-medium text-gray-900 whitespace-pre-line text-sm">{certificate.customerAddress || '-'}</p>
             </div>
           </div>
         </CollapsibleSection>
@@ -545,7 +725,7 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
           }
         >
           {/* UUC Basic Info */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-6 text-sm">
             <div>
               <p className="text-gray-500 text-xs uppercase tracking-wide font-semibold mb-1">Description</p>
               <p className="font-medium text-gray-900">{certificate.uucDescription || '-'}</p>
@@ -613,7 +793,7 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
                       </div>
 
                       {/* Basic Info Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm">
                         {(param.rangeMin || param.rangeMax) && (
                           <div>
                             <p className="text-gray-500 text-xs">Range</p>
@@ -661,7 +841,7 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
                                 </p>
                                 <p className="text-lg font-bold text-gray-900">
                                   {param.leastCountValue}
-                                  <span className="text-sm font-normal text-gray-500 ml-1">
+                                  <span className="text-sm font-normal text-gray-500 ml-1 text-xs">
                                     {param.leastCountUnit || param.parameterUnit}
                                   </span>
                                 </p>
@@ -672,9 +852,9 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
                                 <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1">
                                   Accuracy
                                 </p>
-                                <p className="text-lg font-bold text-gray-900">
+                                <p className="text-lg font-bold text-gray-900 text-xs">
                                   ± {param.accuracyValue}
-                                  <span className="text-sm font-normal text-gray-500 ml-1">
+                                  <span className="text-sm font-normal text-gray-500 ml-1 text-xs">
                                     {param.accuracyType === 'ABSOLUTE'
                                       ? (param.accuracyUnit || param.parameterUnit)
                                       : param.accuracyType === 'PERCENT_READING'
@@ -691,7 +871,7 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
                       {/* Binned: Table of Bins */}
                       {hasBins && (
                         <div className="mt-3 pt-3 border-t border-blue-100">
-                          <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                          <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2 gap-6">
                             Calibration Ranges (Bins)
                           </p>
                           <div className="overflow-x-auto">
@@ -715,14 +895,14 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
                               <tbody className="divide-y divide-blue-100 bg-white">
                                 {bins.map((bin: { id?: string; binMin: string; binMax: string; leastCount: string; accuracy: string }, binIdx: number) => (
                                   <tr key={bin.id || binIdx}>
-                                    <td className="px-3 py-2 font-medium text-gray-700">{binIdx + 1}</td>
-                                    <td className="px-3 py-2 text-gray-800">
+                                    <td className="px-3 py-2 font-medium text-gray-700 text-xs">{binIdx + 1}</td>
+                                    <td className="px-3 py-2 text-gray-800 text-xs">
                                       {bin.binMin} to {bin.binMax} {param.parameterUnit}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-800 font-medium">
+                                    <td className="px-3 py-2 text-gray-800 font-medium text-xs">
                                       {bin.leastCount} {param.parameterUnit}
                                     </td>
-                                    <td className="px-3 py-2 text-gray-800 font-medium">
+                                    <td className="px-3 py-2 text-gray-800 font-medium text-xs">
                                       ± {bin.accuracy}{' '}
                                       {param.accuracyType === 'ABSOLUTE'
                                         ? param.parameterUnit
@@ -754,19 +934,19 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
         >
           <div className="flex flex-wrap gap-6">
             <div className="flex items-center gap-3 bg-slate-50 rounded-lg px-4 py-3 border border-slate-200">
-              <Thermometer className="h-6 w-6 text-blue-500" />
+              <Thermometer className="h-8 w-8 text-blue-500" />
               <div>
-                <p className="text-xs text-slate-600 font-semibold uppercase tracking-wide">Ambient Temperature</p>
-                <p className="text-xl font-bold text-gray-900">
+                <p className="text-xs text-slate-600 font-bold uppercase tracking-wide">Ambient Temperature</p>
+                <p className="text-sm font-bold text-gray-900">
                   {certificate.ambientTemperature ? `${certificate.ambientTemperature} °C` : '-'}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3 bg-blue-50 rounded-lg px-4 py-3 border border-blue-100">
-              <Droplets className="h-6 w-6 text-blue-500" />
+              <Droplets className="h-8 w-8 text-blue-500" />
               <div>
-                <p className="text-xs text-blue-600 font-semibold uppercase tracking-wide">Relative Humidity</p>
-                <p className="text-xl font-bold text-gray-900">
+                <p className="text-xs text-blue-600 font-bold uppercase tracking-wide">Relative Humidity</p>
+                <p className="text-sm font-bold text-gray-900">
                   {certificate.relativeHumidity ? `${certificate.relativeHumidity} %RH` : '-'}
                 </p>
               </div>
@@ -930,23 +1110,23 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
                               result.isOutOfLimit && 'bg-red-50'
                             )}
                           >
-                            <td className="px-3 py-2 font-medium text-gray-700">{result.pointNumber}</td>
-                            <td className="px-3 py-2 text-gray-800">{result.standardReading || '-'}</td>
-                            <td className="px-3 py-2 text-gray-800">{result.beforeAdjustment || '-'}</td>
+                            <td className="px-3 py-2 font-medium text-gray-700 text-xs">{result.pointNumber}</td>
+                            <td className="px-3 py-2 text-gray-800 text-xs">{result.standardReading || '-'}</td>
+                            <td className="px-3 py-2 text-gray-800 text-xs">{result.beforeAdjustment || '-'}</td>
                             <td className={cn(
-                              "px-3 py-2 font-medium",
+                              "px-3 py-2 font-medium text-xs",
                               result.isOutOfLimit ? "text-red-600" : "text-gray-800"
                             )}>
                               {result.errorObserved !== null ? result.errorObserved : '-'}
                             </td>
                             <td className="px-3 py-2">
                               {result.isOutOfLimit ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-700">
                                   <AlertTriangle className="h-3 w-3" />
                                   Out of Limit
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-700">
                                   <CheckCircle className="h-3 w-3" />
                                   Pass
                                 </span>
@@ -1063,39 +1243,6 @@ export function ReviewContent({ certificate, conclusionStatements, children }: R
             <p className="text-gray-500 text-sm">No conclusion statements selected</p>
           )}
         </CollapsibleSection>
-
-        {/* Feedback History */}
-        {certificate.feedbacks.length > 0 && (
-          <CollapsibleSection
-            id="feedback"
-            title="Review Feedback History"
-            icon={MessageSquare}
-            color="blue"
-            defaultOpen={false}
-          >
-            <div className="space-y-3">
-              {certificate.feedbacks.map((feedback) => (
-                <div
-                  key={feedback.id}
-                  className="border-l-4 border-gray-300 pl-4 py-2 bg-gray-50 rounded-r-lg"
-                >
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="font-semibold text-gray-800">
-                      {feedback.user?.name || 'System'}
-                    </span>
-                    <span className="text-gray-500 text-xs">{formatDate(feedback.createdAt)}</span>
-                  </div>
-                  <p className="text-gray-700">{feedback.comment}</p>
-                  {feedback.targetSection && (
-                    <span className="inline-block mt-2 text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                      Section: {feedback.targetSection}
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CollapsibleSection>
-        )}
       </div>
     </>
   )

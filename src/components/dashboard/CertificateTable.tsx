@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Eye, Edit, FileText, Search, Filter, X } from 'lucide-react'
+import { Edit, FileText, Search, Filter, X } from 'lucide-react'
 
 export interface CertificateListItem {
   id: string
@@ -226,42 +226,37 @@ export function CertificateTable({
                 filteredCertificates.map((cert) => (
                   <tr key={cert.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="font-medium text-gray-900">
+                      <span className="font-medium text-gray-900 text-[13px]">
                         {cert.certificateNumber}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-gray-700">{cert.customerName}</span>
+                    <td className="px-4 py-3 text-[13px]">
+                      <span className="text-gray-700 text-[13px]">{cert.customerName}</span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-[13px]">
                       <span className="text-gray-700 line-clamp-1">
                         {cert.uucDescription}
                       </span>
                     </td>
                     {userRole === 'HOD' && (
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-gray-700">{cert.createdBy || '-'}</span>
+                        <span className="text-gray-700 text-[13px]">{cert.createdBy || '-'}</span>
                       </td>
                     )}
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap text-[13px]">
                       <span className="text-gray-600">
                         {cert.dateOfCalibration ? formatDate(cert.dateOfCalibration) : '-'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap text-[13px]">
                       <StatusBadge status={cert.status} />
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-4 py-3 whitespace-nowrap text-[13px]">
                       <span className="text-gray-600">v{cert.currentVersion}</span>
                     </td>
                     {showActions && (
                       <td className="px-4 py-3 whitespace-nowrap text-right">
                         <div className="flex justify-end gap-2">
-                          <Link href={`/certificates/${cert.id}`}>
-                            <Button variant="ghost" size="sm" title="View">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </Link>
                           {userRole === 'ENGINEER' &&
                             (cert.status === 'DRAFT' ||
                               cert.status === 'REVISION_REQUIRED') && (

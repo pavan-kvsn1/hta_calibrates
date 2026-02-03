@@ -17,6 +17,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
 
+    // Parse request body for engineer notes
+    let engineerNotes: string | null = null
+    try {
+      const body = await request.json()
+      engineerNotes = body.engineerNotes || null
+    } catch {
+      // Body may be empty for initial submissions
+    }
+
     // Get existing certificate
     const certificate = await prisma.certificate.findUnique({
       where: { id },
@@ -44,6 +53,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { status: 400 }
       )
     }
+
+    // Check if this is a resubmission
+    const isResubmission = certificate.status === 'REVISION_REQUIRED'
 
     // Validate required fields
     const validationErrors: string[] = []
@@ -98,43 +110,68 @@ export async function POST(request: NextRequest, context: RouteContext) {
       })
       const nextSequence = (lastEvent?.sequenceNumber ?? 0) + 1
 
+      // Determine new revision number (increment if resubmission)
+      const newRevision = isResubmission
+        ? certificate.currentRevision + 1
+        : certificate.currentRevision
+
       // Update certificate status
       const cert = await tx.certificate.update({
         where: { id },
         data: {
           status: 'PENDING_HOD_REVIEW',
+          currentRevision: newRevision,
           lastModifiedById: session.user.id,
         },
       })
 
       // Create submission event
-      await tx.certificateEvent.create({
+      const event = await tx.certificateEvent.create({
         data: {
           certificateId: id,
           sequenceNumber: nextSequence,
-          revision: cert.currentRevision,
-          eventType: 'SUBMITTED_FOR_REVIEW',
+          revision: newRevision,
+          eventType: isResubmission ? 'RESUBMITTED_FOR_REVIEW' : 'SUBMITTED_FOR_REVIEW',
           eventData: JSON.stringify({
             previousStatus: certificate.status,
             newStatus: 'PENDING_HOD_REVIEW',
             submittedAt: new Date().toISOString(),
+            isResubmission,
+            engineerNotes: engineerNotes || null,
           }),
           userId: session.user.id,
           userRole: session.user.role,
         },
       })
 
+      // If this is a resubmission with engineer notes, create a feedback entry
+      if (isResubmission && engineerNotes?.trim()) {
+        await tx.reviewFeedback.create({
+          data: {
+            certificateId: id,
+            revisionNumber: newRevision,
+            eventId: event.id,
+            feedbackType: 'ENGINEER_RESPONSE',
+            comment: engineerNotes.trim(),
+            userId: session.user.id,
+          },
+        })
+      }
+
       // Create audit log
       await tx.auditLog.create({
         data: {
           entityType: 'Certificate',
           entityId: cert.id,
-          action: 'SUBMIT_FOR_REVIEW',
+          action: isResubmission ? 'RESUBMIT_FOR_REVIEW' : 'SUBMIT_FOR_REVIEW',
           actorId: session.user.id,
           actorType: 'USER',
           changes: JSON.stringify({
             previousStatus: certificate.status,
             newStatus: 'PENDING_HOD_REVIEW',
+            previousRevision: certificate.currentRevision,
+            newRevision,
+            hasEngineerNotes: !!engineerNotes?.trim(),
           }),
         },
       })
@@ -144,11 +181,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({
       success: true,
-      message: 'Certificate submitted for HoD review',
+      message: isResubmission
+        ? 'Certificate resubmitted for HoD review'
+        : 'Certificate submitted for HoD review',
       certificate: {
         id: updatedCertificate.id,
         certificateNumber: updatedCertificate.certificateNumber,
         status: updatedCertificate.status,
+        revision: updatedCertificate.currentRevision,
       },
     })
   } catch (error) {

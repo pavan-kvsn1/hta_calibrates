@@ -2,7 +2,21 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle, AlertCircle, Save, Send, Eye, EyeOff, Loader2 } from 'lucide-react'
+import {
+  CheckCircle,
+  AlertCircle,
+  Save,
+  Send,
+  Eye,
+  EyeOff,
+  Loader2,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  User,
+  PenLine
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FormSection } from './FormSection'
 import { useCertificateStore } from '@/lib/certificate-store'
@@ -16,12 +30,32 @@ interface ValidationItem {
   isOptional?: boolean
 }
 
-export function FinalizeSection() {
+interface Feedback {
+  id: string
+  feedbackType: string
+  comment: string | null
+  createdAt: string
+  user: {
+    name: string
+    role: string
+  }
+}
+
+interface FinalizeSectionProps {
+  feedbacks?: Feedback[]
+}
+
+export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
   const router = useRouter()
-  const { formData, isSaving, certificateId, saveDraft } = useCertificateStore()
+  const { formData, isSaving, certificateId, saveDraft, setEngineerNotes } = useCertificateStore()
   const [showPDFPreview, setShowPDFPreview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isFeedbackRefExpanded, setIsFeedbackRefExpanded] = useState(false)
+
+  // Get only the latest revision request feedback (feedbacks are ordered by createdAt desc from API)
+  const latestRevisionFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
+  const isRevisionRequired = formData.status === 'REVISION_REQUIRED'
 
   // Validation checks
   const validationItems: ValidationItem[] = [
@@ -113,6 +147,9 @@ export function FinalizeSection() {
       const response = await fetch(`/api/certificates/${certId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          engineerNotes: formData.engineerNotes || null
+        })
       })
 
       const data = await response.json()
@@ -147,6 +184,90 @@ export function FinalizeSection() {
       isDark={true}
     >
       <div className="space-y-8">
+        {/* HoD Feedback Reference - Collapsible (only when revision required, shows latest only) */}
+        {isRevisionRequired && latestRevisionFeedback && (
+          <div className="rounded-2xl border-2 border-orange-200 bg-orange-50/50 overflow-hidden">
+            <button
+              onClick={() => setIsFeedbackRefExpanded(!isFeedbackRefExpanded)}
+              className="w-full px-6 py-4 flex items-center justify-between hover:bg-orange-100/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="size-5 text-orange-600" />
+                <span className="font-semibold text-orange-900 text-[14px]" >HoD Feedback Reference</span>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-200 text-orange-700 font-medium">
+                  Latest
+                </span>
+              </div>
+              {isFeedbackRefExpanded ? (
+                <ChevronUp className="size-5 text-orange-600" />
+              ) : (
+                <ChevronDown className="size-5 text-orange-600" />
+              )}
+            </button>
+            {isFeedbackRefExpanded && (
+              <div className="px-6 pb-6">
+                <div className="bg-white rounded-xl border border-orange-200 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-full bg-orange-100">
+                      <User className="size-4 text-orange-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="font-semibold text-slate-900 text-[13px]">{latestRevisionFeedback.user.name}</span>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                          {latestRevisionFeedback.user.role === 'HOD' ? 'Head of Department' : latestRevisionFeedback.user.role}
+                        </span>
+                        <span className="text-xs text-slate-400 text-[12px]">
+                          {new Date(latestRevisionFeedback.createdAt).toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                      {latestRevisionFeedback.comment && (
+                        <div className="flex items-start gap-2">
+                          <MessageSquare className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-slate-700 whitespace-pre-wrap text-[13px]">{latestRevisionFeedback.comment}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-orange-600 mt-3 text-center font-medium">
+                  View full feedback history in the sidebar →
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Engineer Response Notes - Only when revision required */}
+        {isRevisionRequired && (
+          <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-blue-100">
+                <PenLine className="size-5 text-blue-700" />
+              </div>
+              <div>
+                <h3 className="font-bold text-blue-900 text-[14px]">Response Notes for HoD</h3>
+                <p className="text-sm text-blue-700 text-[13px]">Summarize the changes you made to address the feedback</p>
+              </div>
+            </div>
+            <textarea
+              value={formData.engineerNotes || ''}
+              onChange={(e) => setEngineerNotes(e.target.value)}
+              placeholder="Example:&#10;- Rechecked temperature readings in points 3-5&#10;- Updated values to match master instrument logs&#10;- Verified calibration records dated 1 Feb 2026"
+              className="w-full h-30 px-4 py-2 rounded-xl border border-blue-200 bg-white text-slate-700 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            />
+            <p className="text-xs text-blue-600 mt-2 font-medium text-[12px]">
+              This note will be visible to the HoD when reviewing your resubmission.
+            </p>
+          </div>
+        )}
+
         {/* Validation Checklist */}
         <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
           <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest mb-4">
@@ -235,7 +356,7 @@ export function FinalizeSection() {
             className="flex-[2] py-6 px-6 rounded-2xl bg-primary text-white font-bold shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
-            {isSubmitting ? 'Submitting...' : 'Submit for Internal Approval'}
+            {isSubmitting ? 'Submitting...' : isRevisionRequired ? 'Resubmit for Review' : 'Submit for Internal Approval'}
           </Button>
         </div>
 

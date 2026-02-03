@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Eye, Send, Cloud, Clock, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Eye, Send, Cloud, Clock, Save, Loader2, AlertTriangle, MessageSquare, User, ChevronDown, ChevronUp, History, Calendar, ArrowRight } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
 import {
   SummarySection,
@@ -18,6 +18,7 @@ import {
 import { useCertificateStore, CertificateFormData, Parameter, CalibrationResult } from '@/lib/certificate-store'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
+import { FeedbackSidebar } from '@/components/feedback'
 
 const SECTIONS = [
   { id: 'summary', label: 'Summary' },
@@ -67,6 +68,7 @@ interface ApiCertificate {
   calibrationTenure: number
   dueDateAdjustment: number
   calibrationDueDate: string | null
+  dueDateNotApplicable: boolean
   customerName: string | null
   customerAddress: string | null
   uucDescription: string | null
@@ -85,6 +87,9 @@ interface ApiCertificate {
   selectedConclusionStatements: string | null
   parameters: ApiParameter[]
   masterInstruments: ApiMasterInstrument[]
+  feedbacks?: ApiFeedback[]
+  events?: ApiEvent[]
+  currentRevision: number
   updatedAt: string
 }
 
@@ -120,6 +125,40 @@ interface ApiResult {
   afterAdjustment: string | null
   errorObserved: number | null
   isOutOfLimit: boolean
+}
+
+interface HoDEdit {
+  field: string
+  fieldLabel: string
+  previousValue: string | null
+  newValue: string
+  reason: string
+  autoCalculated: boolean
+}
+
+interface ApiFeedback {
+  id: string
+  feedbackType: string
+  comment: string | null
+  createdAt: string
+  revisionNumber: number
+  user: {
+    name: string
+    role: string
+  }
+  hodEdits?: HoDEdit[] | null
+}
+
+interface ApiEvent {
+  id: string
+  eventType: string
+  eventData: string
+  createdAt: string
+  revision: number
+  user: {
+    name: string
+    role: string
+  }
 }
 
 // Transform API data to form data format
@@ -270,6 +309,7 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     calibrationTenure: (apiData.calibrationTenure || 12) as 3 | 6 | 9 | 12,
     dueDateAdjustment: (apiData.dueDateAdjustment || 0) as -3 | -2 | -1 | 0,
     calibrationDueDate: apiData.calibrationDueDate ? apiData.calibrationDueDate.split('T')[0] : '',
+    dueDateNotApplicable: apiData.dueDateNotApplicable || false,
     customerName: apiData.customerName || '',
     customerAddress: apiData.customerAddress || '',
     uucDescription: apiData.uucDescription || '',
@@ -291,6 +331,109 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
   }
 }
 
+// Format date for display
+function formatDateDisplay(dateStr: string | null): string {
+  if (!dateStr) return '-'
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// Helper to merge date adjustments with feedbacks
+function mergeDateAdjustmentsWithFeedbacks(
+  feedbacks: ApiFeedback[],
+  events: ApiEvent[]
+): ApiFeedback[] {
+  if (!events || events.length === 0) return feedbacks
+
+  // Create a map of event times to HoD edits
+  const dateAdjustmentMap = new Map<number, { edits: HoDEdit[] }>()
+
+  events.forEach((event) => {
+    try {
+      const data = JSON.parse(event.eventData)
+      const eventTime = new Date(event.createdAt).getTime()
+
+      // Extract edits array (new format) or construct from legacy format
+      let edits: HoDEdit[] = []
+
+      if (data.edits && Array.isArray(data.edits)) {
+        // New format with individual edits
+        edits = data.edits.map((edit: {
+          field: string
+          fieldLabel: string
+          previousValue: string | null
+          newValue: string
+          reason: string
+          autoCalculated?: boolean
+        }) => ({
+          field: edit.field,
+          fieldLabel: edit.fieldLabel,
+          previousValue: edit.previousValue,
+          newValue: edit.newValue,
+          reason: edit.reason,
+          autoCalculated: edit.autoCalculated || false,
+        }))
+      } else {
+        // Legacy format - construct edits from flat fields
+        if (data.newDateOfCalibration) {
+          edits.push({
+            field: 'dateOfCalibration',
+            fieldLabel: 'Date of Calibration',
+            previousValue: data.previousDateOfCalibration,
+            newValue: data.newDateOfCalibration,
+            reason: data.reason || '',
+            autoCalculated: false,
+          })
+        }
+        if (data.newDueDate) {
+          edits.push({
+            field: 'calibrationDueDate',
+            fieldLabel: 'Calibration Due Date',
+            previousValue: data.previousDueDate,
+            newValue: data.newDueDate,
+            reason: data.newDateOfCalibration ? 'Auto-adjusted based on Date of Calibration change' : data.reason || '',
+            autoCalculated: !!data.newDateOfCalibration,
+          })
+        }
+      }
+
+      dateAdjustmentMap.set(eventTime, { edits })
+    } catch (e) {
+      console.error('Error parsing date event data:', e)
+    }
+  })
+
+  // Match feedbacks with date adjustments by time proximity
+  return feedbacks.map((feedback) => {
+    const feedbackTime = new Date(feedback.createdAt).getTime()
+
+    // Find a date adjustment within 10 seconds of this feedback
+    let matchedAdjustment = null
+    for (const [eventTime, adjustment] of dateAdjustmentMap.entries()) {
+      if (Math.abs(feedbackTime - eventTime) < 10000) { // Within 10 seconds
+        matchedAdjustment = adjustment
+        dateAdjustmentMap.delete(eventTime)
+        break
+      }
+    }
+
+    // Strip "[HoD Edits Applied]" section from comment if edits are shown separately
+    let cleanComment = feedback.comment
+    if (matchedAdjustment && cleanComment) {
+      const editsSectionIndex = cleanComment.indexOf('[HoD Edits Applied]')
+      if (editsSectionIndex !== -1) {
+        cleanComment = cleanComment.substring(0, editsSectionIndex).trim()
+      }
+    }
+
+    return {
+      ...feedback,
+      comment: cleanComment,
+      hodEdits: matchedAdjustment?.edits || null,
+    }
+  })
+}
+
 export default function EditCertificatePage() {
   const params = useParams()
   const router = useRouter()
@@ -302,6 +445,10 @@ export default function EditCertificatePage() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [feedbacks, setFeedbacks] = useState<ApiFeedback[]>([])
+  const [isTopFeedbackExpanded, setIsTopFeedbackExpanded] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [currentRevision, setCurrentRevision] = useState(1)
 
   // Fetch certificate data on mount
   useEffect(() => {
@@ -335,6 +482,18 @@ export default function EditCertificatePage() {
         const formData = transformApiToFormData(data)
         loadForm(formData)
         setCertificateId(certificateId)
+
+        // Store feedbacks for display (merge with date adjustments)
+        if (data.feedbacks) {
+          const mergedFeedbacks = mergeDateAdjustmentsWithFeedbacks(
+            data.feedbacks,
+            data.events || []
+          )
+          setFeedbacks(mergedFeedbacks)
+        }
+
+        // Store current revision for header title
+        setCurrentRevision(data.currentRevision ?? 1)
       } catch (error) {
         console.error('Error fetching certificate:', error)
         setLoadError('Failed to load certificate')
@@ -419,7 +578,7 @@ export default function EditCertificatePage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header title={currentRevision === 1 ? "Create New Certificate" : `Edit Certificate: ${formData.certificateNumber}`} />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4">
             <Loader2 className="size-8 animate-spin text-primary" />
@@ -434,7 +593,7 @@ export default function EditCertificatePage() {
   if (loadError) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
+        <Header title={currentRevision === 1 ? "Create New Certificate" : `Edit Certificate: ${formData.certificateNumber}`} />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="flex flex-col items-center gap-4 text-center">
             <div className="size-16 rounded-full bg-red-100 flex items-center justify-center">
@@ -455,58 +614,72 @@ export default function EditCertificatePage() {
 
   return (
     <div className={cn('min-h-screen bg-background', isScrolled && 'scrolled')}>
-      <Header />
+      <Header title={currentRevision === 1 ? "Create New Certificate" : `Edit Certificate: ${formData.certificateNumber}`} />
 
-      {/* Sticky Mini Header */}
+      {/* Combined Sticky Header - Appears when scrolled */}
       <div
         className={cn(
-          'sticky-mini-header fixed top-[61px] left-0 right-0 bg-white/95 backdrop-blur-md border-b border-slate-200 z-[55] px-6 py-2 shadow-sm flex items-center justify-between',
-          isScrolled && 'translate-y-0 opacity-100'
+          'fixed top-[75px] left-0 right-0 bg-white/95 backdrop-blur-md border-b border-slate-200 z-[55] shadow-sm transition-all duration-300',
+          isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
         )}
-        style={{
-          transform: isScrolled ? 'translateY(0)' : 'translateY(-100%)',
-          opacity: isScrolled ? 1 : 0,
-        }}
       >
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-bold uppercase text-[10px]">Certificate:</span>
-            <span className="font-bold text-slate-900">{formData.certificateNumber || '...'}</span>
+        {/* Row 1: Customer Info + Action Buttons */}
+        <div className="px-6 py-2 flex items-center justify-between border-b border-slate-100">
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-slate-400 font-bold uppercase text-[10px]">Customer:</span>
+              <span className="font-bold text-slate-900 truncate max-w-[300px]">
+                {formData.customerName || 'Not specified'}
+              </span>
+            </div>
+            <div className="h-4 w-px bg-slate-200" />
+            <Badge
+              variant="outline"
+              className={cn(
+                'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                statusConfig.className
+              )}
+            >
+              {statusConfig.label}
+            </Badge>
           </div>
-          <div className="h-4 w-px bg-slate-200" />
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400 font-bold uppercase text-[10px]">Customer:</span>
-            <span className="font-bold text-slate-900">
-              {formData.customerName || 'Not specified'}
-            </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={autoSave}
+              disabled={isSaving || !isDirty}
+              className="bg-slate-100 text-slate-700 text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Save className="size-3.5" />
+              {isSaving ? 'Saving...' : 'Save Draft'}
+            </button>
+            <button
+              onClick={() => scrollToSection('submit')}
+              className="bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5"
+            >
+              <Send className="size-3.5" />
+              Submit
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            {isSaving ? (
-              <>
-                <Cloud className="size-4 animate-pulse" />
-                <span>Saving...</span>
-              </>
-            ) : saveError ? (
-              <span className="text-red-500">{saveError}</span>
-            ) : (
-              <>
-                <Clock className="size-4" />
-                <span>Saved {formatLastSaved()}</span>
-              </>
-            )}
+        {/* Row 2: Navigation Tabs */}
+        <div className="px-4 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1 py-1 min-w-max">
+            {SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => scrollToSection(section.id)}
+                className={cn(
+                  'px-3 py-1.5 text-[13px] font-semibold text-slate-600 hover:text-primary hover:bg-slate-50 rounded-md transition-all border-b-2',
+                  activeSection === section.id
+                    ? 'border-primary text-primary font-bold bg-primary/5'
+                    : 'border-transparent'
+                )}
+              >
+                {section.label}
+              </button>
+            ))}
           </div>
-          <button
-            onClick={autoSave}
-            disabled={isSaving || !isDirty}
-            className="bg-slate-100 text-slate-700 text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-slate-200 transition-colors disabled:opacity-50"
-          >
-            Save Draft
-          </button>
-          <button className="bg-primary text-white text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">
-            Submit
-          </button>
         </div>
       </div>
 
@@ -522,9 +695,7 @@ export default function EditCertificatePage() {
               Back to Dashboard
             </Link>
             <div className="flex items-baseline gap-4">
-              <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-                Edit Certificate
-              </h1>
+              
               <Badge
                 variant="outline"
                 className={cn(
@@ -536,10 +707,6 @@ export default function EditCertificatePage() {
               </Badge>
             </div>
             <div className="flex gap-4 mt-2 text-sm text-slate-500">
-              <p>
-                Certificate #: <span className="font-bold text-slate-800">{formData.certificateNumber || '...'}</span>
-              </p>
-              <p>|</p>
               <p>Last saved: {formatLastSaved()}</p>
             </div>
           </div>
@@ -569,8 +736,8 @@ export default function EditCertificatePage() {
           </div>
         </div>
 
-        {/* Quick Navigation */}
-        <nav className="sticky top-[61px] bg-white/80 backdrop-blur-md z-[50] border border-slate-200/60 rounded-2xl shadow-sm mb-8 overflow-x-auto no-scrollbar">
+        {/* Quick Navigation - Normal position (sticky header takes over when scrolled) */}
+        <nav className="bg-white border border-slate-200/60 rounded-2xl shadow-sm mb-8 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-1 p-2 min-w-max">
             {SECTIONS.map((section) => (
               <button
@@ -578,7 +745,7 @@ export default function EditCertificatePage() {
                 type="button"
                 onClick={() => scrollToSection(section.id)}
                 className={cn(
-                  'px-4 py-2 text-sm font-semibold text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-all border-b-2',
+                  'px-4 py-2 text-[13px] font-semibold text-slate-600 hover:text-primary hover:bg-slate-50 rounded-lg transition-all border-b-2',
                   activeSection === section.id
                     ? 'border-primary text-primary font-bold'
                     : 'border-transparent'
@@ -590,16 +757,123 @@ export default function EditCertificatePage() {
           </div>
         </nav>
 
+        {/* HoD Feedback Banner - Shows when revision is required (Collapsible) */}
+        {formData.status === 'REVISION_REQUIRED' && feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST').length > 0 && (
+          <div className="mb-8 rounded-2xl border-2 border-orange-300 bg-orange-50 overflow-hidden">
+            <button
+              onClick={() => setIsTopFeedbackExpanded(!isTopFeedbackExpanded)}
+              className="w-full bg-orange-100 px-6 py-4 flex items-center justify-between border-b border-orange-200 hover:bg-orange-150 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-orange-200">
+                  <AlertTriangle className="size-5 text-orange-700" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-bold text-orange-900 text-[14px]">Revision Required from HoD</h3>
+                  <p className="text-[12px] text-orange-700">
+                    {isTopFeedbackExpanded ? 'Click to hide feedback' : 'Click to view feedback details'}
+                  </p>
+                </div>
+              </div>
+              {isTopFeedbackExpanded ? (
+                <ChevronUp className="size-5 text-orange-700" />
+              ) : (
+                <ChevronDown className="size-5 text-orange-700" />
+              )}
+            </button>
+            {isTopFeedbackExpanded && (
+              <div className="p-6 space-y-4">
+                {feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST').slice(0, 1).map((feedback) => (
+                  <div key={feedback.id} className="bg-white rounded-xl border border-orange-200 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-full bg-orange-100">
+                        <User className="size-4 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="font-semibold text-slate-900 text-[13px]">{feedback.user.name}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
+                            {feedback.user.role === 'HOD' ? 'Head of Department' : feedback.user.role}
+                          </span>
+                          <span className="text-xs text-slate-400">
+                            {new Date(feedback.createdAt).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                        {feedback.comment && (
+                          <div className="flex items-start gap-2">
+                            <MessageSquare className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-slate-700 whitespace-pre-wrap text-[13px]">{feedback.comment}</p>
+                          </div>
+                        )}
+
+                        {/* HoD Edits Applied */}
+                        {feedback.hodEdits && feedback.hodEdits.length > 0 && (
+                          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div className="flex items-center gap-2 text-amber-700 font-semibold mb-3 text-[13px]">
+                              <Calendar className="size-4" />
+                              HoD Edits Applied
+                            </div>
+                            <div className="space-y-3">
+                              {feedback.hodEdits.map((edit, idx) => (
+                                <div
+                                  key={edit.field}
+                                  className={cn(
+                                    idx > 0 && 'pt-3 border-t border-amber-200/60'
+                                  )}
+                                >
+                                  <p className="font-semibold text-slate-700 text-[12px] mb-1">
+                                    {edit.fieldLabel}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-slate-600 text-[13px]">
+                                    <span>{formatDateDisplay(edit.previousValue)}</span>
+                                    <ArrowRight className="size-4 text-slate-400" />
+                                    <span className={cn(
+                                      'font-semibold',
+                                      edit.autoCalculated ? 'text-blue-600' : 'text-amber-700'
+                                    )}>
+                                      {formatDateDisplay(edit.newValue)}
+                                    </span>
+                                  </div>
+                                  <p className={cn(
+                                    'text-[11px] mt-1 italic',
+                                    edit.autoCalculated ? 'text-blue-500' : 'text-slate-500'
+                                  )}>
+                                    {edit.autoCalculated ? (
+                                      <>⚡ {edit.reason}</>
+                                    ) : (
+                                      <>Reason: {edit.reason}</>
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Form Sections */}
         <div className="space-y-10 pb-20">
-          <SummarySection />
+          <SummarySection isNewCertificate={currentRevision === 1} certificateId={certificateId} />
           <UUCSection />
           <MasterInstrumentSection />
           <EnvironmentalSection />
           <ResultsSection />
           <RemarksSection />
           <ConclusionSection />
-          <FinalizeSection />
+          <FinalizeSection feedbacks={feedbacks} />
         </div>
       </div>
 
@@ -618,6 +892,16 @@ export default function EditCertificatePage() {
           </div>
         </div>
       </footer>
+
+      {/* Feedback History Sidebar */}
+      {feedbacks.length > 0 && (
+        <FeedbackSidebar
+          feedbacks={feedbacks}
+          isOpen={isSidebarOpen}
+          onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+          currentRevision={1}
+        />
+      )}
     </div>
   )
 }

@@ -113,31 +113,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
 })
 
-// Type extensions for NextAuth
-declare module 'next-auth' {
-  interface User {
-    role?: string
-    companyName?: string
-  }
-
-  interface Session {
-    user: {
-      id: string
-      email: string
-      name: string
-      role: string
-      companyName?: string
-    }
-  }
-}
-
-declare module 'next-auth/jwt' {
-  interface JWT {
-    id?: string
-    role?: string
-    companyName?: string
-  }
-}
+// Type extensions are in src/types/next-auth.d.ts
 
 // Helper functions
 export async function hashPassword(password: string): Promise<string> {

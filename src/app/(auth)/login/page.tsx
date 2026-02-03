@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import Image from 'next/image'
+import { Loader2 } from 'lucide-react'
 
-export default function LoginPage() {
+function StaffLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = searchParams.get('callbackUrl') || '/dashboard'
@@ -45,87 +46,105 @@ export default function LoginPage() {
   }
 
   return (
+    <div className="bg-white rounded-lg shadow-lg p-8">
+      {/* Logo and Header */}
+      <div className="text-center mb-8">
+        <div className="flex justify-center mb-4">
+          <Image
+            src="/hta-logo.jpg"
+            alt="HTA Instrumentation"
+            width={120}
+            height={60}
+            className="object-contain"
+          />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900">
+          HTA Calibration System
+        </h1>
+        <p className="text-gray-600 mt-2">Staff Login</p>
+      </div>
+
+      {/* Error Messages */}
+      {(error || loginError) && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm text-red-600">
+            {loginError || 'Authentication failed. Please try again.'}
+          </p>
+        </div>
+      )}
+
+      {/* Login Form */}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email Address</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="engineer@htaipl.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            disabled={isLoading}
+            className="w-full"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder="Enter your password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            disabled={isLoading}
+            className="w-full"
+          />
+        </div>
+
+        <Button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700"
+          disabled={isLoading}
+        >
+          {isLoading ? 'Signing in...' : 'Sign In'}
+        </Button>
+      </form>
+
+      {/* Customer Login Link */}
+      <div className="mt-6 text-center">
+        <p className="text-sm text-gray-600">
+          Customer?{' '}
+          <a
+            href="/customer/login"
+            className="text-blue-600 hover:text-blue-700 font-medium"
+          >
+            Login here
+          </a>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function LoginFormSkeleton() {
+  return (
+    <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="flex justify-center items-center min-h-[300px]">
+        <Loader2 className="size-8 animate-spin text-blue-600" />
+      </div>
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full mx-4">
-        <div className="bg-white rounded-lg shadow-lg p-8">
-          {/* Logo and Header */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-4">
-              <Image
-                src="/hta-logo.jpg"
-                alt="HTA Instrumentation"
-                width={120}
-                height={60}
-                className="object-contain"
-              />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              HTA Calibration System
-            </h1>
-            <p className="text-gray-600 mt-2">Staff Login</p>
-          </div>
-
-          {/* Error Messages */}
-          {(error || loginError) && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">
-                {loginError || 'Authentication failed. Please try again.'}
-              </p>
-            </div>
-          )}
-
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="engineer@htaipl.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-                className="w-full"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-                className="w-full"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700"
-              disabled={isLoading}
-            >
-              {isLoading ? 'Signing in...' : 'Sign In'}
-            </Button>
-          </form>
-
-          {/* Customer Login Link */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Customer?{' '}
-              <a
-                href="/customer/login"
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                Login here
-              </a>
-            </p>
-          </div>
-        </div>
+        <Suspense fallback={<LoginFormSkeleton />}>
+          <StaffLoginForm />
+        </Suspense>
 
         {/* Footer */}
         <p className="text-center text-sm text-gray-500 mt-4">
