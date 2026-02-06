@@ -8,6 +8,7 @@
 
 import React from 'react'
 import { CertificateFormData } from '@/lib/certificate-store'
+import { PDFSignatureData } from './pdf-utils'
 
 // Binary search bounds for multiplier
 const MIN_MULTIPLIER = 0.75
@@ -51,7 +52,8 @@ async function getPageCountFromPDF(blob: Blob): Promise<number> {
  * Generate PDF with optimal spacing using two-pass approach
  */
 export async function generatePDFWithOptimalSpacing(
-  formData: CertificateFormData
+  formData: CertificateFormData,
+  signatures?: PDFSignatureData
 ): Promise<TwoPassResult> {
   console.log('generatePDFWithOptimalSpacing called')
 
@@ -73,6 +75,7 @@ export async function generatePDFWithOptimalSpacing(
   const pass1Element = React.createElement(pdfDoc.CalibrationCertificatePDF, {
     data: formData,
     spacingMultiplier: 1.0,
+    signatures,
   })
   const pass1Blob = await (pdfRenderer.pdf(pass1Element as any).toBlob())
   iterations++
@@ -99,6 +102,7 @@ export async function generatePDFWithOptimalSpacing(
     const testElement = React.createElement(pdfDoc.CalibrationCertificatePDF, {
       data: formData,
       spacingMultiplier: mid,
+      signatures,
     })
     const testBlob = await (pdfRenderer.pdf(testElement as any).toBlob())
     iterations++
@@ -130,7 +134,8 @@ export async function generatePDFWithOptimalSpacing(
  */
 export async function generatePDFSimple(
   formData: CertificateFormData,
-  multiplier: number = 1.0
+  multiplier: number = 1.0,
+  signatures?: PDFSignatureData
 ): Promise<Blob> {
   const [pdfRenderer, pdfDoc] = await Promise.all([
     import('@react-pdf/renderer'),
@@ -140,6 +145,7 @@ export async function generatePDFSimple(
   const element = React.createElement(pdfDoc.CalibrationCertificatePDF, {
     data: formData,
     spacingMultiplier: multiplier,
+    signatures,
   })
 
   return await (pdfRenderer.pdf(element as any).toBlob())

@@ -4,6 +4,9 @@ import type { NextRequest } from 'next/server'
 // Routes that don't require authentication
 const publicRoutes = ['/', '/login', '/customer/login', '/api/auth', '/certificates/new']
 
+// Token-based customer review routes (no login required, token validates access)
+const tokenBasedRoutes = ['/customer/review/']
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -14,6 +17,13 @@ export function middleware(req: NextRequest) {
 
   // Allow public routes without any auth check
   if (isPublicRoute) {
+    return NextResponse.next()
+  }
+
+  // Check if it's a token-based route (customer review pages)
+  // These are accessible without login - the token itself provides authentication
+  const isTokenBasedRoute = tokenBasedRoutes.some((route) => pathname.startsWith(route))
+  if (isTokenBasedRoute) {
     return NextResponse.next()
   }
 
@@ -40,7 +50,7 @@ export const config = {
     // Match dashboard routes that need protection
     '/dashboard/:path*',
     '/hod/:path*',
-    '/customer/dashboard/:path*',
+    '/customer/:path*',
     '/certificates/:path*',
   ],
 }

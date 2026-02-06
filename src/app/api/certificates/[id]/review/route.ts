@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import crypto from 'crypto'
+import { notifyEngineerOnReview, notifyOnSentToCustomer } from '@/lib/notifications'
+import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/opensign'
+import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/pdf-generator'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -14,6 +18,13 @@ interface PendingEdit {
   newValue: string
   reason: string
   autoCalculated?: boolean
+}
+
+// Customer data for send-to-customer flow
+interface CustomerData {
+  email: string
+  name: string
+  message?: string
 }
 
 // POST - HoD reviews certificate (approve/reject/revision)
@@ -32,7 +43,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
     const body = await request.json()
-    const { action, comment, edits, dateOverride } = body
+    const { action, comment, edits, dateOverride, sendToCustomer, signatureData, signerName } = body
+
+    // Parse sendToCustomer data if provided
+    const customerData: CustomerData | null = sendToCustomer ? {
+      email: sendToCustomer.email?.toLowerCase(),
+      name: sendToCustomer.name,
+      message: sendToCustomer.message,
+    } : null
 
     // Validate action
     if (!['approve', 'reject', 'revision'].includes(action)) {
@@ -48,6 +66,39 @@ export async function POST(request: NextRequest, context: RouteContext) {
         { error: 'Comment is required for rejection or revision request' },
         { status: 400 }
       )
+    }
+
+    // Require signature for approve
+    if (action === 'approve') {
+      if (!signatureData || !signerName?.trim()) {
+        return NextResponse.json(
+          { error: 'Signature and signer name are required for approval' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate customer data if sendToCustomer is provided
+    if (customerData) {
+      if (!customerData.email?.trim()) {
+        return NextResponse.json(
+          { error: 'Customer email is required for sending to customer' },
+          { status: 400 }
+        )
+      }
+      if (!customerData.name?.trim()) {
+        return NextResponse.json(
+          { error: 'Customer name is required for sending to customer' },
+          { status: 400 }
+        )
+      }
+      // Basic email validation
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerData.email)) {
+        return NextResponse.json(
+          { error: 'Please enter a valid customer email address' },
+          { status: 400 }
+        )
+      }
     }
 
     // Validate edits if provided
@@ -267,6 +318,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             newStatus,
             action,
             hasComment: !!comment?.trim(),
+            hasSignature: action === 'approve',
             edits: pendingEdits.length > 0 ? pendingEdits.map(e => ({
               field: e.field,
               fieldLabel: e.fieldLabel,
@@ -281,7 +333,89 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
       })
 
-      return { certificate: updatedCert, event, feedback }
+      // Store HOD signature on approval
+      if (action === 'approve' && signatureData && signerName) {
+        // Delete any existing HOD signature (handles re-approval after engineer revision)
+        await tx.signature.deleteMany({
+          where: { certificateId: id, signerType: 'HOD' },
+        })
+
+        await tx.signature.create({
+          data: {
+            certificateId: id,
+            signerType: 'HOD',
+            signerName,
+            signerEmail: session.user.email,
+            signatureData,
+            signerId: session.user.id,
+          },
+        })
+      }
+
+      // If approving AND sending to customer, create token
+      let tokenResult = null
+      if (action === 'approve' && customerData) {
+        const now = new Date()
+        const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000) // 7 days
+        const token = crypto.randomUUID()
+
+        // Find or create CustomerUser
+        let customer = await tx.customerUser.findUnique({
+          where: { email: customerData.email },
+        })
+
+        if (!customer) {
+          const tempPasswordHash = crypto.randomBytes(32).toString('hex')
+          customer = await tx.customerUser.create({
+            data: {
+              email: customerData.email,
+              name: customerData.name,
+              passwordHash: tempPasswordHash,
+              companyName: certificate.customerName || 'Unknown Company',
+              isActive: true,
+            },
+          })
+        }
+
+        // Create ApprovalToken
+        const approvalToken = await tx.approvalToken.create({
+          data: {
+            token,
+            certificateId: id,
+            customerId: customer.id,
+            expiresAt,
+          },
+        })
+
+        // Create SENT_TO_CUSTOMER event
+        nextSequence++
+        await tx.certificateEvent.create({
+          data: {
+            certificateId: id,
+            sequenceNumber: nextSequence,
+            revision: certificate.currentRevision,
+            eventType: 'SENT_TO_CUSTOMER',
+            eventData: JSON.stringify({
+              customerEmail: customerData.email,
+              customerName: customerData.name,
+              message: customerData.message || null,
+              tokenId: approvalToken.id,
+              expiresAt: expiresAt.toISOString(),
+              sentBy: session.user.name,
+            }),
+            userId: session.user.id,
+            userRole: session.user.role,
+          },
+        })
+
+        tokenResult = {
+          token: approvalToken.token,
+          customerId: customer.id,
+          expiresAt: approvalToken.expiresAt,
+        }
+      }
+
+      return { certificate: updatedCert, event, feedback, tokenResult }
     })
 
     // Return appropriate message
@@ -304,7 +438,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
       message += ` (${pendingEdits.length} edit${pendingEdits.length > 1 ? 's' : ''} applied)`
     }
 
-    return NextResponse.json({
+    // Build response
+    const response: {
+      success: boolean
+      message: string
+      certificate: {
+        id: string
+        certificateNumber: string
+        status: string
+      }
+      customerToken?: {
+        token: string
+        reviewUrl: string
+        expiresAt: string
+      }
+    } = {
       success: true,
       message,
       certificate: {
@@ -312,7 +460,47 @@ export async function POST(request: NextRequest, context: RouteContext) {
         certificateNumber: result.certificate.certificateNumber,
         status: result.certificate.status,
       },
-    })
+    }
+
+    // Include token info if created
+    if (result.tokenResult) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      response.customerToken = {
+        token: result.tokenResult.token,
+        reviewUrl: `${baseUrl}/customer/review/${result.tokenResult.token}`,
+        expiresAt: result.tokenResult.expiresAt.toISOString(),
+      }
+      message = 'Certificate approved and sent to customer for review'
+    }
+
+    // Send HoD signature to OpenSign for digital signing (best-effort)
+    if (action === 'approve') {
+      sendToOpenSign(result.certificate.id, result.certificate.certificateNumber, session.user.email, signerName)
+        .catch((err) => console.error('OpenSign HoD signing failed (non-blocking):', err))
+    }
+
+    // Send notifications (fire and forget)
+    if (action === 'approve' || action === 'revision') {
+      // Notify engineer about approval or revision request
+      notifyEngineerOnReview({
+        certificateId: result.certificate.id,
+        certificateNumber: result.certificate.certificateNumber,
+        engineerId: certificate.createdById,
+        approved: action === 'approve',
+      }).catch((err) => console.error('Failed to send notification:', err))
+    }
+
+    // If sent to customer, also notify engineer and customer
+    if (result.tokenResult) {
+      notifyOnSentToCustomer({
+        certificateId: result.certificate.id,
+        certificateNumber: result.certificate.certificateNumber,
+        engineerId: certificate.createdById,
+        customerId: result.tokenResult.customerId,
+      }).catch((err) => console.error('Failed to send notification:', err))
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Error reviewing certificate:', error)
     return NextResponse.json(
@@ -320,4 +508,48 @@ export async function POST(request: NextRequest, context: RouteContext) {
       { status: 500 }
     )
   }
+}
+
+/**
+ * Send the HoD-signed certificate to OpenSign for digital signing.
+ * Best-effort: if OpenSign is unavailable, the local signature still stands.
+ */
+async function sendToOpenSign(
+  certificateId: string,
+  certificateNumber: string,
+  hodEmail: string,
+  hodName: string
+) {
+  const healthy = await isOpenSignHealthy()
+  if (!healthy) {
+    console.warn('OpenSign unavailable — skipping digital signing for HoD approval')
+    return
+  }
+
+  const pdfBuffer = await generateSignedPDF(certificateId)
+  const pdfBase64 = pdfBuffer.toString('base64')
+  const pageCount = getPageCountFromBuffer(pdfBuffer)
+  const widgets = getSignatureWidgets('HOD', pageCount)
+
+  const result = await withRetry(() =>
+    selfSignDocument({
+      file: pdfBase64,
+      title: `Calibration Certificate ${certificateNumber}`,
+      signerName: hodName,
+      signerEmail: hodEmail,
+      widgets,
+    })
+  )
+
+  await prisma.openSignDocument.create({
+    data: {
+      certificateId,
+      openSignDocumentId: result.documentId,
+      signerType: 'HOD',
+      signerEmail: hodEmail,
+      status: 'SIGNED',
+      signedPdfUrl: result.signedPdfUrl,
+      auditTrailUrl: result.auditTrailUrl,
+    },
+  })
 }

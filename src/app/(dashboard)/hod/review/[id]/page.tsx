@@ -54,6 +54,156 @@ async function getCertificateDetails(id: string) {
   return certificate
 }
 
+// Fetch all customer-related events for the sidebar
+async function getCustomerEvents(certificateId: string) {
+  const events = await prisma.certificateEvent.findMany({
+    where: {
+      certificateId,
+      eventType: {
+        in: [
+          'SENT_TO_CUSTOMER',
+          'CUSTOMER_REVISION_REQUESTED',
+          'CUSTOMER_APPROVED',
+          'CUSTOMER_REVISION_FORWARDED',
+        ],
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    include: {
+      user: {
+        select: { name: true, role: true },
+      },
+    },
+  })
+
+  return events.map(event => {
+    let eventData = {}
+    try {
+      eventData = JSON.parse(event.eventData)
+    } catch {
+      eventData = {}
+    }
+    return {
+      id: event.id,
+      eventType: event.eventType,
+      eventData,
+      createdAt: event.createdAt.toISOString(),
+      revision: event.revision,
+      user: event.user ? { name: event.user.name, role: event.user.role } : undefined,
+    }
+  })
+}
+
+// Fetch customer revision feedback for CUSTOMER_REVISION_REQUIRED status
+async function getCustomerRevisionFeedback(certificateId: string) {
+  // Get the CUSTOMER_REVISION_REQUESTED event
+  const event = await prisma.certificateEvent.findFirst({
+    where: {
+      certificateId,
+      eventType: 'CUSTOMER_REVISION_REQUESTED',
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  if (!event) {
+    return null
+  }
+
+  try {
+    const eventData = JSON.parse(event.eventData)
+    return {
+      notes: eventData.notes || '',
+      customerEmail: eventData.customerEmail,
+      customerName: eventData.customerName,
+      customerCompany: eventData.customerCompany,
+      requestedAt: eventData.requestedAt || event.createdAt.toISOString(),
+    }
+  } catch {
+    return null
+  }
+}
+
+// Fetch customer status for the certificate
+async function getCustomerStatus(certificateId: string) {
+  // Get the latest active token for this certificate
+  const activeToken = await prisma.approvalToken.findFirst({
+    where: {
+      certificateId,
+      usedAt: null,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
+    include: {
+      customer: true,
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  // Get the sent event
+  const sentEvent = await prisma.certificateEvent.findFirst({
+    where: {
+      certificateId,
+      eventType: 'SENT_TO_CUSTOMER',
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  // Get approval event
+  const approvalEvent = await prisma.certificateEvent.findFirst({
+    where: {
+      certificateId,
+      eventType: 'HOD_APPROVED',
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+    include: {
+      user: {
+        select: { name: true },
+      },
+    },
+  })
+
+  if (!activeToken) {
+    return {
+      sent: false,
+      sentTo: null,
+      token: null,
+      reviewUrl: null,
+      message: null,
+      approvedAt: approvalEvent?.createdAt.toISOString() || null,
+      approvedBy: approvalEvent?.user?.name || null,
+    }
+  }
+
+  const eventData = sentEvent ? JSON.parse(sentEvent.eventData) : null
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+  return {
+    sent: true,
+    sentTo: {
+      email: activeToken.customer.email,
+      name: activeToken.customer.name,
+      sentAt: sentEvent?.createdAt.toISOString() || activeToken.createdAt.toISOString(),
+    },
+    token: {
+      token: activeToken.token,
+      expiresAt: activeToken.expiresAt.toISOString(),
+    },
+    reviewUrl: `${baseUrl}/customer/review/${activeToken.token}`,
+    message: eventData?.message || null,
+    approvedAt: approvalEvent?.createdAt.toISOString() || null,
+    approvedBy: approvalEvent?.user?.name || null,
+  }
+}
+
 // Individual edit type
 interface HoDEdit {
   field: string
@@ -188,6 +338,7 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }
   PENDING_HOD_REVIEW: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' },
   REVISION_REQUIRED: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
   PENDING_CUSTOMER_APPROVAL: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+  CUSTOMER_REVISION_REQUIRED: { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
   APPROVED: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
   REJECTED: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
 }
@@ -209,6 +360,19 @@ export default async function HoDReviewPage({ params }: Props) {
   if (!certificate) {
     notFound()
   }
+
+  // Fetch customer status for certificates in PENDING_CUSTOMER_APPROVAL status
+  const customerStatus = certificate.status === 'PENDING_CUSTOMER_APPROVAL'
+    ? await getCustomerStatus(id)
+    : null
+
+  // Fetch customer revision feedback for certificates in CUSTOMER_REVISION_REQUIRED status
+  const customerRevisionFeedback = certificate.status === 'CUSTOMER_REVISION_REQUIRED'
+    ? await getCustomerRevisionFeedback(id)
+    : null
+
+  // Fetch customer events for the customer history sidebar
+  const customerEvents = await getCustomerEvents(id)
 
   const statusColors = STATUS_COLORS[certificate.status] || STATUS_COLORS.DRAFT
 
@@ -279,11 +443,15 @@ export default async function HoDReviewPage({ params }: Props) {
           certificate={certificate}
           feedbacks={mergedFeedbacks}
           conclusionStatements={CONCLUSION_STATEMENTS}
+          customerStatus={customerStatus}
+          customerRevisionFeedback={customerRevisionFeedback}
+          customerEvents={customerEvents}
         />
 
-        {/* Feedback History Sidebar - Client Component */}
+        {/* Feedback History Sidebars - Client Component */}
         <ReviewPageClient
           feedbacks={mergedFeedbacks}
+          customerEvents={customerEvents}
           currentRevision={certificate.currentRevision}
         />
       </main>

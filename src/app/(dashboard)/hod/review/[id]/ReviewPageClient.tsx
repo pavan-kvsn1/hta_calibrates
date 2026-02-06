@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { FeedbackSidebar } from '@/components/feedback'
+import { HistorySidebar } from '@/components/feedback'
 
 interface HoDEdit {
   field: string
@@ -25,21 +25,40 @@ interface Feedback {
   hodEdits?: HoDEdit[] | null
 }
 
+interface CustomerEvent {
+  id: string
+  eventType: string
+  eventData: {
+    notes?: string
+    message?: string
+    customerEmail?: string
+    customerName?: string
+    customerCompany?: string
+    requestedAt?: string
+    sentAt?: string
+    approvedAt?: string
+  }
+  createdAt: string
+  revision: number
+  user?: {
+    name: string
+    role: string
+  }
+}
+
 interface ReviewPageClientProps {
   feedbacks: Feedback[]
+  customerEvents: CustomerEvent[]
   currentRevision: number
 }
 
-export function ReviewPageClient({ feedbacks, currentRevision }: ReviewPageClientProps) {
+export function ReviewPageClient({ feedbacks, customerEvents, currentRevision }: ReviewPageClientProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
-  if (feedbacks.length === 0) {
-    return null
-  }
-
   return (
-    <FeedbackSidebar
-      feedbacks={feedbacks}
+    <HistorySidebar
+      engineerFeedbacks={feedbacks}
+      customerEvents={customerEvents}
       isOpen={isSidebarOpen}
       onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       currentRevision={currentRevision}

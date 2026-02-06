@@ -128,6 +128,22 @@ function getFeedbackStyle(feedbackType: string) {
         borderColor: 'border-blue-200',
         label: 'Engineer Response'
       }
+    case 'CUSTOMER_REVISION_REQUEST':
+      return {
+        icon: User,
+        bgColor: 'bg-purple-100',
+        textColor: 'text-purple-600',
+        borderColor: 'border-purple-200',
+        label: 'Customer Revision Request'
+      }
+    case 'CUSTOMER_REVISION_FORWARDED':
+      return {
+        icon: AlertTriangle,
+        bgColor: 'bg-purple-100',
+        textColor: 'text-purple-600',
+        borderColor: 'border-purple-200',
+        label: 'Customer Feedback Forwarded'
+      }
     default:
       return {
         icon: MessageSquare,
@@ -161,7 +177,7 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
       {!isOpen && (
         <button
           onClick={onToggle}
-          className="fixed right-4 top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1 px-3 py-4 bg-white border-2 border-slate-200 rounded-xl shadow-lg hover:border-primary hover:shadow-xl transition-all"
+          className="fixed right-4 top-[calc(50%-60px)] -translate-y-1/2 z-50 flex flex-col items-center gap-1 px-3 py-4 bg-white border-2 border-slate-200 rounded-xl shadow-lg hover:border-primary hover:shadow-xl transition-all"
         >
           <MessageSquare className="size-5 text-slate-600" />
           {unreadCount > 0 && (
@@ -170,7 +186,7 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
             </span>
           )}
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-            History
+            Engineer
           </span>
         </button>
       )}
@@ -187,7 +203,7 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
             <MessageSquare className="size-5 text-slate-700" />
-            <h2 className="font-bold text-slate-900">Feedback History</h2>
+            <h2 className="font-bold text-slate-900">Engineer History</h2>
           </div>
           <button
             onClick={onToggle}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notifyHoDOnSubmit, notifyHoDOnEngineerResponse } from '@/lib/notifications'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -17,13 +18,25 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
 
-    // Parse request body for engineer notes
+    // Parse request body for engineer notes and signature
     let engineerNotes: string | null = null
+    let signatureData: string | null = null
+    let signerName: string | null = null
     try {
       const body = await request.json()
       engineerNotes = body.engineerNotes || null
+      signatureData = body.signatureData || null
+      signerName = body.signerName || null
     } catch {
       // Body may be empty for initial submissions
+    }
+
+    // Validate signature data is present
+    if (!signatureData || !signerName?.trim()) {
+      return NextResponse.json(
+        { error: 'Signature and signer name are required' },
+        { status: 400 }
+      )
     }
 
     // Get existing certificate
@@ -138,6 +151,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
             submittedAt: new Date().toISOString(),
             isResubmission,
             engineerNotes: engineerNotes || null,
+            hasSignature: true,
           }),
           userId: session.user.id,
           userRole: session.user.role,
@@ -172,12 +186,49 @@ export async function POST(request: NextRequest, context: RouteContext) {
             previousRevision: certificate.currentRevision,
             newRevision,
             hasEngineerNotes: !!engineerNotes?.trim(),
+            hasSignature: true,
           }),
+        },
+      })
+
+      // Delete any existing ENGINEER signature for this certificate (handles resubmission)
+      await tx.signature.deleteMany({
+        where: { certificateId: id, signerType: 'ENGINEER' },
+      })
+
+      // Create ENGINEER signature record
+      await tx.signature.create({
+        data: {
+          certificateId: id,
+          signerType: 'ENGINEER',
+          signerName: signerName!,
+          signerEmail: session.user.email,
+          signatureData: signatureData!,
+          signerId: session.user.id,
         },
       })
 
       return cert
     })
+
+    // Send notifications (fire and forget, don't block response)
+    if (isResubmission) {
+      // Notify HoD about engineer response
+      notifyHoDOnEngineerResponse({
+        certificateId: updatedCertificate.id,
+        certificateNumber: updatedCertificate.certificateNumber,
+        engineerId: session.user.id,
+        engineerName: session.user.name || 'Engineer',
+      }).catch((err) => console.error('Failed to send notification:', err))
+    } else {
+      // Notify HoD about new submission
+      notifyHoDOnSubmit({
+        certificateId: updatedCertificate.id,
+        certificateNumber: updatedCertificate.certificateNumber,
+        engineerId: session.user.id,
+        engineerName: session.user.name || 'Engineer',
+      }).catch((err) => console.error('Failed to send notification:', err))
+    }
 
     return NextResponse.json({
       success: true,

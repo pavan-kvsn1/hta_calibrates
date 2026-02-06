@@ -39,6 +39,9 @@ model User {
 
   // Legacy (for gradual migration)
   signatures           Signature[]
+
+  // Notifications
+  notifications        Notification[]
 }
 
 model CustomerUser {
@@ -52,6 +55,7 @@ model CustomerUser {
 
   signatures     Signature[]
   approvalTokens ApprovalToken[]
+  notifications  Notification[]
 }
 
 // ====================
@@ -145,6 +149,15 @@ model Certificate {
   // Customer workflow
   signatures     Signature[]
   approvalTokens ApprovalToken[]
+
+  // Signed PDF
+  signedPdfPath  String?   // Path to stored signed PDF (relative to uploads dir)
+
+  // OpenSign integration
+  openSignDocuments OpenSignDocument[]
+
+  // Notifications
+  notifications  Notification[]
 
   @@index([status])
   @@index([createdById])
@@ -388,4 +401,66 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+}
+
+// ====================
+// NOTIFICATIONS
+// ====================
+
+model Notification {
+  id            String   @id @default(uuid())
+
+  // Recipient (one of these will be set)
+  userId        String?  // For staff (Engineer, HoD, Admin)
+  customerId    String?  // For customers
+
+  // Content
+  type          String   // NotificationType: REVISION_REQUESTED, CERTIFICATE_APPROVED, SENT_TO_CUSTOMER, SUBMITTED_FOR_REVIEW, ENGINEER_RESPONDED, CUSTOMER_REVISION_REQUEST, CUSTOMER_APPROVED, CERTIFICATE_READY, HOD_REPLIED, CERTIFICATE_FINALIZED
+  title         String
+  message       String
+
+  // Reference
+  certificateId String?
+
+  // Metadata
+  data          String?  // JSON for additional context (e.g., sender name, cert number)
+
+  // Status
+  read          Boolean  @default(false)
+  readAt        DateTime?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user          User?         @relation(fields: [userId], references: [id])
+  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+  certificate   Certificate?  @relation(fields: [certificateId], references: [id])
+
+  @@index([userId, read])
+  @@index([customerId, read])
+  @@index([createdAt])
+}
+
+// ====================
+// OPENSIGN INTEGRATION
+// ====================
+
+model OpenSignDocument {
+  id                  String   @id @default(cuid())
+  certificateId       String
+  openSignDocumentId  String   @unique
+  signerType          String   // HOD, CUSTOMER
+  signerEmail         String
+  status              String   @default("PENDING") // PENDING, VIEWED, SIGNED, DECLINED, EXPIRED
+  signingUrl          String?
+  signedPdfUrl        String?
+  auditTrailUrl       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  certificate         Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+
+  @@index([certificateId])
+  @@index([status])
 }

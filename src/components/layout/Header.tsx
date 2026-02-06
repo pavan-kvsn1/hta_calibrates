@@ -3,8 +3,9 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Bell, Clock, LogOut } from 'lucide-react'
+import { Clock, LogOut } from 'lucide-react'
 import { useCertificateStore } from '@/lib/certificate-store'
+import { NotificationBell } from '@/components/notifications'
 
 interface HeaderProps {
   title?: string
@@ -97,12 +98,7 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
         )}
 
         {/* Notifications */}
-        <button className="relative p-1.5 hover:bg-slate-50 rounded-full transition-colors text-slate-600">
-          <Bell className="size-4" />
-          <span className="absolute top-0.5 right-0.5 size-3 bg-red-500 rounded-full text-[8px] text-white flex items-center justify-center font-bold">
-            3
-          </span>
-        </button>
+        <NotificationBell userRole={session?.user?.role || 'ENGINEER'} />
 
         {/* User info and logout */}
         <div className="flex items-center gap-2 pl-3 border-l border-slate-200">

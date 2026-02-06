@@ -4,7 +4,8 @@ import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { LogOut, User, Bell } from 'lucide-react'
+import { LogOut, User } from 'lucide-react'
+import { NotificationBell } from '@/components/notifications'
 
 interface DashboardHeaderProps {
   title?: string
@@ -68,13 +69,8 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
 
           {/* User Info and Actions */}
           <div className="flex items-center gap-4">
-            {/* Notifications (placeholder) */}
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="h-5 w-5 text-gray-500" />
-              <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
-                3
-              </span>
-            </Button>
+            {/* Notifications */}
+            <NotificationBell userRole={session?.user?.role || 'ENGINEER'} />
 
             {/* User Info */}
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200">

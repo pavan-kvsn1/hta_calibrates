@@ -758,36 +758,60 @@ export default function EditCertificatePage() {
         </nav>
 
         {/* HoD Feedback Banner - Shows when revision is required (Collapsible) */}
-        {formData.status === 'REVISION_REQUIRED' && feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST').length > 0 && (
-          <div className="mb-8 rounded-2xl border-2 border-orange-300 bg-orange-50 overflow-hidden">
+        {formData.status === 'REVISION_REQUIRED' && feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED').length > 0 && (() => {
+          const latestFeedback = feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED')[0]
+          const isCustomerForwarded = latestFeedback?.feedbackType === 'CUSTOMER_REVISION_FORWARDED'
+
+          return (
+          <div className={cn(
+            "mb-8 rounded-2xl border-2 overflow-hidden",
+            isCustomerForwarded ? "border-purple-300 bg-purple-50" : "border-orange-300 bg-orange-50"
+          )}>
             <button
               onClick={() => setIsTopFeedbackExpanded(!isTopFeedbackExpanded)}
-              className="w-full bg-orange-100 px-6 py-4 flex items-center justify-between border-b border-orange-200 hover:bg-orange-150 transition-colors"
+              className={cn(
+                "w-full px-6 py-4 flex items-center justify-between border-b transition-colors",
+                isCustomerForwarded ? "bg-purple-100 border-purple-200 hover:bg-purple-150" : "bg-orange-100 border-orange-200 hover:bg-orange-150"
+              )}
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-orange-200">
-                  <AlertTriangle className="size-5 text-orange-700" />
+                <div className={cn(
+                  "p-2 rounded-lg",
+                  isCustomerForwarded ? "bg-purple-200" : "bg-orange-200"
+                )}>
+                  <AlertTriangle className={cn("size-5", isCustomerForwarded ? "text-purple-700" : "text-orange-700")} />
                 </div>
                 <div className="text-left">
-                  <h3 className="font-bold text-orange-900 text-[14px]">Revision Required from HoD</h3>
-                  <p className="text-[12px] text-orange-700">
+                  <h3 className={cn("font-bold text-[14px]", isCustomerForwarded ? "text-purple-900" : "text-orange-900")}>
+                    {isCustomerForwarded ? 'Customer Revision Forwarded by HoD' : 'Revision Required from HoD'}
+                  </h3>
+                  <p className={cn("text-[12px]", isCustomerForwarded ? "text-purple-700" : "text-orange-700")}>
                     {isTopFeedbackExpanded ? 'Click to hide feedback' : 'Click to view feedback details'}
                   </p>
                 </div>
               </div>
               {isTopFeedbackExpanded ? (
-                <ChevronUp className="size-5 text-orange-700" />
+                <ChevronUp className={cn("size-5", isCustomerForwarded ? "text-purple-700" : "text-orange-700")} />
               ) : (
-                <ChevronDown className="size-5 text-orange-700" />
+                <ChevronDown className={cn("size-5", isCustomerForwarded ? "text-purple-700" : "text-orange-700")} />
               )}
             </button>
             {isTopFeedbackExpanded && (
               <div className="p-6 space-y-4">
-                {feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST').slice(0, 1).map((feedback) => (
-                  <div key={feedback.id} className="bg-white rounded-xl border border-orange-200 p-4">
+                {feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED').slice(0, 1).map((feedback) => (
+                  <div key={feedback.id} className={cn(
+                    "bg-white rounded-xl border p-4",
+                    feedback.feedbackType === 'CUSTOMER_REVISION_FORWARDED' ? "border-purple-200" : "border-orange-200"
+                  )}>
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-full bg-orange-100">
-                        <User className="size-4 text-orange-600" />
+                      <div className={cn(
+                        "p-2 rounded-full",
+                        feedback.feedbackType === 'CUSTOMER_REVISION_FORWARDED' ? "bg-purple-100" : "bg-orange-100"
+                      )}>
+                        <User className={cn(
+                          "size-4",
+                          feedback.feedbackType === 'CUSTOMER_REVISION_FORWARDED' ? "text-purple-600" : "text-orange-600"
+                        )} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
@@ -862,7 +886,8 @@ export default function EditCertificatePage() {
               </div>
             )}
           </div>
-        )}
+          )
+        })()}
 
         {/* Form Sections */}
         <div className="space-y-10 pb-20">

@@ -397,6 +397,14 @@ interface ReviewContentProps {
     reason: string
     autoCalculated?: boolean
   }>
+  // Customer revision feedback for CUSTOMER_REVISION_REQUIRED status
+  customerRevisionFeedback?: {
+    notes: string
+    customerEmail?: string
+    customerName?: string
+    customerCompany?: string
+    requestedAt?: string
+  } | null
 }
 
 // Helper to format pending edit date
@@ -406,12 +414,15 @@ function formatPendingDate(dateStr: string): string {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function ReviewContent({ certificate, conclusionStatements, children, feedbacks = [], currentRevision = 1, pendingEdits = [] }: ReviewContentProps) {
+export function ReviewContent({ certificate, conclusionStatements, children, feedbacks = [], currentRevision = 1, pendingEdits = [], customerRevisionFeedback }: ReviewContentProps) {
   const [activeSection, setActiveSection] = useState<SectionId>('summary')
   const [isPreviousFeedbackExpanded, setIsPreviousFeedbackExpanded] = useState(false)
 
   // Check if this is a resubmission (revision > 1)
   const isResubmission = currentRevision > 1
+
+  // Check if this is a customer revision status
+  const isCustomerRevision = certificate.status === 'CUSTOMER_REVISION_REQUIRED'
 
   // Get engineer's response and HoD's previous feedback from enhanced feedbacks
   const engineerResponse = feedbacks.find(f => f.feedbackType === 'ENGINEER_RESPONSE')
@@ -508,8 +519,58 @@ export function ReviewContent({ certificate, conclusionStatements, children, fee
         submittedAt={certificate.status === 'PENDING_HOD_REVIEW' ? certificate.createdAt : undefined}
       />
 
-      {/* Engineer Resubmission Banner - Shows when this is a resubmission */}
-      {isResubmission && (engineerResponse || previousHoDFeedback) && (
+      {/* Customer Resubmission Banner - Shows when status is CUSTOMER_REVISION_REQUIRED */}
+      {isCustomerRevision && customerRevisionFeedback && (
+        <div className="mb-6 rounded-2xl border-2 border-purple-200 bg-purple-50 overflow-hidden">
+          <div className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-purple-100">
+                <User className="h-5 w-5 text-purple-700" />
+              </div>
+              <div>
+                <h3 className="font-bold text-purple-900 text-sm">Customer Revision Request</h3>
+                <p className="text-xs text-purple-700">Feedback from customer review</p>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl border border-purple-200 p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-semibold text-slate-900 text-sm">
+                      {customerRevisionFeedback.customerName || 'Customer'}
+                    </span>
+                    {customerRevisionFeedback.customerCompany && (
+                      <span className="text-xs text-slate-500">
+                        • {customerRevisionFeedback.customerCompany}
+                      </span>
+                    )}
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">
+                      Customer
+                    </span>
+                    {customerRevisionFeedback.requestedAt && (
+                      <span className="text-xs text-slate-400">
+                        {new Date(customerRevisionFeedback.requestedAt).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    )}
+                  </div>
+                  {customerRevisionFeedback.notes && (
+                    <p className="text-slate-700 whitespace-pre-wrap text-sm">{customerRevisionFeedback.notes}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Engineer Resubmission Banner - Shows when this is a resubmission (not customer revision) */}
+      {isResubmission && !isCustomerRevision && (engineerResponse || previousHoDFeedback) && (
         <div className="mb-6 rounded-2xl border-2 border-blue-200 bg-blue-50 overflow-hidden">
           {/* Engineer Response */}
           {engineerResponse && (

@@ -22,6 +22,8 @@ import { FormSection } from './FormSection'
 import { useCertificateStore } from '@/lib/certificate-store'
 import { cn } from '@/lib/utils'
 import { PDFPreviewSection } from '@/components/pdf'
+import { SignatureModal } from '@/components/signatures'
+import type { SignatureData } from '@/types/signatures'
 
 interface ValidationItem {
   id: string
@@ -52,6 +54,7 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isFeedbackRefExpanded, setIsFeedbackRefExpanded] = useState(false)
+  const [showSignatureModal, setShowSignatureModal] = useState(false)
 
   // Get only the latest revision request feedback (feedbacks are ordered by createdAt desc from API)
   const latestRevisionFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
@@ -121,12 +124,17 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!requiredItemsValid) {
       alert('Please complete all required fields before submitting.')
       return
     }
 
+    setSubmitError(null)
+    setShowSignatureModal(true)
+  }
+
+  const handleSignatureConfirm = async (signatureData: SignatureData) => {
     setIsSubmitting(true)
     setSubmitError(null)
 
@@ -143,12 +151,14 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
         throw new Error('Certificate ID not found. Please save the certificate first.')
       }
 
-      // Submit for review
+      // Submit for review with signature data
       const response = await fetch(`/api/certificates/${certId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          engineerNotes: formData.engineerNotes || null
+          engineerNotes: formData.engineerNotes || null,
+          signatureData: signatureData.signatureImage,
+          signerName: signatureData.signerName,
         })
       })
 
@@ -161,7 +171,8 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
         throw new Error(data.error || 'Failed to submit certificate')
       }
 
-      // Success - redirect to dashboard
+      // Success - close modal and redirect to dashboard
+      setShowSignatureModal(false)
       alert('Certificate submitted successfully for HoD review!')
       router.push('/dashboard')
     } catch (error) {
@@ -364,6 +375,18 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
           By submitting, this certificate will be sent to the Head of Department for internal
           approval.
         </p>
+
+        {/* Signature Modal */}
+        <SignatureModal
+          isOpen={showSignatureModal}
+          onClose={() => setShowSignatureModal(false)}
+          onConfirm={handleSignatureConfirm}
+          title="Sign & Submit Certificate"
+          description="Your signature confirms you have reviewed and are submitting this certificate for HoD approval."
+          confirmLabel="Sign & Submit"
+          loading={isSubmitting}
+          error={submitError}
+        />
       </div>
     </FormSection>
   )

@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
-import { Edit, FileText, Search, Filter, X } from 'lucide-react'
+import { Edit, FileText, Search, Filter, X, Eye, Send, Download } from 'lucide-react'
 
 export interface CertificateListItem {
   id: string
@@ -38,6 +38,7 @@ const statusFilters = [
   { value: 'PENDING_HOD_REVIEW', label: 'Pending HoD Review' },
   { value: 'REVISION_REQUIRED', label: 'Revision Required' },
   { value: 'PENDING_CUSTOMER_APPROVAL', label: 'Pending Customer' },
+  { value: 'CUSTOMER_REVISION_REQUIRED', label: 'Customer Revision' },
   { value: 'APPROVED', label: 'Approved' },
   { value: 'REJECTED', label: 'Rejected' },
 ]
@@ -274,6 +275,37 @@ export function CertificateTable({
                                 </Button>
                               </Link>
                             )}
+                          {userRole === 'HOD' &&
+                            cert.status === 'PENDING_CUSTOMER_APPROVAL' && (
+                              <Link href={`/hod/review/${cert.id}`}>
+                                <Button variant="ghost" size="sm" title="Manage Customer Sharing">
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            )}
+                          {userRole === 'HOD' &&
+                            cert.status === 'CUSTOMER_REVISION_REQUIRED' && (
+                              <Link href={`/hod/review/${cert.id}`}>
+                                <Button variant="ghost" size="sm" title="View Customer Feedback">
+                                  <FileText className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            )}
+                          {userRole === 'HOD' &&
+                            cert.status === 'APPROVED' && (
+                              <Link href={`/hod/review/${cert.id}`}>
+                                <Button variant="ghost" size="sm" title="View">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            )}
+                          {cert.status === 'APPROVED' && (
+                            <a href={`/api/certificates/${cert.id}/download-signed`} download>
+                              <Button variant="ghost" size="sm" title="Download Signed PDF">
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            </a>
+                          )}
                         </div>
                       </td>
                     )}

@@ -23,6 +23,8 @@ import {
   SIGNATORIES,
   FOOTER_NOTES,
   VALIDITY_STATEMENT,
+  CUSTOMER_ACKNOWLEDGMENT_TEXT,
+  PDFSignatureData,
 } from './pdf-utils'
 import {
   planLayout,
@@ -38,7 +40,7 @@ const styles = StyleSheet.create({
   // Page
   page: {
     paddingTop: 105, // Space for fixed header (letterhead ~60 + title ~25 + gap)
-    paddingBottom: 155, // Space for footer (45) + signature section (~95)
+    paddingBottom: 60, // Space for fixed footer only (~45pt + buffer)
     paddingHorizontal: 40,
     fontSize: 11,
     fontFamily: 'Helvetica',
@@ -117,7 +119,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60,
     right: 40,
-    fontSize: 10,
+    fontSize: 8,
     color: '#000',
   },
 
@@ -447,6 +449,67 @@ const styles = StyleSheet.create({
     borderBottomStyle: 'dashed',
     marginBottom: 3,
   },
+  signatureImage: {
+    height: 22,
+    width: 80,
+    objectFit: 'contain' as const,
+    marginBottom: 3,
+  },
+
+  // Section M: Customer Acknowledgment (conditional)
+  customerAckSection: {
+    marginTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#000',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#000',
+    paddingTop: 6,
+    paddingBottom: 6,
+  },
+  customerAckTitle: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    marginBottom: 4,
+  },
+  customerAckText: {
+    fontSize: 8.5,
+    marginBottom: 6,
+    lineHeight: 1.3,
+  },
+  customerAckBody: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+  },
+  customerAckSigBox: {
+    width: 100,
+    height: 50,
+    borderWidth: 0.5,
+    borderColor: '#999',
+    marginRight: 12,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  customerAckSigImage: {
+    width: 90,
+    height: 44,
+    objectFit: 'contain' as const,
+  },
+  customerAckDetails: {
+    flex: 1,
+    justifyContent: 'center' as const,
+  },
+  customerAckDetailLine: {
+    fontSize: 8.5,
+    marginBottom: 2,
+  },
+  customerAckDetailLabel: {
+    fontFamily: 'Helvetica-Bold',
+  },
+  customerAckSignatureId: {
+    fontSize: 7,
+    color: '#666',
+    marginTop: 4,
+  },
 
   // Section L: Footer Notes - fixed at bottom
   footerSection: {
@@ -480,12 +543,13 @@ const styles = StyleSheet.create({
 interface CalibrationCertificatePDFProps {
   data: CertificateFormData
   spacingMultiplier?: number // Override from two-pass system (1.0 = default, >1 = expand, <1 = compress)
+  signatures?: PDFSignatureData
 }
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
-export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMultiplier }: CalibrationCertificatePDFProps) {
+export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMultiplier, signatures }: CalibrationCertificatePDFProps) {
   // ========================================================================
   // LAYOUT PLANNING
   // ========================================================================
@@ -1026,44 +1090,81 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
         </View>
 
         {/* ================================================================ */}
-        {/* SECTION K: SIGNATURE BLOCK - Absolutely positioned at bottom */}
-        {/* Only on last page (not fixed), above footer */}
+        {/* SECTION K: SIGNATURE BLOCK - Normal flow */}
         {/* ================================================================ */}
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 55, // Above footer (footer is at bottom: 12)
-            left: 40,
-            right: 40,
-            borderTopWidth: 0.5,
-            borderTopColor: '#000',
-            paddingTop: dynamicMargin(4),
-          }}
-        >
+        <View style={[styles.signatureSection, { marginTop: dynamicMargin(4) }]} wrap={false}>
           <View style={styles.signatureRow}>
             {/* Column 1: Calibrated By / Report Prepared By */}
             <View style={styles.signatureColumn}>
               <Text style={styles.signatureLabel}>CALIBRATED BY:</Text>
-              <Text style={[styles.signatureName, { marginBottom: dynamicMargin(12) }]}>{SIGNATORIES.calibratedBy}</Text>
+              <Text style={[styles.signatureName, { marginBottom: dynamicMargin(12) }]}>{signatures?.engineer?.name || SIGNATORIES.calibratedBy}</Text>
               <Text style={styles.signatureLabel}>REPORT PREPARED BY:</Text>
-              <Text style={styles.signatureName}>{SIGNATORIES.reportPreparedBy}</Text>
+              <Text style={styles.signatureName}>{signatures?.engineer?.name || SIGNATORIES.reportPreparedBy}</Text>
             </View>
 
             {/* Column 2: Checked By */}
             <View style={styles.signatureColumn}>
               <Text style={styles.signatureLabel}>CHECKED BY</Text>
-              <View style={styles.signatureBox} />
-              <Text style={styles.signatureName}>{SIGNATORIES.checkedBy}</Text>
+              {signatures?.hod?.image ? (
+                <Image src={signatures.hod.image} style={styles.signatureImage} />
+              ) : (
+                <View style={styles.signatureBox} />
+              )}
+              <Text style={styles.signatureName}>{signatures?.hod?.name || SIGNATORIES.checkedBy}</Text>
             </View>
 
             {/* Column 3: Approved & Issued By */}
             <View style={styles.signatureColumn}>
               <Text style={styles.signatureLabel}>APPROVED & ISSUED BY</Text>
-              <View style={styles.signatureBox} />
-              <Text style={styles.signatureName}>{SIGNATORIES.approvedIssuedBy}</Text>
+              {signatures?.hod?.image ? (
+                <Image src={signatures.hod.image} style={styles.signatureImage} />
+              ) : (
+                <View style={styles.signatureBox} />
+              )}
+              <Text style={styles.signatureName}>{signatures?.hod?.name || SIGNATORIES.approvedIssuedBy}</Text>
             </View>
           </View>
         </View>
+
+        {/* ================================================================ */}
+        {/* SECTION M: CUSTOMER ACKNOWLEDGMENT (conditional) */}
+        {/* ================================================================ */}
+        {signatures?.customer && (
+          <View style={styles.customerAckSection} wrap={false}>
+            <Text style={styles.customerAckTitle}>CUSTOMER ACKNOWLEDGMENT</Text>
+            <Text style={styles.customerAckText}>{CUSTOMER_ACKNOWLEDGMENT_TEXT}</Text>
+            <View style={styles.customerAckBody}>
+              <View style={styles.customerAckSigBox}>
+                {signatures.customer.image ? (
+                  <Image src={signatures.customer.image} style={styles.customerAckSigImage} />
+                ) : (
+                  <Text style={{ fontSize: 7, color: '#999' }}>Signed</Text>
+                )}
+              </View>
+              <View style={styles.customerAckDetails}>
+                <Text style={styles.customerAckDetailLine}>
+                  <Text style={styles.customerAckDetailLabel}>Customer: </Text>
+                  {signatures.customer.companyName}
+                </Text>
+                <Text style={styles.customerAckDetailLine}>
+                  <Text style={styles.customerAckDetailLabel}>Name: </Text>
+                  {signatures.customer.name}
+                </Text>
+                <Text style={styles.customerAckDetailLine}>
+                  <Text style={styles.customerAckDetailLabel}>Email: </Text>
+                  {signatures.customer.email}
+                </Text>
+                <Text style={styles.customerAckDetailLine}>
+                  <Text style={styles.customerAckDetailLabel}>Date: </Text>
+                  {formatDateDDMMYYYY(signatures.customer.signedAt.split('T')[0])}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.customerAckSignatureId}>
+              Signature ID: {signatures.customer.signatureId}
+            </Text>
+          </View>
+        )}
 
         {/* ================================================================ */}
         {/* SECTION L: FOOTER NOTES */}

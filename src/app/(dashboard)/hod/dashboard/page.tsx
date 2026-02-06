@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Header } from '@/components/layout/Header'
 import { CertificateTable, CertificateListItem } from '@/components/dashboard/CertificateTable'
-import { Clock, CheckCircle, XCircle, FileText } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, FileText, MessageSquare } from 'lucide-react'
 
 async function getTeamCertificates(hodId: string): Promise<CertificateListItem[]> {
   // Get certificates from engineers assigned to this HoD (excluding drafts)
@@ -40,7 +40,7 @@ async function getTeamCertificates(hodId: string): Promise<CertificateListItem[]
 
 async function getStats(hodId: string) {
   // Get certificates from engineers assigned to this HoD (excluding drafts)
-  const [pendingReview, approved, revision, total] = await Promise.all([
+  const [pendingReview, approved, revision, customerRevision, total] = await Promise.all([
     prisma.certificate.count({
       where: {
         status: 'PENDING_HOD_REVIEW',
@@ -61,6 +61,12 @@ async function getStats(hodId: string) {
     }),
     prisma.certificate.count({
       where: {
+        status: 'CUSTOMER_REVISION_REQUIRED',
+        createdBy: { assignedHodId: hodId },
+      },
+    }),
+    prisma.certificate.count({
+      where: {
         createdBy: { assignedHodId: hodId },
         // Exclude drafts from total count
         status: { not: 'DRAFT' },
@@ -68,7 +74,7 @@ async function getStats(hodId: string) {
     }),
   ])
 
-  return { pendingReview, approved, revision, total }
+  return { pendingReview, approved, revision, customerRevision, total }
 }
 
 export default async function HoDDashboard() {
@@ -94,7 +100,7 @@ export default async function HoDDashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-white rounded-lg border p-4 border-l-4 border-l-yellow-500">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-yellow-100 rounded-lg">
@@ -127,6 +133,18 @@ export default async function HoDDashboard() {
               <div>
                 <p className="text-2xl font-bold text-gray-900">{stats.revision}</p>
                 <p className="text-sm text-gray-500">Revision Required</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg border p-4 border-l-4 border-l-purple-500">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <MessageSquare className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">{stats.customerRevision}</p>
+                <p className="text-sm text-gray-500">Customer Revision</p>
               </div>
             </div>
           </div>

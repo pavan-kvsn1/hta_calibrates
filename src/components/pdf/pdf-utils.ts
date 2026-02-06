@@ -144,6 +144,25 @@ export const SIGNATORIES = {
   approvedIssuedBy: 'HEMANTH KUMAR',
 }
 
+export interface PDFSignatureData {
+  engineer?: {
+    name: string      // Shown in CALIBRATED BY and REPORT PREPARED BY
+    image?: string    // base64 data URI (reserved, not rendered in signature block)
+  }
+  hod?: {
+    name: string      // Shown in CHECKED BY and APPROVED & ISSUED BY
+    image?: string    // base64 data URI, rendered in signature boxes
+  }
+  customer?: {
+    name: string
+    companyName: string
+    email: string
+    image?: string
+    signedAt: string      // ISO date string
+    signatureId: string   // Signature record UUID
+  }
+}
+
 /**
  * Footer notes (mandatory legal statements)
  */
@@ -158,6 +177,9 @@ export const FOOTER_NOTES = [
  */
 export const VALIDITY_STATEMENT =
   'The results reported in this Certificate are valid at the time of & under the stipulated conditions of measurement.'
+
+export const CUSTOMER_ACKNOWLEDGMENT_TEXT =
+  'I, the undersigned, acknowledge receipt and acceptance of this calibration certificate and its reported results.'
 
 /**
  * Conclusion statements mapping (key -> full text)

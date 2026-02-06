@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -19,6 +19,7 @@ import {
   Plus
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ApproveModal } from './ApproveModal'
 
 interface Feedback {
   id: string
@@ -40,6 +41,35 @@ interface Feedback {
   }> | null
 }
 
+// Feedback item for timeline
+interface FeedbackItem {
+  id: string
+  type: 'hod' | 'customer' | 'engineer'
+  name: string
+  company?: string
+  message: string
+  createdAt: string
+}
+
+// Customer event from CertificateEvent table
+interface CustomerEvent {
+  id: string
+  eventType: string
+  eventData: {
+    notes?: string
+    message?: string
+    customerEmail?: string
+    customerName?: string
+    customerCompany?: string
+  }
+  createdAt: string
+  revision: number
+  user?: {
+    name: string
+    role: string
+  }
+}
+
 // Pending edit type
 export interface PendingEdit {
   field: 'dateOfCalibration' | 'calibrationDueDate'
@@ -52,13 +82,19 @@ export interface PendingEdit {
 
 interface ReviewActionsProps {
   certificateId: string
+  certificateNumber: string
   currentStatus: string
   feedbacks?: Feedback[]
+  customerEvents?: CustomerEvent[]
   // Certificate data for editing
   dateOfCalibration: string | null
   calibrationDueDate: string | null
   calibrationTenure: number
   dueDateAdjustment: number
+  // Certificate info for approval modal
+  uucDescription: string | null
+  customerName: string | null
+  customerEmail: string | null
   // Callback to notify parent of pending edits
   onPendingEditsChange?: (edits: PendingEdit[]) => void
 }
@@ -89,18 +125,26 @@ function formatDateDisplay(dateStr: string | null): string {
 
 export function ReviewActions({
   certificateId,
+  certificateNumber,
   currentStatus,
   feedbacks = [],
+  customerEvents = [],
   dateOfCalibration,
   calibrationDueDate,
   calibrationTenure,
   dueDateAdjustment,
+  uucDescription,
+  customerName,
+  customerEmail,
   onPendingEditsChange,
 }: ReviewActionsProps) {
   const router = useRouter()
   const [comment, setComment] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Approve Modal state
+  const [showApproveModal, setShowApproveModal] = useState(false)
 
   // Section expand/collapse state
   const [isEditActionsExpanded, setIsEditActionsExpanded] = useState(false)
@@ -240,13 +284,173 @@ export function ReviewActions({
     setPendingEdits(newEdits)
   }
 
-  // Get previous feedback context
-  const previousRevisionRequest = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
-  const engineerResponse = feedbacks.find(f => f.feedbackType === 'ENGINEER_RESPONSE')
-  const hasPreviousFeedback = previousRevisionRequest || engineerResponse
+  // Build all feedback items from raw data (no revision filtering)
+  const buildAllFeedbackItems = (): FeedbackItem[] => {
+    const items: FeedbackItem[] = []
 
-  const handleAction = async (action: 'approve' | 'reject' | 'revision') => {
-    if (action !== 'approve' && !comment.trim()) {
+    // Add feedbacks (HoD requests, engineer responses)
+    feedbacks.forEach((feedback) => {
+      if (feedback.feedbackType === 'REVISION_REQUEST' || feedback.feedbackType === 'APPROVAL_NOTE') {
+        items.push({
+          id: feedback.id,
+          type: 'hod',
+          name: feedback.user.name,
+          message: feedback.comment || '',
+          createdAt: feedback.createdAt,
+        })
+      } else if (feedback.feedbackType === 'ENGINEER_RESPONSE') {
+        items.push({
+          id: feedback.id,
+          type: 'engineer',
+          name: feedback.user.name,
+          message: feedback.comment || '',
+          createdAt: feedback.createdAt,
+        })
+      } else if (feedback.feedbackType === 'CUSTOMER_REVISION_FORWARDED') {
+        items.push({
+          id: feedback.id,
+          type: 'hod',
+          name: feedback.user.name,
+          message: feedback.comment || 'Forwarded customer feedback to engineer',
+          createdAt: feedback.createdAt,
+        })
+      }
+    })
+
+    // Add customer events
+    customerEvents.forEach((event) => {
+      if (event.eventType === 'CUSTOMER_REVISION_REQUESTED') {
+        items.push({
+          id: event.id,
+          type: 'customer',
+          name: event.eventData.customerName || 'Customer',
+          company: event.eventData.customerCompany,
+          message: event.eventData.notes || '',
+          createdAt: event.createdAt,
+        })
+      }
+    })
+
+    return items
+  }
+
+  // Build the latest feedback thread (last cycle only):
+  // Customer feedback (optional) → HoD feedback → Engineer response
+  const buildLatestThread = (): FeedbackItem[] => {
+    const allItems = buildAllFeedbackItems()
+
+    // Sort by date (oldest first)
+    const sorted = allItems.sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    )
+
+    // Find the last engineer response
+    const lastEngineerIdx = sorted.findLastIndex(f => f.type === 'engineer')
+    if (lastEngineerIdx === -1) {
+      // No engineer response - find last HoD message
+      const lastHodIdx = sorted.findLastIndex(f => f.type === 'hod')
+      if (lastHodIdx === -1) {
+        // Check for customer feedback only
+        const lastCustomerIdx = sorted.findLastIndex(f => f.type === 'customer')
+        if (lastCustomerIdx !== -1) {
+          return [sorted[lastCustomerIdx]]
+        }
+        return []
+      }
+      // Find customer feedback before this HoD message
+      const thread: FeedbackItem[] = []
+      for (let i = lastHodIdx - 1; i >= 0; i--) {
+        if (sorted[i].type === 'customer') {
+          thread.unshift(sorted[i])
+          break
+        }
+      }
+      thread.push(sorted[lastHodIdx])
+      return thread
+    }
+
+    // Found engineer response - build thread backwards
+    const thread: FeedbackItem[] = [sorted[lastEngineerIdx]]
+
+    // Find HoD message before engineer response
+    for (let i = lastEngineerIdx - 1; i >= 0; i--) {
+      if (sorted[i].type === 'hod') {
+        thread.unshift(sorted[i])
+        // Find customer feedback before HoD message
+        for (let j = i - 1; j >= 0; j--) {
+          if (sorted[j].type === 'customer') {
+            thread.unshift(sorted[j])
+            break
+          }
+        }
+        break
+      }
+    }
+
+    return thread
+  }
+
+  const latestThread = buildLatestThread()
+  const hasPreviousFeedback = latestThread.length > 0
+
+  // Handle approval through the modal
+  const handleApprove = async (sendEmail: boolean, customerData?: { email: string; name: string; message?: string }, signatureInfo?: { signatureImage: string; signerName: string }) => {
+    setIsSubmitting(true)
+    setError(null)
+
+    // Build request body
+    const requestBody: {
+      action: string
+      comment?: string
+      edits?: PendingEdit[]
+      sendToCustomer?: { email: string; name: string; message?: string }
+      signatureData?: string
+      signerName?: string
+    } = {
+      action: 'approve',
+      comment: comment.trim() || undefined,
+    }
+
+    // Include pending edits if any
+    if (pendingEdits.length > 0) {
+      requestBody.edits = pendingEdits
+    }
+
+    // Include customer data if sending email
+    if (sendEmail && customerData) {
+      requestBody.sendToCustomer = customerData
+    }
+
+    // Include signature data
+    if (signatureInfo) {
+      requestBody.signatureData = signatureInfo.signatureImage
+      requestBody.signerName = signatureInfo.signerName
+    }
+
+    try {
+      const response = await fetch(`/api/certificates/${certificateId}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to approve certificate')
+      }
+
+      router.push('/hod/dashboard')
+      router.refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      throw err // Re-throw to let modal handle error display
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleAction = async (action: 'reject' | 'revision') => {
+    if (!comment.trim()) {
       setError('Please provide a comment for rejection or revision request')
       return
     }
@@ -566,7 +770,7 @@ export function ReviewActions({
           {/* Action Buttons */}
           <div className="space-y-3">
             <Button
-              onClick={() => handleAction('approve')}
+              onClick={() => setShowApproveModal(true)}
               disabled={isSubmitting}
               className="w-full h-10 bg-green-600 hover:bg-green-700 text-[13px]"
             >
@@ -603,7 +807,7 @@ export function ReviewActions({
         )}
       </div>
 
-      {/* Previous Feedback Context - Collapsible */}
+      {/* Latest Feedback Thread */}
       {hasPreviousFeedback && (
         <div className="bg-white rounded-xl border-2 border-slate-200 overflow-hidden shadow-sm">
           <button
@@ -615,11 +819,11 @@ export function ReviewActions({
                 <MessageSquare className="h-5 w-5 text-slate-600" />
               </div>
               <div className="text-left">
-                <span className="text-base font-semibold text-slate-800 block">Previous Feedback</span>
-                <span className="text-xs text-slate-500">Review conversation history</span>
+                <span className="text-base font-semibold text-slate-800 block">Latest Feedback Thread</span>
+                <span className="text-xs text-slate-500">Recent conversation</span>
               </div>
               <span className="text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">
-                {[previousRevisionRequest, engineerResponse].filter(Boolean).length}
+                {latestThread.length}
               </span>
             </div>
             {isPreviousFeedbackExpanded ? (
@@ -630,60 +834,72 @@ export function ReviewActions({
           </button>
 
           {isPreviousFeedbackExpanded && (
-            <div className="p-5 space-y-4 bg-slate-50/50 border-t-2 border-slate-100">
-              {/* Your Previous Request */}
-              {previousRevisionRequest && (
-                <div className="rounded-lg border-2 border-orange-200 bg-orange-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-semibold text-orange-700">You requested revision:</span>
-                        <span className="text-xs text-orange-500">
-                          {new Date(previousRevisionRequest.createdAt).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'short'
-                          })}
-                        </span>
-                      </div>
-                      {previousRevisionRequest.comment && (
-                        <p className="text-sm text-slate-700 line-clamp-4">{previousRevisionRequest.comment}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div className="border-t-2 border-slate-100">
+              {/* Chat-style messages */}
+              <div className="p-4 bg-gray-50 flex flex-col gap-2 max-h-64 overflow-y-auto">
+                {latestThread.map((item) => {
+                  const isOwnMessage = item.type === 'hod'
+                  const isCustomer = item.type === 'customer'
+                  const isEngineer = item.type === 'engineer'
 
-              {/* Engineer's Response */}
-              {engineerResponse && (
-                <div className="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <User className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-sm font-semibold text-blue-700">Engineer responded:</span>
-                        <span className="text-xs text-blue-500">
-                          {new Date(engineerResponse.createdAt).toLocaleDateString('en-GB', {
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`relative max-w-[85%] px-3 py-2 rounded-lg text-[12px] border ${
+                          isOwnMessage
+                            ? 'bg-amber-50 border-amber-200 rounded-br-none'
+                            : isCustomer
+                            ? 'bg-purple-50 border-purple-200 rounded-bl-none'
+                            : 'bg-blue-50 border-blue-200 rounded-bl-none'
+                        }`}
+                      >
+                        <p className={`text-[10px] font-semibold mb-0.5 ${
+                          isOwnMessage
+                            ? 'text-amber-600 text-right'
+                            : isCustomer
+                            ? 'text-purple-600'
+                            : 'text-blue-600'
+                        }`}>
+                          {isOwnMessage
+                            ? 'You'
+                            : isCustomer
+                            ? `Customer • ${item.name}${item.company ? ` (${item.company})` : ''}`
+                            : `Engineer • ${item.name}`}
+                        </p>
+                        <p className="text-slate-700 whitespace-pre-wrap">{item.message}</p>
+                        <p className={`text-[9px] mt-1 ${isOwnMessage ? 'text-amber-400 text-right' : 'text-gray-400'}`}>
+                          {new Date(item.createdAt).toLocaleString('en-IN', {
                             day: 'numeric',
-                            month: 'short'
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
                           })}
-                        </span>
+                        </p>
                       </div>
-                      {engineerResponse.comment && (
-                        <p className="text-sm text-slate-700 line-clamp-4">{engineerResponse.comment}</p>
-                      )}
                     </div>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-xs text-slate-400 text-center">
-                View full history in sidebar →
-              </p>
+                  )
+                })}
+              </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Approve Modal */}
+      <ApproveModal
+        isOpen={showApproveModal}
+        onClose={() => setShowApproveModal(false)}
+        certificateId={certificateId}
+        certificateNumber={certificateNumber}
+        uucDescription={uucDescription}
+        customerName={customerName}
+        customerEmail={customerEmail}
+        pendingEditsCount={pendingEdits.length}
+        onApprove={handleApprove}
+      />
     </div>
   )
 }
