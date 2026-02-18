@@ -8,7 +8,7 @@
 import React from 'react'
 import { prisma } from '@/lib/prisma'
 import { CertificateFormData } from '@/lib/certificate-store'
-import { PDFSignatureData } from '@/components/pdf/pdf-utils'
+import { PDFSignatureData, SigningMetadata, parseUserAgent } from '@/components/pdf/pdf-utils'
 
 // Binary search bounds for multiplier
 const MIN_MULTIPLIER = 0.75
@@ -83,25 +83,108 @@ export async function fetchCertificateForPDF(certificateId: string): Promise<{
     orderBy: { signedAt: 'desc' },
   })
 
+  // Fetch signing evidence for metadata - filter by current revision
+  const signingEvidence = await prisma.signingEvidence.findMany({
+    where: {
+      certificateId,
+      revision: certificate.currentRevision,
+    },
+    orderBy: { sequenceNumber: 'asc' },
+  })
+
+  // Helper to extract metadata from signing evidence
+  const getMetadataForSignature = (signatureId: string | null, signerType: string): SigningMetadata | undefined => {
+    // First try to match by signatureId
+    let evidence = signatureId
+      ? signingEvidence.find(e => e.signatureId === signatureId)
+      : null
+
+    // Fallback: match by event type
+    if (!evidence) {
+      const eventTypeMap: Record<string, string> = {
+        'ENGINEER': 'ENGINEER_SIGNED',
+        'HOD': 'HOD_SIGNED',
+        'ADMIN': 'ADMIN_SIGNED',
+        'CUSTOMER': 'CUSTOMER_SIGNED',
+      }
+      evidence = signingEvidence.find(e => e.eventType === eventTypeMap[signerType])
+    }
+
+    if (!evidence) return undefined
+
+    try {
+      const parsed = JSON.parse(evidence.evidence)
+      return {
+        signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
+        ipAddress: parsed.ipAddress,
+        timezone: parsed.timezone,
+        deviceInfo: parseUserAgent(parsed.userAgent || ''),
+      }
+    } catch {
+      return {
+        signedAt: evidence.createdAt.toISOString(),
+      }
+    }
+  }
+
+  // Helper to check if signature has evidence for current revision
+  const hasEvidenceForCurrentRevision = (signatureId: string, signerType: string): boolean => {
+    const eventTypeMap: Record<string, string> = {
+      'ENGINEER': 'ENGINEER_SIGNED',
+      'HOD': 'HOD_SIGNED',
+      'ADMIN': 'ADMIN_SIGNED',
+      'CUSTOMER': 'CUSTOMER_SIGNED',
+    }
+    return signingEvidence.some(e =>
+      e.signatureId === signatureId || e.eventType === eventTypeMap[signerType]
+    )
+  }
+
   const engineerSig = dbSignatures.find(s => s.signerType === 'ENGINEER')
   const hodSig = dbSignatures.find(s => s.signerType === 'HOD')
+  const adminSig = dbSignatures.find(s => s.signerType === 'ADMIN')
   const customerSig = dbSignatures.find(s => s.signerType === 'CUSTOMER')
 
-  const signatures: PDFSignatureData | undefined = (engineerSig || hodSig || customerSig) ? {
-    ...(engineerSig ? {
-      engineer: { name: engineerSig.signerName.toUpperCase(), image: engineerSig.signatureData }
+  // Only include signatures that have evidence for the current revision
+  const validEngineerSig = engineerSig && hasEvidenceForCurrentRevision(engineerSig.id, 'ENGINEER') ? engineerSig : null
+  const validHodSig = hodSig && hasEvidenceForCurrentRevision(hodSig.id, 'HOD') ? hodSig : null
+  const validAdminSig = adminSig && hasEvidenceForCurrentRevision(adminSig.id, 'ADMIN') ? adminSig : null
+  const validCustomerSig = customerSig && hasEvidenceForCurrentRevision(customerSig.id, 'CUSTOMER') ? customerSig : null
+
+  const signatures: PDFSignatureData | undefined = (validEngineerSig || validHodSig || validAdminSig || validCustomerSig) ? {
+    ...(validEngineerSig ? {
+      engineer: {
+        name: validEngineerSig.signerName.toUpperCase(),
+        image: validEngineerSig.signatureData,
+        signatureId: validEngineerSig.id,
+        metadata: getMetadataForSignature(validEngineerSig.id, 'ENGINEER'),
+      }
     } : {}),
-    ...(hodSig ? {
-      hod: { name: hodSig.signerName.toUpperCase(), image: hodSig.signatureData }
+    ...(validHodSig ? {
+      hod: {
+        name: validHodSig.signerName.toUpperCase(),
+        image: validHodSig.signatureData,
+        signatureId: validHodSig.id,
+        metadata: getMetadataForSignature(validHodSig.id, 'HOD'),
+      }
     } : {}),
-    ...(customerSig ? {
+    ...(validAdminSig ? {
+      admin: {
+        name: validAdminSig.signerName.toUpperCase(),
+        image: validAdminSig.signatureData,
+        signatureId: validAdminSig.id,
+        metadata: getMetadataForSignature(validAdminSig.id, 'ADMIN'),
+      }
+    } : {}),
+    ...(validCustomerSig ? {
       customer: {
-        name: customerSig.signerName.toUpperCase(),
+        name: validCustomerSig.signerName.toUpperCase(),
         companyName: certificate.customerName || '',
-        email: customerSig.signerEmail,
-        image: customerSig.signatureData,
-        signedAt: customerSig.signedAt.toISOString(),
-        signatureId: customerSig.id,
+        email: validCustomerSig.signerEmail,
+        image: validCustomerSig.signatureData,
+        signedAt: validCustomerSig.signedAt.toISOString(),
+        signatureId: validCustomerSig.id,
+        metadata: getMetadataForSignature(validCustomerSig.id, 'CUSTOMER'),
       }
     } : {}),
   } : undefined
@@ -199,6 +282,7 @@ export async function fetchCertificateForPDF(certificateId: string): Promise<{
     selectedConclusionStatements: certificate.selectedConclusionStatements
       ? JSON.parse(certificate.selectedConclusionStatements as string)
       : [],
+    additionalConclusionStatement: certificate.additionalConclusionStatement || '',
 
     engineerNotes: '',
   } as CertificateFormData

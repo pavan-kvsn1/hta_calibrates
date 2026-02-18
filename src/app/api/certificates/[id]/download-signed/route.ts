@@ -23,7 +23,7 @@ export async function GET(
       return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
     }
 
-    if (certificate.status !== 'APPROVED') {
+    if (!['APPROVED', 'PENDING_ADMIN_AUTHORIZATION', 'AUTHORIZED'].includes(certificate.status)) {
       return NextResponse.json(
         { error: 'Certificate is not approved — signed PDF is not available' },
         { status: 400 }
@@ -41,8 +41,10 @@ export async function GET(
     } else if (userRole === 'CUSTOMER') {
       const customer = await prisma.customerUser.findUnique({
         where: { id: userId },
+        include: { customerAccount: true },
       })
-      if (!customer || certificate.customerName?.toLowerCase() !== customer.companyName.toLowerCase()) {
+      const customerCompanyName = customer?.customerAccount?.companyName || customer?.companyName
+      if (!customer || !customerCompanyName || certificate.customerName?.toLowerCase() !== customerCompanyName.toLowerCase()) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
     } else if (userRole !== 'HOD' && userRole !== 'ADMIN') {

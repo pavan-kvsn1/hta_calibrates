@@ -85,6 +85,7 @@ interface ApiCertificate {
   stickerNewAffixed: string | null
   statusNotes: string | null
   selectedConclusionStatements: string | null
+  additionalConclusionStatement: string | null
   parameters: ApiParameter[]
   masterInstruments: ApiMasterInstrument[]
   feedbacks?: ApiFeedback[]
@@ -326,6 +327,7 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     stickerNewAffixed: (apiData.stickerNewAffixed || null) as 'yes' | 'no' | 'na' | null,
     statusNotes: apiData.statusNotes || '',
     selectedConclusionStatements,
+    additionalConclusionStatement: apiData.additionalConclusionStatement || '',
     parameters,
     masterInstruments,
   }
@@ -924,7 +926,7 @@ export default function EditCertificatePage() {
           feedbacks={feedbacks}
           isOpen={isSidebarOpen}
           onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-          currentRevision={1}
+          currentRevision={currentRevision}
         />
       )}
     </div>

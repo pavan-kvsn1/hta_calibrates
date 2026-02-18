@@ -256,7 +256,7 @@ function StickyNav({ activeSection, onSectionClick, visibleSections }: StickyNav
   const filteredSections = SECTIONS.filter(s => visibleSections.includes(s.id))
 
   return (
-    <nav className="sticky top-[75px] z-40 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-sm mb-6 overflow-x-auto">
+    <nav className="sticky top-[75px] z-20 bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl shadow-sm mb-6 overflow-x-auto">
       <div className="flex items-center gap-1 p-2 min-w-max">
         {filteredSections.map((section) => {
           const colors = COLOR_CLASSES[section.color]

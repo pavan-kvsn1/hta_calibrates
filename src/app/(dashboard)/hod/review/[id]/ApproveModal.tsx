@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +15,9 @@ import {
   FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { SignatureCanvas, type SignatureCanvasHandle } from '@/components/signatures'
+import TypedSignature, { type TypedSignatureHandle } from '@/components/signatures/TypedSignature'
+import { CONSENT_STATEMENTS, CONSENT_VERSION } from '@/lib/consent-text'
+import type { ClientEvidence } from '@/types/signatures'
 
 interface ApproveModalProps {
   isOpen: boolean
@@ -24,7 +28,7 @@ interface ApproveModalProps {
   customerName: string | null
   customerEmail: string | null
   pendingEditsCount: number
-  onApprove: (sendEmail: boolean, customerData?: { email: string; name: string; message?: string }, signatureInfo?: { signatureImage: string; signerName: string }) => Promise<void>
+  onApprove: (sendEmail: boolean, customerData?: { email: string; name: string; message?: string }, signatureInfo?: { signatureImage: string; signerName: string; clientEvidence: ClientEvidence }) => Promise<void>
 }
 
 type ApprovalOption = 'approve-only' | 'approve-send'
@@ -40,6 +44,7 @@ export function ApproveModal({
   pendingEditsCount,
   onApprove,
 }: ApproveModalProps) {
+  const { data: session } = useSession()
   const [selectedOption, setSelectedOption] = useState<ApprovalOption>('approve-send')
   const [email, setEmail] = useState(customerEmail || '')
   const [name, setName] = useState(customerName || '')
@@ -47,19 +52,35 @@ export function ApproveModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Signature state
-  const signatureCanvasRef = useRef<SignatureCanvasHandle>(null)
+  // Signature state - pre-fill with session user's name
+  const signatureRef = useRef<TypedSignatureHandle>(null)
   const [hasSignature, setHasSignature] = useState(false)
-  const [signerName, setSignerName] = useState('')
+  const signerName = session?.user?.name || '' // Read-only from session
+  const [mounted, setMounted] = useState(false)
 
-  const handleSignatureChange = useCallback((hasSig: boolean) => {
+  // Consent state
+  const [consentAccepted, setConsentAccepted] = useState(false)
+  const [consentAcceptedAt, setConsentAcceptedAt] = useState<number | null>(null)
+
+  // For SSR safety - only render portal after mount
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const handleSignatureReady = useCallback((hasSig: boolean) => {
     setHasSignature(hasSig)
   }, [])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
   const handleSubmit = async () => {
     setError(null)
+
+    // Validate consent
+    if (!consentAccepted) {
+      setError('Please accept the consent statements before signing')
+      return
+    }
 
     // Validate signature
     if (!hasSignature) {
@@ -89,8 +110,20 @@ export function ApproveModal({
 
     setIsSubmitting(true)
 
-    const signatureImage = signatureCanvasRef.current?.toDataURL() || ''
-    const signatureInfo = { signatureImage, signerName: signerName.trim() }
+    const signatureImage = signatureRef.current?.toDataURL() || ''
+
+    // Collect client evidence
+    const clientEvidence: ClientEvidence = {
+      clientTimestamp: Date.now(),
+      userAgent: navigator.userAgent,
+      screenResolution: `${screen.width}x${screen.height}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      canvasSize: { width: 400, height: 150 },
+      consentVersion: CONSENT_VERSION,
+      consentAcceptedAt: consentAcceptedAt!,
+    }
+
+    const signatureInfo = { signatureImage, signerName: signerName.trim(), clientEvidence }
 
     try {
       if (selectedOption === 'approve-send') {
@@ -106,8 +139,8 @@ export function ApproveModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="px-6 py-4 border-b flex items-center justify-between">
@@ -268,38 +301,53 @@ export function ApproveModal({
             </div>
           )}
 
-          {/* Signature Section */}
+          {/* Consent Section */}
           <div className="space-y-3 pt-2 border-t border-gray-200">
-            <div>
-              <Label className="text-sm font-medium text-gray-700">
-                Your Signature <span className="text-red-500">*</span>
-              </Label>
-              <div className="mt-1">
-                <SignatureCanvas
-                  ref={signatureCanvasRef}
-                  onSignatureChange={handleSignatureChange}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => signatureCanvasRef.current?.clear()}
-                className="text-sm text-gray-500 hover:text-gray-700 mt-1"
-              >
-                Clear signature
-              </button>
-            </div>
+            <p className="text-sm font-medium text-gray-700">Before signing, please confirm:</p>
+            <ul className="text-sm text-gray-600 space-y-1 ml-4 list-disc">
+              {CONSENT_STATEMENTS.map((statement, i) => (
+                <li key={i}>{statement}</li>
+              ))}
+            </ul>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(e) => {
+                  setConsentAccepted(e.target.checked)
+                  if (e.target.checked) setConsentAcceptedAt(Date.now())
+                }}
+                className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+              />
+              <span className="text-sm font-medium text-gray-700">I agree to the above statements</span>
+            </label>
+          </div>
 
+          {/* Signature Section */}
+          <div className={cn("space-y-3 pt-2 border-t border-gray-200", !consentAccepted && "opacity-50 pointer-events-none")}>
             <div>
               <Label className="text-sm font-medium text-gray-700">
-                Your Name <span className="text-red-500">*</span>
+                Your Name <span className="text-xs text-gray-500 font-normal ml-2">(from your profile)</span>
               </Label>
               <Input
                 type="text"
                 value={signerName}
-                onChange={(e) => setSignerName(e.target.value)}
-                placeholder="Enter your full name"
-                className="mt-1"
+                readOnly
+                className="mt-1 bg-gray-100 cursor-not-allowed"
               />
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium text-gray-700">
+                Your Signature
+              </Label>
+              <div className="mt-1">
+                <TypedSignature
+                  ref={signatureRef}
+                  name={signerName}
+                  onSignatureReady={handleSignatureReady}
+                />
+              </div>
             </div>
           </div>
 
@@ -342,6 +390,7 @@ export function ApproveModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

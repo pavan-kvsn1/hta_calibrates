@@ -8,21 +8,25 @@ import {
   getSimpleValue,
 } from './master-instruments'
 
-// Import the JSON data
+// Import the JSON data as fallback
 import masterListData from '@/data/master-instruments.json'
 
 interface MasterInstrumentStore {
   // Data
   instruments: MasterInstrument[]
   isLoaded: boolean
+  isLoading: boolean
+  error: string | null
   lastUpdated: Date | null
+  dataSource: 'json' | 'api' | null
 
   // Filters
   selectedCategory: InstrumentCategory | null
   searchQuery: string
 
   // Actions
-  loadInstruments: () => void
+  loadInstruments: () => Promise<void>
+  loadFromJson: () => void
   setSelectedCategory: (category: InstrumentCategory | null) => void
   setSearchQuery: (query: string) => void
 
@@ -50,18 +54,63 @@ interface MasterInstrumentStore {
 export const useMasterInstrumentStore = create<MasterInstrumentStore>((set, get) => ({
   instruments: [],
   isLoaded: false,
+  isLoading: false,
+  error: null,
   lastUpdated: null,
+  dataSource: null,
   selectedCategory: null,
   searchQuery: '',
 
-  loadInstruments: () => {
+  loadInstruments: async () => {
+    const { isLoaded, isLoading } = get()
+
+    // Prevent duplicate loading
+    if (isLoaded || isLoading) return
+
+    set({ isLoading: true, error: null })
+
+    try {
+      // Try to fetch from API first
+      const response = await fetch('/api/instruments')
+
+      if (!response.ok) {
+        throw new Error('API request failed')
+      }
+
+      const data = await response.json()
+
+      // Check if we got an array (API returns array) vs error object
+      if (Array.isArray(data) && data.length > 0) {
+        const enrichedInstruments = (data as MasterInstrument[]).map(enrichInstrument)
+        set({
+          instruments: enrichedInstruments,
+          isLoaded: true,
+          isLoading: false,
+          lastUpdated: new Date(),
+          dataSource: 'api',
+        })
+        return
+      }
+
+      // If API returned empty, fall back to JSON
+      throw new Error('API returned empty data')
+    } catch (error) {
+      console.warn('Failed to load instruments from API, using JSON fallback:', error)
+      // Fall back to JSON data
+      get().loadFromJson()
+    }
+  },
+
+  loadFromJson: () => {
     // Enrich all instruments with computed fields
     const enrichedInstruments = (masterListData as MasterInstrument[]).map(enrichInstrument)
 
     set({
       instruments: enrichedInstruments,
       isLoaded: true,
+      isLoading: false,
       lastUpdated: new Date(),
+      dataSource: 'json',
     })
   },
 
@@ -215,6 +264,26 @@ export const useMasterInstrumentStore = create<MasterInstrumentStore>((set, get)
 
 // Initialize store on module load
 if (typeof window !== 'undefined') {
-  // Client-side: load instruments
-  useMasterInstrumentStore.getState().loadInstruments()
+  // Client-side: load instruments asynchronously
+  // Use JSON first for immediate availability, then try API
+  useMasterInstrumentStore.getState().loadFromJson()
+
+  // Then attempt to refresh from API (non-blocking)
+  setTimeout(() => {
+    fetch('/api/instruments')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          const enrichedInstruments: MasterInstrument[] = data.map(enrichInstrument)
+          useMasterInstrumentStore.setState({
+            instruments: enrichedInstruments,
+            lastUpdated: new Date(),
+            dataSource: 'api',
+          })
+        }
+      })
+      .catch(() => {
+        // Silently fail - JSON data is already loaded
+      })
+  }, 100)
 }

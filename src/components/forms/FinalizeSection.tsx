@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import {
   CheckCircle,
   AlertCircle,
@@ -30,6 +31,7 @@ interface ValidationItem {
   label: string
   isValid: boolean
   isOptional?: boolean
+  isCritical?: boolean // Blocks saving draft entirely
 }
 
 interface Feedback {
@@ -49,6 +51,7 @@ interface FinalizeSectionProps {
 
 export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
   const router = useRouter()
+  const { data: session } = useSession()
   const { formData, isSaving, certificateId, saveDraft, setEngineerNotes } = useCertificateStore()
   const [showPDFPreview, setShowPDFPreview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -59,6 +62,56 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
   // Get only the latest revision request feedback (feedbacks are ordered by createdAt desc from API)
   const latestRevisionFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
   const isRevisionRequired = formData.status === 'REVISION_REQUIRED'
+
+  // Check for bin range violations (bins outside operating range)
+  const binRangeViolations = formData.parameters.reduce((acc, param) => {
+    if (!param.requiresBinning || !param.bins?.length) return acc
+
+    const opMin = parseFloat(param.operatingMin)
+    const opMax = parseFloat(param.operatingMax)
+
+    // Skip if operating range not defined
+    if (isNaN(opMin) && isNaN(opMax)) return acc
+
+    let violations = 0
+    param.bins.forEach(bin => {
+      const binMin = parseFloat(bin.binMin)
+      const binMax = parseFloat(bin.binMax)
+
+      if (!isNaN(binMin)) {
+        if (!isNaN(opMin) && binMin < opMin) violations++
+        if (!isNaN(opMax) && binMin > opMax) violations++
+      }
+      if (!isNaN(binMax)) {
+        if (!isNaN(opMin) && binMax < opMin) violations++
+        if (!isNaN(opMax) && binMax > opMax) violations++
+      }
+    })
+    return acc + violations
+  }, 0)
+
+  // Check for standard reading violations (readings outside operating range)
+  const standardReadingViolations = formData.parameters.reduce((acc, param) => {
+    const opMin = parseFloat(param.operatingMin)
+    const opMax = parseFloat(param.operatingMax)
+
+    // Skip if operating range not defined
+    if (isNaN(opMin) && isNaN(opMax)) return acc
+
+    let violations = 0
+    param.results.forEach(result => {
+      if (!result.standardReading) return
+
+      const reading = parseFloat(result.standardReading)
+      if (isNaN(reading)) return
+
+      if (!isNaN(opMin) && reading < opMin) violations++
+      if (!isNaN(opMax) && reading > opMax) violations++
+    })
+    return acc + violations
+  }, 0)
+
+  const hasCriticalErrors = binRangeViolations > 0 || standardReadingViolations > 0
 
   // Validation checks
   const validationItems: ValidationItem[] = [
@@ -111,6 +164,23 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
       label: `Conclusion statements selected (${formData.selectedConclusionStatements.length})`,
       isValid: formData.selectedConclusionStatements.length > 0,
     },
+    // Critical errors - block saving
+    {
+      id: 'binRanges',
+      label: binRangeViolations > 0
+        ? `Bin ranges outside operating range (${binRangeViolations} violation${binRangeViolations !== 1 ? 's' : ''})`
+        : 'Bin ranges within operating range',
+      isValid: binRangeViolations === 0,
+      isCritical: true,
+    },
+    {
+      id: 'standardReadings',
+      label: standardReadingViolations > 0
+        ? `Standard readings outside operating range (${standardReadingViolations} violation${standardReadingViolations !== 1 ? 's' : ''})`
+        : 'Standard readings within operating range',
+      isValid: standardReadingViolations === 0,
+      isCritical: true,
+    },
   ]
 
   const requiredItemsValid = validationItems
@@ -118,6 +188,19 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
     .every((item) => item.isValid)
 
   const handleSaveDraft = async () => {
+    // Check for critical errors before saving
+    if (hasCriticalErrors) {
+      const errors: string[] = []
+      if (binRangeViolations > 0) {
+        errors.push(`• ${binRangeViolations} bin range value${binRangeViolations !== 1 ? 's are' : ' is'} outside the operating range`)
+      }
+      if (standardReadingViolations > 0) {
+        errors.push(`• ${standardReadingViolations} standard reading${standardReadingViolations !== 1 ? 's are' : ' is'} outside the operating range`)
+      }
+      alert(`Cannot save draft due to critical errors:\n\n${errors.join('\n')}\n\nPlease fix these issues in Section 02 (UUC Details) and Section 05 (Results).`)
+      return
+    }
+
     const result = await saveDraft()
     if (!result.success) {
       alert(`Failed to save draft: ${result.error}`)
@@ -125,6 +208,19 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
   }
 
   const handleSubmit = () => {
+    // Check for critical errors first
+    if (hasCriticalErrors) {
+      const errors: string[] = []
+      if (binRangeViolations > 0) {
+        errors.push(`• ${binRangeViolations} bin range value${binRangeViolations !== 1 ? 's are' : ' is'} outside the operating range`)
+      }
+      if (standardReadingViolations > 0) {
+        errors.push(`• ${standardReadingViolations} standard reading${standardReadingViolations !== 1 ? 's are' : ' is'} outside the operating range`)
+      }
+      alert(`Cannot submit due to critical errors:\n\n${errors.join('\n')}\n\nPlease fix these issues in Section 02 (UUC Details) and Section 05 (Results).`)
+      return
+    }
+
     if (!requiredItemsValid) {
       alert('Please complete all required fields before submitting.')
       return
@@ -151,7 +247,7 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
         throw new Error('Certificate ID not found. Please save the certificate first.')
       }
 
-      // Submit for review with signature data
+      // Submit for review with signature data and client evidence
       const response = await fetch(`/api/certificates/${certId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,6 +255,7 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
           engineerNotes: formData.engineerNotes || null,
           signatureData: signatureData.signatureImage,
           signerName: signatureData.signerName,
+          clientEvidence: signatureData.clientEvidence,
         })
       })
 
@@ -280,12 +377,34 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
         )}
 
         {/* Validation Checklist */}
-        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200">
+        <div className={cn(
+          "rounded-2xl p-6 border",
+          hasCriticalErrors ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
+        )}>
           <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest mb-4">
             Validation Checklist
           </h3>
+
+          {/* Critical errors section */}
+          {hasCriticalErrors && (
+            <div className="mb-4 p-4 bg-red-100 border border-red-300 rounded-xl">
+              <div className="flex items-center gap-2 text-red-800 font-bold text-sm mb-2">
+                <AlertTriangle className="size-5" />
+                Critical Errors - Must Fix Before Saving
+              </div>
+              <div className="space-y-1 text-sm text-red-700">
+                {binRangeViolations > 0 && (
+                  <p>• {binRangeViolations} bin range value{binRangeViolations !== 1 ? 's' : ''} outside operating range (Section 02)</p>
+                )}
+                {standardReadingViolations > 0 && (
+                  <p>• {standardReadingViolations} standard reading{standardReadingViolations !== 1 ? 's' : ''} outside operating range (Section 05)</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-8">
-            {validationItems.map((item) => (
+            {validationItems.filter(item => !item.isCritical).map((item) => (
               <div
                 key={item.id}
                 className="flex items-center gap-2 text-sm text-slate-600 font-semibold"
@@ -311,7 +430,11 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
           </div>
 
           <div className="mt-6 pt-6 border-t border-slate-200 text-center">
-            {requiredItemsValid ? (
+            {hasCriticalErrors ? (
+              <p className="text-red-600 font-black uppercase text-xs tracking-widest">
+                Fix critical errors before saving
+              </p>
+            ) : requiredItemsValid ? (
               <p className="text-green-600 font-black uppercase text-xs tracking-widest">
                 Ready to submit
               </p>
@@ -353,17 +476,22 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
             type="button"
             variant="outline"
             onClick={handleSaveDraft}
-            disabled={isSaving || isSubmitting}
-            className="flex-1 py-6 px-6 rounded-2xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+            disabled={isSaving || isSubmitting || hasCriticalErrors}
+            className={cn(
+              "flex-1 py-6 px-6 rounded-2xl border bg-white font-bold transition-all flex items-center justify-center gap-2",
+              hasCriticalErrors
+                ? "border-red-300 text-red-400 cursor-not-allowed"
+                : "border-slate-200 text-slate-700 hover:bg-slate-50"
+            )}
           >
             {isSaving ? <Loader2 className="size-5 animate-spin" /> : <Save className="size-5" />}
-            {isSaving ? 'Saving...' : 'Save Draft'}
+            {isSaving ? 'Saving...' : hasCriticalErrors ? 'Fix Errors First' : 'Save Draft'}
           </Button>
 
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={!requiredItemsValid || isSaving || isSubmitting}
+            disabled={!requiredItemsValid || isSaving || isSubmitting || hasCriticalErrors}
             className="flex-[2] py-6 px-6 rounded-2xl bg-primary text-white font-bold shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
@@ -381,6 +509,8 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
           isOpen={showSignatureModal}
           onClose={() => setShowSignatureModal(false)}
           onConfirm={handleSignatureConfirm}
+          defaultName={session?.user?.name || ''}
+          nameReadOnly={true}
           title="Sign & Submit Certificate"
           description="Your signature confirms you have reviewed and are submitting this certificate for HoD approval."
           confirmLabel="Sign & Submit"

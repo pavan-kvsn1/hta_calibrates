@@ -19,6 +19,7 @@ interface CustomerFeedback {
   eventData: {
     notes?: string
     message?: string
+    response?: string // HoD reply to customer
     customerEmail?: string
     customerName?: string
     customerCompany?: string
@@ -98,6 +99,14 @@ function getFeedbackStyle(eventType: string) {
         textColor: 'text-orange-600',
         borderColor: 'border-orange-200',
         label: 'Forwarded to Engineer'
+      }
+    case 'HOD_REPLIED_TO_CUSTOMER':
+      return {
+        icon: MessageSquare,
+        bgColor: 'bg-amber-100',
+        textColor: 'text-amber-600',
+        borderColor: 'border-amber-200',
+        label: 'HoD Response'
       }
     default:
       return {
@@ -253,10 +262,10 @@ export function CustomerFeedbackSidebar({
                                   </div>
                                 )}
 
-                                {/* Notes/Message */}
-                                {(feedback.eventData.notes || feedback.eventData.message) && (
+                                {/* Notes/Message/Response */}
+                                {(feedback.eventData.notes || feedback.eventData.message || feedback.eventData.response) && (
                                   <p className="text-[12px] text-slate-600 whitespace-pre-wrap break-words bg-white/50 p-2 rounded border border-slate-100">
-                                    {feedback.eventData.notes || feedback.eventData.message}
+                                    {feedback.eventData.notes || feedback.eventData.message || feedback.eventData.response}
                                   </p>
                                 )}
 

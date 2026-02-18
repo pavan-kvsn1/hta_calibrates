@@ -31,6 +31,9 @@ export function NotificationBell({ userRole }: NotificationBellProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [hasNewNotification, setHasNewNotification] = useState(false)
 
+  // Track previous count for animation (using ref to avoid re-renders)
+  const prevCountRef = useRef(0)
+
   // Fetch unread count (lightweight polling)
   const fetchUnreadCount = useCallback(async () => {
     try {
@@ -38,16 +41,17 @@ export function NotificationBell({ userRole }: NotificationBellProps) {
       if (res.ok) {
         const data = await res.json()
         // Animate if count increased
-        if (data.count > unreadCount) {
+        if (data.count > prevCountRef.current) {
           setHasNewNotification(true)
           setTimeout(() => setHasNewNotification(false), 1000)
         }
+        prevCountRef.current = data.count
         setUnreadCount(data.count)
       }
     } catch (error) {
       console.error('Error fetching unread count:', error)
     }
-  }, [unreadCount])
+  }, []) // No dependencies - stable callback
 
   // Fetch full notifications list
   const fetchNotifications = useCallback(async () => {

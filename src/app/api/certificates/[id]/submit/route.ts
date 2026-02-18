@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notifyHoDOnSubmit, notifyHoDOnEngineerResponse } from '@/lib/notifications'
+import {
+  appendSigningEvidence,
+  collectServerEvidence,
+  buildSigningEvidencePayload,
+  type ClientEvidence,
+} from '@/lib/signing-evidence'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -22,11 +28,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     let engineerNotes: string | null = null
     let signatureData: string | null = null
     let signerName: string | null = null
+    let clientEvidence: ClientEvidence | null = null
     try {
       const body = await request.json()
       engineerNotes = body.engineerNotes || null
       signatureData = body.signatureData || null
       signerName = body.signerName || null
+      clientEvidence = body.clientEvidence || null
     } catch {
       // Body may be empty for initial submissions
     }
@@ -35,6 +43,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!signatureData || !signerName?.trim()) {
       return NextResponse.json(
         { error: 'Signature and signer name are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate signer name matches user profile
+    if (session.user.name && signerName.trim().toLowerCase() !== session.user.name.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'Signer name must match your profile name' },
         { status: 400 }
       )
     }
@@ -115,7 +131,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Submit the certificate
-    const updatedCertificate = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Get next event sequence
       const lastEvent = await tx.certificateEvent.findFirst({
         where: { certificateId: id },
@@ -191,13 +207,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
       })
 
-      // Delete any existing ENGINEER signature for this certificate (handles resubmission)
+      // Delete all existing signatures for this certificate (handles resubmission)
+      // When a certificate is revised, previous signatures are invalidated
       await tx.signature.deleteMany({
-        where: { certificateId: id, signerType: 'ENGINEER' },
+        where: { certificateId: id },
       })
 
       // Create ENGINEER signature record
-      await tx.signature.create({
+      const signature = await tx.signature.create({
         data: {
           certificateId: id,
           signerType: 'ENGINEER',
@@ -208,23 +225,46 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
       })
 
-      return cert
+      return { cert, signature }
     })
+
+    const { cert: updatedCert, signature } = result
+
+    // Capture signing evidence (Layer 1-4) if client evidence provided
+    if (clientEvidence) {
+      try {
+        const serverEvidence = collectServerEvidence(request, 'direct')
+        const evidencePayload = buildSigningEvidencePayload(
+          clientEvidence,
+          serverEvidence,
+          {
+            signerType: 'ENGINEER',
+            signerName: signerName!,
+            signerEmail: session.user.email,
+            signerId: session.user.id,
+          }
+        )
+        await appendSigningEvidence(id, signature.id, 'ENGINEER_SIGNED', evidencePayload, updatedCert.currentRevision)
+      } catch (evidenceError) {
+        // Log but don't fail the submission if evidence capture fails
+        console.error('Failed to capture signing evidence:', evidenceError)
+      }
+    }
 
     // Send notifications (fire and forget, don't block response)
     if (isResubmission) {
       // Notify HoD about engineer response
       notifyHoDOnEngineerResponse({
-        certificateId: updatedCertificate.id,
-        certificateNumber: updatedCertificate.certificateNumber,
+        certificateId: updatedCert.id,
+        certificateNumber: updatedCert.certificateNumber,
         engineerId: session.user.id,
         engineerName: session.user.name || 'Engineer',
       }).catch((err) => console.error('Failed to send notification:', err))
     } else {
       // Notify HoD about new submission
       notifyHoDOnSubmit({
-        certificateId: updatedCertificate.id,
-        certificateNumber: updatedCertificate.certificateNumber,
+        certificateId: updatedCert.id,
+        certificateNumber: updatedCert.certificateNumber,
         engineerId: session.user.id,
         engineerName: session.user.name || 'Engineer',
       }).catch((err) => console.error('Failed to send notification:', err))
@@ -236,10 +276,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         ? 'Certificate resubmitted for HoD review'
         : 'Certificate submitted for HoD review',
       certificate: {
-        id: updatedCertificate.id,
-        certificateNumber: updatedCertificate.certificateNumber,
-        status: updatedCertificate.status,
-        revision: updatedCertificate.currentRevision,
+        id: updatedCert.id,
+        certificateNumber: updatedCert.certificateNumber,
+        status: updatedCert.status,
+        revision: updatedCert.currentRevision,
       },
     })
   } catch (error) {

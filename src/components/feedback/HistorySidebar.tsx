@@ -47,6 +47,7 @@ interface CustomerEvent {
   eventData: {
     notes?: string
     message?: string
+    response?: string // HoD reply to customer
     customerEmail?: string
     customerName?: string
     customerCompany?: string
@@ -217,6 +218,14 @@ function getCustomerEventStyle(eventType: string) {
         textColor: 'text-orange-600',
         borderColor: 'border-orange-200',
         label: 'Forwarded to Engineer'
+      }
+    case 'HOD_REPLIED_TO_CUSTOMER':
+      return {
+        icon: MessageSquare,
+        bgColor: 'bg-amber-100',
+        textColor: 'text-amber-600',
+        borderColor: 'border-amber-200',
+        label: 'HoD Response'
       }
     default:
       return {
@@ -600,10 +609,10 @@ export function HistorySidebar({
                                       </div>
                                     )}
 
-                                    {/* Notes/Message */}
-                                    {(event.eventData.notes || event.eventData.message) && (
+                                    {/* Notes/Message/Response */}
+                                    {(event.eventData.notes || event.eventData.message || event.eventData.response) && (
                                       <p className="text-[12px] text-slate-600 whitespace-pre-wrap break-words bg-white/50 p-2 rounded border border-slate-100">
-                                        {event.eventData.notes || event.eventData.message}
+                                        {event.eventData.notes || event.eventData.message || event.eventData.response}
                                       </p>
                                     )}
 

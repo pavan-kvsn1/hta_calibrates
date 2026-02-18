@@ -1,5 +1,3 @@
-'use client'
-
 import React from 'react'
 import {
   Document,
@@ -25,7 +23,40 @@ import {
   VALIDITY_STATEMENT,
   CUSTOMER_ACKNOWLEDGMENT_TEXT,
   PDFSignatureData,
+  SigningMetadata,
 } from './pdf-utils'
+
+// Format ISO date string to readable format: "09 Feb 2026, 14:30 IST"
+function formatSigningDateTime(isoString: string | undefined, timezone?: string): string {
+  if (!isoString) return ''
+  try {
+    const date = new Date(isoString)
+    const day = date.getDate().toString().padStart(2, '0')
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const month = months[date.getMonth()]
+    const year = date.getFullYear()
+    const hours = date.getHours().toString().padStart(2, '0')
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+
+    // Extract timezone abbreviation if available
+    let tzAbbr = ''
+    if (timezone) {
+      // Convert timezone to abbreviation (e.g., "Asia/Kolkata" -> "IST")
+      const tzMap: Record<string, string> = {
+        'Asia/Kolkata': 'IST',
+        'America/New_York': 'EST',
+        'America/Los_Angeles': 'PST',
+        'Europe/London': 'GMT',
+        'UTC': 'UTC',
+      }
+      tzAbbr = tzMap[timezone] || timezone.split('/').pop() || ''
+    }
+
+    return `${day} ${month} ${year}, ${hours}:${minutes}${tzAbbr ? ' ' + tzAbbr : ''}`
+  } catch {
+    return ''
+  }
+}
 import {
   planLayout,
   getParameterRenderOrder,
@@ -450,10 +481,31 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   signatureImage: {
-    height: 22,
-    width: 80,
+    height: 42,
+    width: 100,
     objectFit: 'contain' as const,
     marginBottom: 3,
+  },
+  // Signing metadata (Layer 2 evidence)
+  signatureMetadata: {
+    marginTop: 1,
+    paddingTop: 1,
+    borderTopWidth: 0.5,
+    borderTopColor: '#ddd',
+    borderTopStyle: 'dotted' as const,
+  },
+  signatureMetadataLine: {
+    fontSize: 6,
+    color: '#666',
+    marginBottom: 1,
+  },
+  signatureId: {
+    fontSize: 6,
+    color: '#888',
+    marginTop: 3,
+  },
+  signatureMetadataLabel: {
+    fontFamily: 'Helvetica-Bold',
   },
 
   // Section M: Customer Acknowledgment (conditional)
@@ -959,18 +1011,18 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
                         >
                           <View style={[styles.calCell, { width: '25%' }]}>
                             <Text style={styles.calCellText}>
-                              {formatWithPrecision(result.standardReading, precision)}
+                              {formatWithPrecision(result.standardReading, precision)}{result.isOutOfLimit ? '*' : ''}
                             </Text>
                           </View>
                           <View style={[styles.calCell, { width: '25%' }]}>
                             <Text style={styles.calCellText}>
-                              {formatWithPrecision(result.beforeAdjustment, precision)}
+                              {formatWithPrecision(result.beforeAdjustment, precision)}{result.isOutOfLimit ? '*' : ''}
                             </Text>
                           </View>
                           <View style={[styles.calCell, { width: '25%' }]}>
                             <Text style={styles.calCellText}>
                               {result.errorObserved !== null
-                                ? formatWithPrecision(result.errorObserved, precision)
+                                ? `${formatWithPrecision(result.errorObserved, precision)}${result.isOutOfLimit ? '*' : ''}`
                                 : '-'}
                             </Text>
                           </View>
@@ -1065,7 +1117,7 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
         {/* ================================================================ */}
         {/* SECTION I: CONCLUSION (normal flow) */}
         {/* ================================================================ */}
-        {data.selectedConclusionStatements.length > 0 && (
+        {(data.selectedConclusionStatements.length > 0 || data.additionalConclusionStatement) && (
           <View style={[styles.conclusionSection, { marginTop: dynamicMargin(8), marginBottom: dynamicMargin(8) }]} wrap={false}>
             {data.selectedConclusionStatements.map((statementKey, idx) => (
               <View key={idx} style={[styles.conclusionItem, { marginBottom: dynamicMargin(2) }]}>
@@ -1079,6 +1131,19 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
                 <Text style={styles.conclusionText}>{getConclusionText(statementKey)}</Text>
               </View>
             ))}
+            {/* Additional custom conclusion statement */}
+            {data.additionalConclusionStatement && (
+              <View style={[styles.conclusionItem, { marginBottom: dynamicMargin(2) }]}>
+                {data.selectedConclusionStatements.length === 0 ? (
+                  <Text style={styles.conclusionLabel}>Conclusion</Text>
+                ) : (
+                  <View style={{ width: 70 }} />
+                )}
+                <Text style={styles.conclusionColon}>:</Text>
+                <Text style={styles.conclusionNumber}>{data.selectedConclusionStatements.length + 1}.</Text>
+                <Text style={styles.conclusionText}>{data.additionalConclusionStatement}</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -1090,38 +1155,128 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
         </View>
 
         {/* ================================================================ */}
-        {/* SECTION K: SIGNATURE BLOCK - Normal flow */}
+        {/* SECTION K: SIGNATURE BLOCK - 3 columns: Engineer, HoD, Admin */}
         {/* ================================================================ */}
         <View style={[styles.signatureSection, { marginTop: dynamicMargin(4) }]} wrap={false}>
           <View style={styles.signatureRow}>
-            {/* Column 1: Calibrated By / Report Prepared By */}
+            {/* Column 1: Calibrated By (Engineer) */}
             <View style={styles.signatureColumn}>
               <Text style={styles.signatureLabel}>CALIBRATED BY:</Text>
-              <Text style={[styles.signatureName, { marginBottom: dynamicMargin(12) }]}>{signatures?.engineer?.name || SIGNATORIES.calibratedBy}</Text>
-              <Text style={styles.signatureLabel}>REPORT PREPARED BY:</Text>
-              <Text style={styles.signatureName}>{signatures?.engineer?.name || SIGNATORIES.reportPreparedBy}</Text>
+              {signatures?.engineer?.image ? (
+                <Image src={signatures.engineer.image} style={styles.signatureImage} />
+              ) : (
+                <View style={styles.signatureBox} />
+              )}
+              <Text style={[styles.signatureName, { marginBottom: signatures?.engineer?.metadata ? 2 : 0 }]}>{signatures?.engineer?.name || SIGNATORIES.calibratedBy}</Text>
+              {/* Signing Metadata */}
+              {signatures?.engineer?.metadata && (
+                <View style={styles.signatureMetadata}>
+                  {signatures.engineer.metadata.signedAt && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>Signed:</Text>
+                      {formatSigningDateTime(signatures.engineer.metadata.signedAt, signatures.engineer.metadata.timezone)}
+                    </Text>
+                  )}
+                  {signatures.engineer.metadata.ipAddress && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>IP: </Text>
+                      {signatures.engineer.metadata.ipAddress}
+                    </Text>
+                  )}
+                  {signatures.engineer.metadata.deviceInfo && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>Device: </Text>
+                      {signatures.engineer.metadata.deviceInfo}
+                    </Text>
+                  )}
+                </View>
+              )}
+              {signatures?.engineer?.signatureId && (
+                <Text style={styles.signatureMetadataLine}>
+                  <Text style={styles.signatureMetadataLabel}>Signature ID: </Text>
+                  {signatures.engineer.signatureId}
+                </Text>
+              )}
             </View>
 
-            {/* Column 2: Checked By */}
+            {/* Column 2: Checked By (HoD) */}
             <View style={styles.signatureColumn}>
-              <Text style={styles.signatureLabel}>CHECKED BY</Text>
+              <Text style={styles.signatureLabel}>CHECKED BY:</Text>
               {signatures?.hod?.image ? (
                 <Image src={signatures.hod.image} style={styles.signatureImage} />
               ) : (
                 <View style={styles.signatureBox} />
               )}
-              <Text style={styles.signatureName}>{signatures?.hod?.name || SIGNATORIES.checkedBy}</Text>
+              <Text style={[styles.signatureName, { marginBottom: signatures?.hod?.metadata ? 2 : 0 }]}>{signatures?.hod?.name || SIGNATORIES.checkedBy}</Text>
+              {/* Signing Metadata */}
+              {signatures?.hod?.metadata && (
+                <View style={styles.signatureMetadata}>
+                  {signatures.hod.metadata.signedAt && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>Signed: </Text>
+                      {formatSigningDateTime(signatures.hod.metadata.signedAt, signatures.hod.metadata.timezone)}
+                    </Text>
+                  )}
+                  {signatures.hod.metadata.ipAddress && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>IP: </Text>
+                      {signatures.hod.metadata.ipAddress}
+                    </Text>
+                  )}
+                  {signatures.hod.metadata.deviceInfo && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>Device: </Text>
+                      {signatures.hod.metadata.deviceInfo}
+                    </Text>
+                  )}
+                </View>
+              )}
+              {signatures?.hod?.signatureId && (
+                <Text style={styles.signatureMetadataLine}>
+                  <Text style={styles.signatureMetadataLabel}>Signature ID: </Text>
+                  {signatures.hod.signatureId}
+                </Text>
+              )}
             </View>
 
-            {/* Column 3: Approved & Issued By */}
+            {/* Column 3: Approved & Issued By (Admin) */}
             <View style={styles.signatureColumn}>
-              <Text style={styles.signatureLabel}>APPROVED & ISSUED BY</Text>
-              {signatures?.hod?.image ? (
-                <Image src={signatures.hod.image} style={styles.signatureImage} />
+              <Text style={styles.signatureLabel}>APPROVED & ISSUED BY:</Text>
+              {signatures?.admin?.image ? (
+                <Image src={signatures.admin.image} style={styles.signatureImage} />
               ) : (
                 <View style={styles.signatureBox} />
               )}
-              <Text style={styles.signatureName}>{signatures?.hod?.name || SIGNATORIES.approvedIssuedBy}</Text>
+              <Text style={[styles.signatureName, { marginBottom: signatures?.admin?.metadata ? 2 : 0 }]}>{signatures?.admin?.name || SIGNATORIES.approvedIssuedBy}</Text>
+              {/* Signing Metadata */}
+              {signatures?.admin?.metadata && (
+                <View style={styles.signatureMetadata}>
+                  {signatures.admin.metadata.signedAt && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>Signed: </Text>
+                      {formatSigningDateTime(signatures.admin.metadata.signedAt, signatures.admin.metadata.timezone)}
+                    </Text>
+                  )}
+                  {signatures.admin.metadata.ipAddress && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>IP: </Text>
+                      {signatures.admin.metadata.ipAddress}
+                    </Text>
+                  )}
+                  {signatures.admin.metadata.deviceInfo && (
+                    <Text style={styles.signatureMetadataLine}>
+                      <Text style={styles.signatureMetadataLabel}>Device: </Text>
+                      {signatures.admin.metadata.deviceInfo}
+                    </Text>
+                  )}
+                </View>
+              )}
+              {signatures?.admin?.signatureId && (
+                <Text style={styles.signatureMetadataLine}>
+                  <Text style={styles.signatureMetadataLabel}>Signature ID: </Text>
+                  {signatures.admin.signatureId}
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -1156,12 +1311,27 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
                 </Text>
                 <Text style={styles.customerAckDetailLine}>
                   <Text style={styles.customerAckDetailLabel}>Date: </Text>
-                  {formatDateDDMMYYYY(signatures.customer.signedAt.split('T')[0])}
+                  {signatures.customer.metadata?.signedAt
+                    ? formatSigningDateTime(signatures.customer.metadata.signedAt, signatures.customer.metadata.timezone)
+                    : formatDateDDMMYYYY(signatures.customer.signedAt.split('T')[0])}
                 </Text>
+                {signatures.customer.metadata?.ipAddress && (
+                  <Text style={styles.customerAckDetailLine}>
+                    <Text style={styles.customerAckDetailLabel}>IP: </Text>
+                    {signatures.customer.metadata.ipAddress}
+                  </Text>
+                )}
+                {signatures.customer.metadata?.deviceInfo && (
+                  <Text style={styles.customerAckDetailLine}>
+                    <Text style={styles.customerAckDetailLabel}>Device: </Text>
+                    {signatures.customer.metadata.deviceInfo}
+                  </Text>
+                )}
               </View>
             </View>
-            <Text style={styles.customerAckSignatureId}>
-              Signature ID: {signatures.customer.signatureId}
+            <Text style={styles.customerAckDetailLine}>
+              <Text style={styles.customerAckDetailLabel}>Signature ID: </Text>
+              {signatures.customer.signatureId}
             </Text>
           </View>
         )}

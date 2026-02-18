@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import { ReviewPageWrapper } from './ReviewPageWrapper'
 import { ReviewPageClient } from './ReviewPageClient'
 import { ArrowLeft, Shield, FileText } from 'lucide-react'
+import { PDFPreviewButton } from './PDFPreviewButton'
 import Link from 'next/link'
 import { CONCLUSION_STATEMENTS } from '@/components/pdf/pdf-utils'
 import { cn } from '@/lib/utils'
@@ -65,6 +66,7 @@ async function getCustomerEvents(certificateId: string) {
           'CUSTOMER_REVISION_REQUESTED',
           'CUSTOMER_APPROVED',
           'CUSTOMER_REVISION_FORWARDED',
+          'HOD_REPLIED_TO_CUSTOMER',
         ],
       },
     },
@@ -230,7 +232,7 @@ function mergeDateAdjustmentsWithFeedbacks(
     eventData: string
     createdAt: Date
     revision: number
-    user: { name: string; role: string }
+    user: { name: string; role: string } | null // User can be null for customer events
   }>
 ) {
   // Create a map of event times to date adjustments with individual edits
@@ -423,8 +425,8 @@ export default async function HoDReviewPage({ params }: Props) {
               </div>
             </div>
 
-            {/* Quick Info Pills */}
-            <div className="flex flex-wrap gap-2">
+            {/* Quick Info Pills and Actions */}
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700">
                 <Shield className="h-3.5 w-3.5" />
                 {certificate.calibratedAt === 'LAB' ? 'Lab Calibration' : 'Site Calibration'}
@@ -434,6 +436,10 @@ export default async function HoDReviewPage({ params }: Props) {
                   SRF: {certificate.srfNumber}
                 </span>
               )}
+              <PDFPreviewButton
+                certificateId={certificate.id}
+                certificateNumber={certificate.certificateNumber}
+              />
             </div>
           </div>
         </div>

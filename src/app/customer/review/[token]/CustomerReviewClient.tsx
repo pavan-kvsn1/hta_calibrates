@@ -19,6 +19,7 @@ import {
   LogOut,
   Send,
   MessageSquare,
+  FileEdit,
 } from 'lucide-react'
 
 interface CertificateData {
@@ -93,6 +94,12 @@ export function CustomerReviewClient({
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [revisionError, setRevisionError] = useState<string | null>(null)
 
+  // Check if certificate is being revised by engineer (no approval allowed)
+  const isBeingRevised = certificate.status === 'REVISION_REQUIRED'
+
+  // Check if certificate is already approved/completed (read-only mode)
+  const isCompleted = ['APPROVED', 'PENDING_ADMIN_AUTHORIZATION', 'PENDING_ADMIN_APPROVAL', 'AUTHORIZED'].includes(certificate.status)
+
   const handleApprove = async (data: SignatureData) => {
     setIsSubmitting(true)
     setSubmitError(null)
@@ -107,6 +114,7 @@ export function CustomerReviewClient({
           signatureData: data.signatureImage,
           signerName: data.signerName,
           signerEmail: customer.email,
+          clientEvidence: data.clientEvidence,
         }),
       })
 
@@ -359,69 +367,133 @@ export function CustomerReviewClient({
               </div>
 
               {/* Message Input */}
-              <div className="p-2 border-t bg-gray-50">
-                <div className="flex gap-2 items-end">
-                  <textarea
-                    value={revisionNotes}
-                    onChange={(e) => setRevisionNotes(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 p-2 border border-gray-200 rounded-lg text-xs resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 max-h-20 bg-white"
-                    rows={1}
-                    onInput={(e) => {
-                      const target = e.target as HTMLTextAreaElement
-                      target.style.height = 'auto'
-                      target.style.height = Math.min(target.scrollHeight, 80) + 'px'
-                    }}
-                  />
-                  <Button
-                    onClick={handleRequestRevision}
-                    disabled={!revisionNotes.trim() || isRequestingRevision}
-                    size="sm"
-                    className="h-8 w-8 rounded-full p-0 flex-shrink-0"
-                  >
-                    {isRequestingRevision ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+              {isCompleted ? (
+                <div className="p-3 border-t bg-green-50">
+                  <div className="flex items-center gap-2 text-green-700">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-[12px] font-medium">Certificate approved</span>
+                  </div>
                 </div>
-                {revisionError && (
-                  <p className="text-[11px] text-red-600 mt-1 px-2">{revisionError}</p>
-                )}
-              </div>
+              ) : (
+                <div className="p-2 border-t bg-gray-50">
+                  <div className="flex gap-2 items-end">
+                    <textarea
+                      value={revisionNotes}
+                      onChange={(e) => setRevisionNotes(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 p-2 border border-gray-200 rounded-lg text-xs resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 max-h-20 bg-white"
+                      rows={1}
+                      onInput={(e) => {
+                        const target = e.target as HTMLTextAreaElement
+                        target.style.height = 'auto'
+                        target.style.height = Math.min(target.scrollHeight, 80) + 'px'
+                      }}
+                    />
+                    <Button
+                      onClick={handleRequestRevision}
+                      disabled={!revisionNotes.trim() || isRequestingRevision}
+                      size="sm"
+                      className="h-8 w-8 rounded-full p-0 flex-shrink-0"
+                    >
+                      {isRequestingRevision ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {revisionError && (
+                    <p className="text-[11px] text-red-600 mt-1 px-2">{revisionError}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Approval Panel */}
-            <div className="bg-white rounded-lg border shadow-sm flex flex-col">
-              <div className="px-4 py-3 border-b bg-gray-50">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <h2 className="font-semibold text-gray-900 text-[13px]">Approval</h2>
+            {isCompleted ? (
+              /* Certificate is approved/completed */
+              <div className="bg-white rounded-lg border shadow-sm flex flex-col">
+                <div className="px-4 py-3 border-b bg-green-50">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <h2 className="font-semibold text-green-800 text-[13px]">
+                      {certificate.status === 'AUTHORIZED' ? 'Completed' : 'Approved'}
+                    </h2>
+                  </div>
                 </div>
-              </div>
-              <div className="p-4">
-                <p className="text-[11px] text-gray-500 mb-3 text-center">
-                  By approving, you confirm all details are correct.
-                </p>
-                <Button
-                  onClick={() => setShowApproveModal(true)}
-                  className="w-full bg-green-600 hover:bg-green-700 text-sm h-10"
-                >
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Approve & Sign
-                </Button>
-              </div>
+                <div className="p-4">
+                  <p className="text-[12px] text-gray-600 text-center">
+                    {certificate.status === 'AUTHORIZED'
+                      ? 'This certificate has been fully authorized and completed.'
+                      : 'This certificate has been approved and signed. Awaiting final admin authorization.'}
+                  </p>
+                </div>
 
-              {/* Customer Info */}
-              <div className="px-4 py-3 border-t bg-gray-50">
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <Building2 className="h-3.5 w-3.5" />
-                  <span>{customer.companyName}</span>
+                {/* Customer Info */}
+                <div className="px-4 py-3 border-t bg-gray-50">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>{customer.companyName}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">Reviewed as: {customer.email}</p>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-1">Reviewing as: {customer.email}</p>
               </div>
-            </div>
+            ) : isBeingRevised ? (
+              /* Certificate is being revised by engineer - no approval allowed */
+              <div className="bg-white rounded-lg border shadow-sm flex flex-col">
+                <div className="px-4 py-3 border-b bg-blue-50">
+                  <div className="flex items-center gap-2">
+                    <FileEdit className="h-4 w-4 text-blue-600" />
+                    <h2 className="font-semibold text-blue-800 text-[13px]">Under Revision</h2>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <p className="text-[12px] text-gray-600 text-center">
+                    Your feedback has been forwarded to the engineer. The certificate is being updated.
+                  </p>
+                </div>
+
+                {/* Customer Info */}
+                <div className="px-4 py-3 border-t bg-gray-50">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>{customer.companyName}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">Reviewing as: {customer.email}</p>
+                </div>
+              </div>
+            ) : (
+              /* Customer can approve or request changes */
+              <div className="bg-white rounded-lg border shadow-sm flex flex-col">
+                <div className="px-4 py-3 border-b bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <h2 className="font-semibold text-gray-900 text-[13px]">Approval</h2>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <p className="text-[11px] text-gray-500 mb-3 text-center">
+                    By approving, you confirm all details are correct.
+                  </p>
+                  <Button
+                    onClick={() => setShowApproveModal(true)}
+                    className="w-full bg-green-600 hover:bg-green-700 text-sm h-10"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Approve & Sign
+                  </Button>
+                </div>
+
+                {/* Customer Info */}
+                <div className="px-4 py-3 border-t bg-gray-50">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>{customer.companyName}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">Reviewing as: {customer.email}</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -435,6 +507,7 @@ export function CustomerReviewClient({
         }}
         onConfirm={handleApprove}
         defaultName={customer.name}
+        nameReadOnly={true}
         title="Approve Certificate"
         description="Please sign below to approve this calibration certificate. Your signature will be added to the final document."
         confirmLabel="Confirm Approval"

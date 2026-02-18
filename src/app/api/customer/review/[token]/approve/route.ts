@@ -4,6 +4,12 @@ import { auth } from '@/lib/auth'
 import { notifyOnCustomerApproval } from '@/lib/notifications'
 import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/opensign'
 import { getPageCountFromBuffer } from '@/lib/pdf-generator'
+import {
+  appendSigningEvidence,
+  collectServerEvidence,
+  buildSigningEvidencePayload,
+  type ClientEvidence,
+} from '@/lib/signing-evidence'
 
 export async function POST(
   request: NextRequest,
@@ -11,7 +17,12 @@ export async function POST(
 ) {
   try {
     const { token } = await params
-    const { signatureData, signerName, signerEmail } = await request.json()
+    const { signatureData, signerName, signerEmail, clientEvidence } = await request.json() as {
+      signatureData: string
+      signerName: string
+      signerEmail?: string
+      clientEvidence?: ClientEvidence
+    }
 
     if (!signatureData || !signerName) {
       return NextResponse.json(
@@ -23,7 +34,7 @@ export async function POST(
     // Check if this is a session-based access (cert:ID format)
     if (token.startsWith('cert:')) {
       const certificateId = token.substring(5)
-      return handleSessionBasedApproval(request, certificateId, signatureData, signerName, signerEmail)
+      return handleSessionBasedApproval(request, certificateId, signatureData, signerName, signerEmail, clientEvidence)
     }
 
     // Validate token
@@ -66,12 +77,20 @@ export async function POST(
       )
     }
 
+    // Validate signer name matches customer's registered name
+    if (tokenRecord.customer.name && signerName.trim().toLowerCase() !== tokenRecord.customer.name.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'Signer name must match your registered name' },
+        { status: 400 }
+      )
+    }
+
     const now = new Date()
 
     // Use transaction to ensure all updates happen together
-    await prisma.$transaction(async (tx) => {
+    const { customerSignature } = await prisma.$transaction(async (tx) => {
       // 1. Create customer signature
-      await tx.signature.create({
+      const signature = await tx.signature.create({
         data: {
           certificateId: tokenRecord.certificateId,
           signerType: 'CUSTOMER',
@@ -82,11 +101,11 @@ export async function POST(
         },
       })
 
-      // 2. Update certificate status to APPROVED
+      // 2. Update certificate status to PENDING_ADMIN_AUTHORIZATION
       await tx.certificate.update({
         where: { id: tokenRecord.certificateId },
         data: {
-          status: 'APPROVED',
+          status: 'PENDING_ADMIN_AUTHORIZATION',
           updatedAt: now,
         },
       })
@@ -115,11 +134,36 @@ export async function POST(
             customerCompany: tokenRecord.customer.companyName,
             approvedAt: now.toISOString(),
           }),
-          userId: tokenRecord.customer.id,
+          customerId: tokenRecord.customer.id,
           userRole: 'CUSTOMER',
         },
       })
+
+      return { customerSignature: signature }
     })
+
+    // Capture customer signing evidence (Layer 1-4) if client evidence provided
+    if (clientEvidence) {
+      try {
+        const serverEvidence = collectServerEvidence(request, 'token')
+        const evidencePayload = buildSigningEvidencePayload(
+          clientEvidence,
+          serverEvidence,
+          {
+            signerType: 'CUSTOMER',
+            signerName,
+            signerEmail: signerEmail || tokenRecord.customer.email,
+            customerId: tokenRecord.customerId,
+            tokenId: tokenRecord.id,
+            tokenEmail: tokenRecord.customer.email,
+          }
+        )
+        await appendSigningEvidence(tokenRecord.certificateId, customerSignature.id, 'CUSTOMER_SIGNED', evidencePayload, tokenRecord.certificate.currentRevision)
+      } catch (evidenceError) {
+        // Log but don't fail the approval if evidence capture fails
+        console.error('Failed to capture customer signing evidence:', evidenceError)
+      }
+    }
 
     // Notify HoD and engineer about customer approval (fire and forget)
     notifyOnCustomerApproval({
@@ -173,7 +217,8 @@ async function handleSessionBasedApproval(
   certificateId: string,
   signatureData: string,
   signerName: string,
-  signerEmail?: string
+  signerEmail?: string,
+  clientEvidence?: ClientEvidence
 ) {
   // Verify customer session
   const session = await auth()
@@ -189,6 +234,7 @@ async function handleSessionBasedApproval(
   // Get customer info
   const customer = await prisma.customerUser.findUnique({
     where: { email: customerEmail },
+    include: { customerAccount: true },
   })
 
   if (!customer) {
@@ -212,7 +258,8 @@ async function handleSessionBasedApproval(
   }
 
   // Verify access: certificate's customerName must match customer's companyName
-  if (certificate.customerName?.toLowerCase() !== customer.companyName.toLowerCase()) {
+  const customerCompanyName = customer.customerAccount?.companyName || customer.companyName
+  if (!customerCompanyName || certificate.customerName?.toLowerCase() !== customerCompanyName.toLowerCase()) {
     return NextResponse.json(
       { error: 'You do not have permission to approve this certificate' },
       { status: 403 }
@@ -227,12 +274,20 @@ async function handleSessionBasedApproval(
     )
   }
 
+  // Validate signer name matches customer's registered name
+  if (customer.name && signerName.trim().toLowerCase() !== customer.name.toLowerCase()) {
+    return NextResponse.json(
+      { error: 'Signer name must match your registered name' },
+      { status: 400 }
+    )
+  }
+
   const now = new Date()
 
   // Use transaction to ensure all updates happen together
-  await prisma.$transaction(async (tx) => {
+  const { customerSignature } = await prisma.$transaction(async (tx) => {
     // 1. Create customer signature
-    await tx.signature.create({
+    const signature = await tx.signature.create({
       data: {
         certificateId: certificate.id,
         signerType: 'CUSTOMER',
@@ -243,11 +298,11 @@ async function handleSessionBasedApproval(
       },
     })
 
-    // 2. Update certificate status to APPROVED
+    // 2. Update certificate status to PENDING_ADMIN_AUTHORIZATION
     await tx.certificate.update({
       where: { id: certificate.id },
       data: {
-        status: 'APPROVED',
+        status: 'PENDING_ADMIN_AUTHORIZATION',
         updatedAt: now,
       },
     })
@@ -271,11 +326,34 @@ async function handleSessionBasedApproval(
           approvedAt: now.toISOString(),
           accessMethod: 'session', // Indicates approval via dashboard, not token
         }),
-        userId: customer.id,
+        customerId: customer.id,
         userRole: 'CUSTOMER',
       },
     })
+
+    return { customerSignature: signature }
   })
+
+  // Capture customer signing evidence (Layer 1-4) if client evidence provided
+  if (clientEvidence) {
+    try {
+      const serverEvidence = collectServerEvidence(request, 'session')
+      const evidencePayload = buildSigningEvidencePayload(
+        clientEvidence,
+        serverEvidence,
+        {
+          signerType: 'CUSTOMER',
+          signerName,
+          signerEmail: signerEmail || customerEmail,
+          customerId: customer.id,
+        }
+      )
+      await appendSigningEvidence(certificate.id, customerSignature.id, 'CUSTOMER_SIGNED', evidencePayload, certificate.currentRevision)
+    } catch (evidenceError) {
+      // Log but don't fail the approval if evidence capture fails
+      console.error('Failed to capture customer signing evidence:', evidenceError)
+    }
+  }
 
   // Notify HoD and engineer about customer approval (fire and forget)
   notifyOnCustomerApproval({

@@ -68,7 +68,7 @@ export async function POST(
           customerEmail: tokenRecord.customer.email,
           customerName: tokenRecord.customer.name,
         }),
-        userId: tokenRecord.customer.id,
+        customerId: tokenRecord.customer.id,
         userRole: 'CUSTOMER',
       },
     })

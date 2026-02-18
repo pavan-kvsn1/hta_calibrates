@@ -1,0 +1,211 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth, canAccessAdmin } from '@/lib/auth'
+
+// GET /api/admin/customers/[id] - Get customer account details
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth()
+    if (!canAccessAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { id } = await params
+
+    const account = await prisma.customerAccount.findUnique({
+      where: { id },
+      include: {
+        assignedHod: {
+          select: { id: true, name: true, email: true },
+        },
+        users: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            isActive: true,
+            createdAt: true,
+          },
+          orderBy: { name: 'asc' },
+        },
+        registrations: {
+          where: { status: 'PENDING' },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    })
+
+    if (!account) {
+      return NextResponse.json({ error: 'Customer account not found' }, { status: 404 })
+    }
+
+    // Get recent certificates by company name match
+    const recentCertificates = await prisma.certificate.findMany({
+      where: { customerName: account.companyName },
+      select: {
+        id: true,
+        certificateNumber: true,
+        uucDescription: true,
+        status: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    })
+
+    // Get total certificate count
+    const certificateCount = await prisma.certificate.count({
+      where: { customerName: account.companyName },
+    })
+
+    return NextResponse.json({
+      account: {
+        id: account.id,
+        companyName: account.companyName,
+        address: account.address,
+        contactEmail: account.contactEmail,
+        contactPhone: account.contactPhone,
+        isActive: account.isActive,
+        assignedHod: account.assignedHod,
+        createdAt: account.createdAt.toISOString(),
+        updatedAt: account.updatedAt.toISOString(),
+      },
+      users: account.users.map((u) => ({
+        ...u,
+        createdAt: u.createdAt.toISOString(),
+      })),
+      pendingRegistrations: account.registrations.map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      recentCertificates: recentCertificates.map((c) => ({
+        ...c,
+        createdAt: c.createdAt.toISOString(),
+      })),
+      certificateCount,
+    })
+  } catch (error) {
+    console.error('Error fetching customer account:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch customer account' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT /api/admin/customers/[id] - Update customer account
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth()
+    if (!canAccessAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const { id } = await params
+    const body = await request.json()
+    const { companyName, address, contactEmail, contactPhone, assignedHodId, isActive } = body
+
+    const existing = await prisma.customerAccount.findUnique({
+      where: { id },
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Customer account not found' }, { status: 404 })
+    }
+
+    const updateData: Record<string, unknown> = {}
+
+    if (companyName !== undefined) {
+      const trimmedName = companyName.trim()
+      if (!trimmedName) {
+        return NextResponse.json(
+          { error: 'Company name cannot be empty' },
+          { status: 400 }
+        )
+      }
+
+      // Check unique name if changed
+      if (trimmedName !== existing.companyName) {
+        const duplicate = await prisma.customerAccount.findUnique({
+          where: { companyName: trimmedName },
+        })
+        if (duplicate) {
+          return NextResponse.json(
+            { error: 'A customer account with this name already exists' },
+            { status: 400 }
+          )
+        }
+      }
+      updateData.companyName = trimmedName
+    }
+
+    if (address !== undefined) {
+      updateData.address = address?.trim() || null
+    }
+
+    if (contactEmail !== undefined) {
+      updateData.contactEmail = contactEmail?.trim() || null
+    }
+
+    if (contactPhone !== undefined) {
+      updateData.contactPhone = contactPhone?.trim() || null
+    }
+
+    if (assignedHodId !== undefined) {
+      if (assignedHodId) {
+        const hod = await prisma.user.findFirst({
+          where: { id: assignedHodId, role: 'HOD', isActive: true },
+        })
+        if (!hod) {
+          return NextResponse.json(
+            { error: 'Invalid HoD selected' },
+            { status: 400 }
+          )
+        }
+      }
+      updateData.assignedHodId = assignedHodId || null
+    }
+
+    if (isActive !== undefined) {
+      updateData.isActive = isActive
+    }
+
+    const account = await prisma.customerAccount.update({
+      where: { id },
+      data: updateData,
+      include: {
+        assignedHod: {
+          select: { id: true, name: true },
+        },
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      account: {
+        id: account.id,
+        companyName: account.companyName,
+        isActive: account.isActive,
+        assignedHod: account.assignedHod,
+      },
+    })
+  } catch (error) {
+    console.error('Error updating customer account:', error)
+    return NextResponse.json(
+      { error: 'Failed to update customer account' },
+      { status: 500 }
+    )
+  }
+}

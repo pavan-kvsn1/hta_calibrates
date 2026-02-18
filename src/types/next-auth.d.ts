@@ -8,14 +8,18 @@ declare module 'next-auth' {
       email: string
       name: string
       role: string
+      isAdmin?: boolean
       companyName?: string
+      customerAccountId?: string
     }
   }
 
   interface User extends DefaultUser {
     id: string
     role: string
+    isAdmin?: boolean
     companyName?: string
+    customerAccountId?: string
   }
 }
 
@@ -23,6 +27,8 @@ declare module 'next-auth/jwt' {
   interface JWT extends DefaultJWT {
     id?: string
     role?: string
+    isAdmin?: boolean
     companyName?: string
+    customerAccountId?: string
   }
 }

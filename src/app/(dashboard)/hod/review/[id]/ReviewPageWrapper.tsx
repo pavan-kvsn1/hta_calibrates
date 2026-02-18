@@ -163,6 +163,7 @@ interface CustomerEvent {
     requestedAt?: string
     sentAt?: string
     approvedAt?: string
+    response?: string // HoD reply to customer
   }
   createdAt: string
   revision: number

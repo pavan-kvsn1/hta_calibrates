@@ -126,10 +126,11 @@ export interface CertificateFormData {
   calibrationStatus: string[]
   stickerOldRemoved: 'yes' | 'no' | 'na' | null
   stickerNewAffixed: 'yes' | 'no' | 'na' | null
-  statusNotes: string
+  statusNotes: string  // Used for customer rejection feedback (read-only in engineer forms)
 
   // Section 7: Conclusion Statements
   selectedConclusionStatements: string[]
+  additionalConclusionStatement: string // Custom user-entered conclusion statement
 
   // Engineer notes (for responding to HoD feedback)
   engineerNotes: string
@@ -371,6 +372,7 @@ const initialFormData: CertificateFormData = {
 
   // Section 7: Conclusion Statements
   selectedConclusionStatements: [],
+  additionalConclusionStatement: '',
 
   // Engineer notes (for responding to HoD feedback)
   engineerNotes: '',

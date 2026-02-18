@@ -111,7 +111,7 @@ export default function NewCertificatePage() {
       {/* Combined Sticky Header - Appears when scrolled */}
       <div
         className={cn(
-          'fixed top-[53px] left-0 right-0 bg-white/95 backdrop-blur-md border-b border-slate-200 z-[55] shadow-sm transition-all duration-300',
+          'fixed top-[75px] left-0 right-0 bg-white/95 backdrop-blur-md border-b border-slate-200 z-[55] shadow-sm transition-all duration-300',
           isScrolled ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0 pointer-events-none'
         )}
       >

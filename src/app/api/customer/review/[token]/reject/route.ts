@@ -101,12 +101,11 @@ export async function POST(
             customerEmail: tokenRecord.customer.email,
             customerName: tokenRecord.customer.name,
             customerCompany: tokenRecord.customer.companyName,
-            customerId: tokenRecord.customer.id,
             requestedAt: now.toISOString(),
             accessMethod: 'token',
           }),
-          userId: tokenRecord.certificate.createdById, // Use certificate creator for FK constraint
-          userRole: 'CUSTOMER', // But mark the role as CUSTOMER
+          customerId: tokenRecord.customer.id,
+          userRole: 'CUSTOMER',
         },
       })
     })
@@ -147,6 +146,7 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
   // Get customer info
   const customer = await prisma.customerUser.findUnique({
     where: { email: customerEmail },
+    include: { customerAccount: true },
   })
 
   if (!customer) {
@@ -170,7 +170,8 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
   }
 
   // Verify access: certificate's customerName must match customer's companyName
-  if (certificate.customerName?.toLowerCase() !== customer.companyName.toLowerCase()) {
+  const customerCompanyName = customer.customerAccount?.companyName || customer.companyName
+  if (!customerCompanyName || certificate.customerName?.toLowerCase() !== customerCompanyName.toLowerCase()) {
     return NextResponse.json(
       { error: 'You do not have permission to reject this certificate' },
       { status: 403 }
@@ -216,12 +217,11 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
           customerEmail: customer.email,
           customerName: customer.name,
           customerCompany: customer.companyName,
-          customerId: customer.id,
           requestedAt: now.toISOString(),
           accessMethod: 'session',
         }),
-        userId: certificate.createdById, // Use certificate creator as the actor for FK constraint
-        userRole: 'CUSTOMER', // But mark the role as CUSTOMER
+        customerId: customer.id,
+        userRole: 'CUSTOMER',
       },
     })
   })

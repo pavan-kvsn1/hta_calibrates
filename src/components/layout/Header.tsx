@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Clock, LogOut } from 'lucide-react'
+import { Clock, LogOut, Settings } from 'lucide-react'
 import { useCertificateStore } from '@/lib/certificate-store'
 import { NotificationBell } from '@/components/notifications'
 
@@ -95,6 +95,17 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
               {isSaving ? 'Saving...' : `Auto-save: ${formatLastSaved()}`}
             </span>
           </div>
+        )}
+
+        {/* Admin Link (for Admin users or HoD with isAdmin) */}
+        {(session?.user?.role === 'ADMIN' || session?.user?.isAdmin) && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-md border border-blue-200 hover:border-blue-300 transition-colors"
+          >
+            <Settings className="size-3.5" />
+            <span className="hidden sm:inline">Admin Panel</span>
+          </Link>
         )}
 
         {/* Notifications */}

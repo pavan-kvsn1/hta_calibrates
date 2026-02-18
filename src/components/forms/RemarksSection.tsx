@@ -186,19 +186,6 @@ export function RemarksSection() {
           </div>
         </div>
 
-        {/* Status Notes */}
-        <div>
-          <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Status Notes (optional)
-          </Label>
-          <Textarea
-            value={formData.statusNotes}
-            onChange={(e) => setFormField('statusNotes', e.target.value)}
-            placeholder="Add any additional notes about the calibration status..."
-            rows={3}
-            className="w-full rounded-xl border-slate-200 px-4 py-3 focus:ring-primary focus:border-primary font-medium"
-          />
-        </div>
       </div>
     </FormSection>
   )

@@ -24,7 +24,6 @@ async function getRevisionHistory(certificateId: string): Promise<RevisionHistor
         in: [
           'SENT_TO_CUSTOMER',
           'CUSTOMER_REVISION_REQUESTED',
-          'CUSTOMER_REVISION_FORWARDED',
           'HOD_REPLIED_TO_CUSTOMER',
         ],
       },
@@ -87,6 +86,7 @@ export default async function CustomerCertReviewPage({ params }: Props) {
   // Get customer info
   const customer = await prisma.customerUser.findUnique({
     where: { email: customerEmail },
+    include: { customerAccount: true },
   })
 
   if (!customer) {
@@ -102,11 +102,24 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     notFound()
   }
 
+  // Get company name from customerAccount (preferred) or fallback to legacy companyName field
+  const customerCompanyName = customer.customerAccount?.companyName || customer.companyName || ''
+
   // Verify access: certificate's customerName must match customer's companyName
-  // Allow access for both PENDING_CUSTOMER_APPROVAL and CUSTOMER_REVISION_REQUIRED (for HoD replies)
+  // Allow access for various customer-relevant statuses
+  const allowedStatuses = [
+    'PENDING_CUSTOMER_APPROVAL',
+    'CUSTOMER_REVISION_REQUIRED',
+    'REVISION_REQUIRED',
+    'APPROVED',
+    'PENDING_ADMIN_AUTHORIZATION',
+    'PENDING_ADMIN_APPROVAL',
+    'AUTHORIZED',
+  ]
   const hasAccess =
-    (certificate.status === 'PENDING_CUSTOMER_APPROVAL' || certificate.status === 'CUSTOMER_REVISION_REQUIRED') &&
-    certificate.customerName?.toLowerCase() === customer.companyName.toLowerCase()
+    allowedStatuses.includes(certificate.status) &&
+    !!customerCompanyName &&
+    certificate.customerName?.toLowerCase() === customerCompanyName.toLowerCase()
 
   if (!hasAccess) {
     return (
@@ -170,7 +183,7 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     id: customer.id,
     name: customer.name,
     email: customer.email,
-    companyName: customer.companyName,
+    companyName: customerCompanyName,
   }
 
   // Fetch revision history for this certificate

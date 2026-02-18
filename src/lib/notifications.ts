@@ -15,6 +15,10 @@ export type NotificationType =
   // Customer notifications
   | 'CERTIFICATE_READY'         // Certificate sent for approval
   | 'HOD_REPLIED'               // HoD replied to feedback
+  // Registration notifications
+  | 'REGISTRATION_SUBMITTED'    // Customer submitted registration (to Admin)
+  | 'REGISTRATION_APPROVED'     // Admin approved registration (to Customer)
+  | 'REGISTRATION_REJECTED'     // Admin rejected registration (to Customer)
 
 // Notification templates for generating title and message
 const notificationTemplates: Record<NotificationType, { title: string; message: (data: Record<string, string>) => string }> = {
@@ -57,6 +61,18 @@ const notificationTemplates: Record<NotificationType, { title: string; message: 
   HOD_REPLIED: {
     title: 'Response to Your Feedback',
     message: (data) => `HTA has responded to your feedback on ${data.certificateNumber}`,
+  },
+  REGISTRATION_SUBMITTED: {
+    title: 'New Registration Request',
+    message: (data) => `${data.name} (${data.email}) registered for ${data.companyName}`,
+  },
+  REGISTRATION_APPROVED: {
+    title: 'Registration Approved',
+    message: (data) => `Your account for ${data.companyName} has been approved. You can now login.`,
+  },
+  REGISTRATION_REJECTED: {
+    title: 'Registration Update',
+    message: (data) => `Your registration was not approved. Reason: ${data.reason || 'Not specified'}`,
   },
 }
 
@@ -445,4 +461,72 @@ export async function notifyOnCustomerApproval({
       data: { certificateNumber },
     }),
   ])
+}
+
+/**
+ * Create notification for admins when a new registration is submitted
+ */
+export async function notifyAdminsOnRegistration({
+  registrationId,
+  name,
+  email,
+  companyName,
+}: {
+  registrationId: string
+  name: string
+  email: string
+  companyName: string
+}) {
+  // Notify all admins
+  const admins = await prisma.user.findMany({
+    where: { role: 'ADMIN', isActive: true },
+    select: { id: true },
+  })
+
+  await Promise.all(
+    admins.map((admin) =>
+      createNotification({
+        userId: admin.id,
+        type: 'REGISTRATION_SUBMITTED',
+        data: { name, email, companyName, registrationId },
+      })
+    )
+  )
+}
+
+/**
+ * Create notification for customer when registration is approved
+ */
+export async function notifyCustomerOnRegistrationApproved({
+  customerId,
+  companyName,
+}: {
+  customerId: string
+  companyName: string
+}) {
+  await createNotification({
+    customerId,
+    type: 'REGISTRATION_APPROVED',
+    data: { companyName },
+  })
+}
+
+/**
+ * Create notification for customer when registration is rejected
+ * Note: This creates a notification but the customer can't log in to see it
+ * In practice, this would be sent via email instead
+ */
+export async function notifyCustomerOnRegistrationRejected({
+  email,
+  companyName,
+  reason,
+}: {
+  email: string
+  companyName: string
+  reason: string
+}) {
+  // Since rejected customers can't log in, we would typically send an email
+  // For now, we'll log this for potential email integration
+  console.log(`Registration rejected for ${email} at ${companyName}. Reason: ${reason}`)
+  // TODO: Send rejection email to customer
 }

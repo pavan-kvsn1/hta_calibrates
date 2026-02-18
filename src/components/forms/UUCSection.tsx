@@ -221,6 +221,50 @@ function ParameterCard({
     onUpdate({ ...parameter, bins: newBins })
   }
 
+  // Validate if a bin value is within operating range
+  const validateBinValue = (value: string, type: 'min' | 'max'): { isValid: boolean; message: string | null } => {
+    if (!value) return { isValid: true, message: null }
+
+    const numValue = parseFloat(value)
+    if (isNaN(numValue)) return { isValid: true, message: null }
+
+    const opMin = parseFloat(parameter.operatingMin)
+    const opMax = parseFloat(parameter.operatingMax)
+
+    // If operating range is not defined, skip validation
+    if (isNaN(opMin) && isNaN(opMax)) return { isValid: true, message: null }
+
+    if (!isNaN(opMin) && numValue < opMin) {
+      return { isValid: false, message: `Below operating min (${parameter.operatingMin})` }
+    }
+
+    if (!isNaN(opMax) && numValue > opMax) {
+      return { isValid: false, message: `Exceeds operating max (${parameter.operatingMax})` }
+    }
+
+    return { isValid: true, message: null }
+  }
+
+  // Check if bins have any validation errors
+  const getBinValidationErrors = (bin: ParameterBin): { minError: string | null; maxError: string | null } => {
+    const minValidation = validateBinValue(bin.binMin, 'min')
+    const maxValidation = validateBinValue(bin.binMax, 'max')
+
+    // Also check if binMin > binMax
+    const binMin = parseFloat(bin.binMin)
+    const binMax = parseFloat(bin.binMax)
+
+    let maxError = maxValidation.message
+    if (!isNaN(binMin) && !isNaN(binMax) && binMin > binMax) {
+      maxError = 'Max must be greater than Min'
+    }
+
+    return {
+      minError: minValidation.message,
+      maxError: maxError
+    }
+  }
+
   // Get the linked master instrument info
   const linkedMasterInstrument = selectedMasterInstruments.find(
     mi => mi.masterInstrumentId === parameter.masterInstrumentId
@@ -526,6 +570,16 @@ function ParameterCard({
               <div></div>
             </div>
 
+            {/* Operating range reminder */}
+            {(parameter.operatingMin || parameter.operatingMax) && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                <span className="text-blue-700 font-medium">
+                  Operating Range: {parameter.operatingMin || '—'} to {parameter.operatingMax || '—'} {displayUnit}
+                </span>
+                <span className="text-blue-500">— All bin ranges must be within this range</span>
+              </div>
+            )}
+
             {/* Bins table */}
             <div className="border border-slate-200 rounded-lg overflow-hidden">
               {/* Table header */}
@@ -537,42 +591,63 @@ function ParameterCard({
                 <div>Decimal Points {displayUnit && `(${displayUnit})`}</div>
               </div>
               {/* Table rows */}
-              {(parameter.bins || []).map((bin, binIndex) => (
-                <div
-                  key={bin.id}
-                  className="grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-2 px-3 py-2 border-t border-slate-100 items-center"
-                >
-                  <div className="w-12 text-xs font-bold text-slate-600">#{binIndex + 1}</div>
-                  <Input
-                    type="text"
-                    value={bin.binMin}
-                    onChange={(e) => updateBin(binIndex, 'binMin', e.target.value)}
-                    placeholder="Min"
-                    className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
-                  />
-                  <Input
-                    type="text"
-                    value={bin.binMax}
-                    onChange={(e) => updateBin(binIndex, 'binMax', e.target.value)}
-                    placeholder="Max"
-                    className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
-                  />
-                  <Input
-                    type="text"
-                    value={bin.accuracy}
-                    onChange={(e) => updateBin(binIndex, 'accuracy', e.target.value)}
-                    placeholder="e.g., ±0.5"
-                    className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
-                  />
-                  <Input
-                    type="text"
-                    value={bin.leastCount}
-                    onChange={(e) => updateBin(binIndex, 'leastCount', e.target.value)}
-                    placeholder="e.g., 0.1"
-                    className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
-                  />
-                </div>
-              ))}
+              {(parameter.bins || []).map((bin, binIndex) => {
+                const errors = getBinValidationErrors(bin)
+                return (
+                  <div
+                    key={bin.id}
+                    className="grid grid-cols-[auto_1fr_1fr_1fr_1fr] gap-2 px-3 py-2 border-t border-slate-100 items-start"
+                  >
+                    <div className="w-12 text-xs font-bold text-slate-600 pt-2">#{binIndex + 1}</div>
+                    <div className="space-y-1">
+                      <Input
+                        type="text"
+                        value={bin.binMin}
+                        onChange={(e) => updateBin(binIndex, 'binMin', e.target.value)}
+                        placeholder="Min"
+                        className={`rounded-lg text-xs py-1.5 h-8 ${
+                          errors.minError
+                            ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200'
+                            : 'border-slate-200'
+                        }`}
+                      />
+                      {errors.minError && (
+                        <p className="text-[9px] text-red-500 font-medium">{errors.minError}</p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Input
+                        type="text"
+                        value={bin.binMax}
+                        onChange={(e) => updateBin(binIndex, 'binMax', e.target.value)}
+                        placeholder="Max"
+                        className={`rounded-lg text-xs py-1.5 h-8 ${
+                          errors.maxError
+                            ? 'border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200'
+                            : 'border-slate-200'
+                        }`}
+                      />
+                      {errors.maxError && (
+                        <p className="text-[9px] text-red-500 font-medium">{errors.maxError}</p>
+                      )}
+                    </div>
+                    <Input
+                      type="text"
+                      value={bin.accuracy}
+                      onChange={(e) => updateBin(binIndex, 'accuracy', e.target.value)}
+                      placeholder="e.g., ±0.5"
+                      className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
+                    />
+                    <Input
+                      type="text"
+                      value={bin.leastCount}
+                      onChange={(e) => updateBin(binIndex, 'leastCount', e.target.value)}
+                      placeholder="e.g., 0.1"
+                      className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
+                    />
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

@@ -65,6 +65,7 @@ interface CustomerEvent {
     customerEmail?: string
     customerName?: string
     customerCompany?: string
+    response?: string // HoD reply to customer
   }
   createdAt: string
   revision: number
@@ -420,14 +421,23 @@ export function CustomerRevisionStatus({
           message: event.eventData.notes || '',
           createdAt: event.createdAt,
         })
+      } else if (event.eventType === 'HOD_REPLIED_TO_CUSTOMER') {
+        items.push({
+          id: event.id,
+          type: 'hod',
+          name: event.user?.name || 'HoD',
+          message: event.eventData.response || '',
+          createdAt: event.createdAt,
+        })
       }
     })
 
     return items
   }
 
-  // Build the latest feedback thread (last cycle only):
-  // Customer feedback (optional) → HoD feedback → Engineer response
+  // Build the latest feedback thread for CUSTOMER_REVISION_REQUIRED status:
+  // For this status, the customer feedback is what triggered it, so prioritize showing:
+  // Customer feedback → HoD response (if any)
   const buildLatestThread = (): FeedbackItem[] => {
     const allItems = buildAllFeedbackItems()
 
@@ -436,45 +446,24 @@ export function CustomerRevisionStatus({
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     )
 
-    // Find the last engineer response
-    const lastEngineerIdx = sorted.findLastIndex(f => f.type === 'engineer')
-    if (lastEngineerIdx === -1) {
-      // No engineer response - find last HoD message
+    // Find the last customer feedback (this is what triggered CUSTOMER_REVISION_REQUIRED)
+    const lastCustomerIdx = sorted.findLastIndex(f => f.type === 'customer')
+    if (lastCustomerIdx === -1) {
+      // No customer feedback - fall back to showing last HoD message if any
       const lastHodIdx = sorted.findLastIndex(f => f.type === 'hod')
-      if (lastHodIdx === -1) {
-        // Check for customer feedback only
-        const lastCustomerIdx = sorted.findLastIndex(f => f.type === 'customer')
-        if (lastCustomerIdx !== -1) {
-          return [sorted[lastCustomerIdx]]
-        }
-        return []
+      if (lastHodIdx !== -1) {
+        return [sorted[lastHodIdx]]
       }
-      // Find customer feedback before this HoD message
-      const thread: FeedbackItem[] = []
-      for (let i = lastHodIdx - 1; i >= 0; i--) {
-        if (sorted[i].type === 'customer') {
-          thread.unshift(sorted[i])
-          break
-        }
-      }
-      thread.push(sorted[lastHodIdx])
-      return thread
+      return []
     }
 
-    // Found engineer response - build thread backwards
-    const thread: FeedbackItem[] = [sorted[lastEngineerIdx]]
+    // Start thread with customer feedback
+    const thread: FeedbackItem[] = [sorted[lastCustomerIdx]]
 
-    // Find HoD message before engineer response
-    for (let i = lastEngineerIdx - 1; i >= 0; i--) {
+    // Look for any HoD response AFTER the customer feedback
+    for (let i = lastCustomerIdx + 1; i < sorted.length; i++) {
       if (sorted[i].type === 'hod') {
-        thread.unshift(sorted[i])
-        // Find customer feedback before HoD message
-        for (let j = i - 1; j >= 0; j--) {
-          if (sorted[j].type === 'customer') {
-            thread.unshift(sorted[j])
-            break
-          }
-        }
+        thread.push(sorted[i])
         break
       }
     }

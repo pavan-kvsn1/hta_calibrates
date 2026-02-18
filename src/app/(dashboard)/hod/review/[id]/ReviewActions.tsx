@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ApproveModal } from './ApproveModal'
+import type { ClientEvidence } from '@/types/signatures'
 
 interface Feedback {
   id: string
@@ -394,7 +395,7 @@ export function ReviewActions({
   const hasPreviousFeedback = latestThread.length > 0
 
   // Handle approval through the modal
-  const handleApprove = async (sendEmail: boolean, customerData?: { email: string; name: string; message?: string }, signatureInfo?: { signatureImage: string; signerName: string }) => {
+  const handleApprove = async (sendEmail: boolean, customerData?: { email: string; name: string; message?: string }, signatureInfo?: { signatureImage: string; signerName: string; clientEvidence: ClientEvidence }) => {
     setIsSubmitting(true)
     setError(null)
 
@@ -406,6 +407,7 @@ export function ReviewActions({
       sendToCustomer?: { email: string; name: string; message?: string }
       signatureData?: string
       signerName?: string
+      clientEvidence?: ClientEvidence
     } = {
       action: 'approve',
       comment: comment.trim() || undefined,
@@ -421,10 +423,11 @@ export function ReviewActions({
       requestBody.sendToCustomer = customerData
     }
 
-    // Include signature data
+    // Include signature data and client evidence
     if (signatureInfo) {
       requestBody.signatureData = signatureInfo.signatureImage
       requestBody.signerName = signatureInfo.signerName
+      requestBody.clientEvidence = signatureInfo.clientEvidence
     }
 
     try {

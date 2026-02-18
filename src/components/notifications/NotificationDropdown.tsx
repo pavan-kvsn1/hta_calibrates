@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { NotificationItem } from './NotificationItem'
 
 interface Notification {
@@ -36,6 +37,8 @@ export function NotificationDropdown({
   onMarkAllAsRead,
   onClose,
 }: NotificationDropdownProps) {
+  const router = useRouter()
+
   // Handle escape key
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -47,6 +50,11 @@ export function NotificationDropdown({
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
+
+  const handleViewAll = () => {
+    onClose()
+    router.push('/notifications')
+  }
 
   return (
     <div
@@ -77,15 +85,17 @@ export function NotificationDropdown({
             <p className="text-sm text-gray-500">No notifications yet</p>
           </div>
         ) : (
-          notifications.map((notification) => (
-            <NotificationItem
-              key={notification.id}
-              notification={notification}
-              userRole={userRole}
-              onMarkAsRead={onMarkAsRead}
-              compact
-            />
-          ))
+          <div className="flex flex-col w-full">
+            {notifications.map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                userRole={userRole}
+                onMarkAsRead={onMarkAsRead}
+                compact
+              />
+            ))}
+          </div>
         )}
       </div>
 
@@ -93,10 +103,7 @@ export function NotificationDropdown({
       {notifications.length > 0 && (
         <div className="border-t border-gray-200 px-4 py-2 bg-gray-50">
           <button
-            onClick={() => {
-              // TODO: Navigate to full notifications page
-              onClose()
-            }}
+            onClick={handleViewAll}
             className="w-full text-center text-sm text-blue-600 hover:text-blue-800 font-medium py-1"
           >
             View All Notifications

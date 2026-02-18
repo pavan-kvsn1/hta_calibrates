@@ -5,6 +5,12 @@ import crypto from 'crypto'
 import { notifyEngineerOnReview, notifyOnSentToCustomer } from '@/lib/notifications'
 import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/opensign'
 import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/pdf-generator'
+import {
+  appendSigningEvidence,
+  collectServerEvidence,
+  buildSigningEvidencePayload,
+  type ClientEvidence,
+} from '@/lib/signing-evidence'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -43,7 +49,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const { id } = await context.params
     const body = await request.json()
-    const { action, comment, edits, dateOverride, sendToCustomer, signatureData, signerName } = body
+    const { action, comment, edits, dateOverride, sendToCustomer, signatureData, signerName, clientEvidence } = body as {
+      action: string
+      comment?: string
+      edits?: PendingEdit[]
+      dateOverride?: { newDateOfCalibration: string; newDueDate?: string; reason: string }
+      sendToCustomer?: CustomerData
+      signatureData?: string
+      signerName?: string
+      clientEvidence?: ClientEvidence
+    }
 
     // Parse sendToCustomer data if provided
     const customerData: CustomerData | null = sendToCustomer ? {
@@ -73,6 +88,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       if (!signatureData || !signerName?.trim()) {
         return NextResponse.json(
           { error: 'Signature and signer name are required for approval' },
+          { status: 400 }
+        )
+      }
+
+      // Validate signer name matches user profile
+      if (session.user.name && signerName.trim().toLowerCase() !== session.user.name.toLowerCase()) {
+        return NextResponse.json(
+          { error: 'Signer name must match your profile name' },
           { status: 400 }
         )
       }
@@ -334,13 +357,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       })
 
       // Store HOD signature on approval
+      let hodSignature = null
       if (action === 'approve' && signatureData && signerName) {
         // Delete any existing HOD signature (handles re-approval after engineer revision)
         await tx.signature.deleteMany({
           where: { certificateId: id, signerType: 'HOD' },
         })
 
-        await tx.signature.create({
+        hodSignature = await tx.signature.create({
           data: {
             certificateId: id,
             signerType: 'HOD',
@@ -415,7 +439,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         }
       }
 
-      return { certificate: updatedCert, event, feedback, tokenResult }
+      return { certificate: updatedCert, event, feedback, tokenResult, hodSignature }
     })
 
     // Return appropriate message
@@ -473,8 +497,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       message = 'Certificate approved and sent to customer for review'
     }
 
+    // Capture HoD signing evidence (Layer 1-4) if client evidence provided and signature was created
+    if (action === 'approve' && result.hodSignature && clientEvidence) {
+      try {
+        const serverEvidence = collectServerEvidence(request, 'direct')
+        const evidencePayload = buildSigningEvidencePayload(
+          clientEvidence,
+          serverEvidence,
+          {
+            signerType: 'HOD',
+            signerName: signerName!,
+            signerEmail: session.user.email,
+            signerId: session.user.id,
+          }
+        )
+        await appendSigningEvidence(id, result.hodSignature.id, 'HOD_SIGNED', evidencePayload, result.certificate.currentRevision)
+      } catch (evidenceError) {
+        // Log but don't fail the review if evidence capture fails
+        console.error('Failed to capture HoD signing evidence:', evidenceError)
+      }
+    }
+
     // Send HoD signature to OpenSign for digital signing (best-effort)
-    if (action === 'approve') {
+    if (action === 'approve' && signerName) {
       sendToOpenSign(result.certificate.id, result.certificate.certificateNumber, session.user.email, signerName)
         .catch((err) => console.error('OpenSign HoD signing failed (non-blocking):', err))
     }

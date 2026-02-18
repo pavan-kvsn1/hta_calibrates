@@ -135,8 +135,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       calibrationStatus,
       stickerOldRemoved,
       stickerNewAffixed,
-      statusNotes,
       selectedConclusionStatements,
+      additionalConclusionStatement,
       parameters,
       masterInstruments,
     } = body
@@ -176,8 +176,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           calibrationStatus: JSON.stringify(calibrationStatus || []),
           stickerOldRemoved: stickerOldRemoved || null,
           stickerNewAffixed: stickerNewAffixed || null,
-          statusNotes: statusNotes || null,
           selectedConclusionStatements: JSON.stringify(selectedConclusionStatements || []),
+          additionalConclusionStatement: additionalConclusionStatement || null,
           lastModifiedById: session.user.id,
         },
       })
