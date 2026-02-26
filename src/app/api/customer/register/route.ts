@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import { notifyAdminsOnRegistration } from '@/lib/notifications'
+import { notifyAdminsOnRegistration } from '@/lib/services/notifications'
 
 // POST /api/customer/register - Submit customer registration
 export async function POST(request: NextRequest) {

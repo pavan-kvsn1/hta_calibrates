@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormSection } from './FormSection'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 import { CheckCircle, AlertTriangle } from 'lucide-react'
 

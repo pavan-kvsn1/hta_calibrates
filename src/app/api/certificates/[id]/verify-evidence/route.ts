@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { verifyEvidenceChain } from '@/lib/signing-evidence'
+import { verifyEvidenceChain } from '@/lib/stores/signing-evidence'
 
 interface RouteContext {
   params: Promise<{ id: string }>

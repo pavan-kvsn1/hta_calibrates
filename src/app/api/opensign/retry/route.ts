@@ -6,8 +6,8 @@ import {
   selfSignDocument,
   getSignatureWidgets,
   withRetry,
-} from '@/lib/opensign'
-import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/pdf-generator'
+} from '@/lib/services/opensign'
+import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/services/pdf/generator'
 
 /**
  * POST /api/opensign/retry

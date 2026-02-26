@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { notifyHoDOnCustomerRevision } from '@/lib/notifications'
+import { notifyHoDOnCustomerRevision } from '@/lib/services/notifications'
 
 export async function POST(
   request: NextRequest,

@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Image,
 } from '@react-pdf/renderer'
-import { CertificateFormData, ACCURACY_TYPE_CONFIG } from '@/lib/certificate-store'
+import { CertificateFormData, ACCURACY_TYPE_CONFIG } from '@/lib/stores/certificate-store'
 import { HTA_LOGO_BASE64 } from './logo-base64'
 import { HTA_WATERMARK_BASE64 } from './watermark-base64'
 import {

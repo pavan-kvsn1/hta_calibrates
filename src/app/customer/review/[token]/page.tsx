@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
-import { CustomerReviewClient } from './CustomerReviewClient'
+import { CustomerReviewClient } from '@/components/customer/CustomerReviewClient'
 
 interface TokenData {
   id: string

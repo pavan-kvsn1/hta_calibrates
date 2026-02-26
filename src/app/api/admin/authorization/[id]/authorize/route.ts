@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
-import { appendSigningEvidence, collectServerEvidence, CONSENT_TEXT, CONSENT_VERSION } from '@/lib/signing-evidence'
+import { appendSigningEvidence, collectServerEvidence, CONSENT_TEXT, CONSENT_VERSION } from '@/lib/stores/signing-evidence'
 
 export async function POST(
   request: NextRequest,

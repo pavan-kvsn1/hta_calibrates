@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
-import { notifyEngineerOnReview, notifyOnSentToCustomer } from '@/lib/notifications'
-import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/opensign'
-import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/pdf-generator'
+import { notifyEngineerOnReview, notifyOnSentToCustomer } from '@/lib/services/notifications'
+import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/services/opensign'
+import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/services/pdf/generator'
 import {
   appendSigningEvidence,
   collectServerEvidence,
   buildSigningEvidencePayload,
   type ClientEvidence,
-} from '@/lib/signing-evidence'
+} from '@/lib/stores/signing-evidence'
 
 interface RouteContext {
   params: Promise<{ id: string }>

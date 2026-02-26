@@ -4,7 +4,7 @@ import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Clock, LogOut, Settings } from 'lucide-react'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { NotificationBell } from '@/components/notifications'
 
 interface HeaderProps {

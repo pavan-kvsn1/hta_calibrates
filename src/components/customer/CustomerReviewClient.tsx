@@ -8,7 +8,7 @@ import { signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { SignatureModal } from '@/components/signatures'
 import type { SignatureData } from '@/types/signatures'
-import { CustomerPDFViewer } from './CustomerPDFViewer'
+import { CustomerPDFViewer } from '@/app/customer/review/[token]/CustomerPDFViewer'
 import {
   Clock,
   Calendar,

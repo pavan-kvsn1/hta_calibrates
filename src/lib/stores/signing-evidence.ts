@@ -1,6 +1,6 @@
 import crypto from 'crypto'
-import { prisma } from './prisma'
-import { CONSENT_TEXT, CONSENT_VERSION } from './consent-text'
+import { prisma } from '@/lib/prisma'
+import { CONSENT_TEXT, CONSENT_VERSION } from '@/lib/constants/consent-text'
 
 // Re-export consent constants for convenience
 export { CONSENT_TEXT, CONSENT_VERSION }

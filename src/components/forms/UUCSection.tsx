@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { FormSection } from './FormSection'
-import { useCertificateStore, Parameter, ParameterBin, SelectedMasterInstrument, AccuracyType, ACCURACY_TYPE_CONFIG } from '@/lib/certificate-store'
+import { useCertificateStore, Parameter, ParameterBin, SelectedMasterInstrument, AccuracyType, ACCURACY_TYPE_CONFIG } from '@/lib/stores/certificate-store'
 
 // Parameter types with their associated measurement units
 const PARAMETER_CONFIG: Record<string, { label: string; units: string[]; defaultUnit: string }> = {

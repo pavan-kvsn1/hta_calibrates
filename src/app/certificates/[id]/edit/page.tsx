@@ -15,7 +15,7 @@ import {
   ConclusionSection,
   FinalizeSection,
 } from '@/components/forms'
-import { useCertificateStore, CertificateFormData, Parameter, CalibrationResult } from '@/lib/certificate-store'
+import { useCertificateStore, CertificateFormData, Parameter, CalibrationResult } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { FeedbackSidebar } from '@/components/feedback'
