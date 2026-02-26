@@ -59,15 +59,10 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Setup database
-        run: npx prisma db push
+      - name: Setup and seed database
+        run: npx prisma db push && npm run db:seed
         env:
-          DATABASE_URL: file:./test.db
-
-      - name: Seed database
-        run: npm run db:seed
-        env:
-          DATABASE_URL: file:./test.db
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
 
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
@@ -75,7 +70,7 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         env:
-          DATABASE_URL: file:./test.db
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
 
@@ -110,4 +105,4 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          DATABASE_URL: file:./test.db
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
