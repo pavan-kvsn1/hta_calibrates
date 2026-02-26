@@ -4,7 +4,10 @@ import { TEST_USERS } from '../fixtures/test-data'
 test.describe('Authentication', () => {
   test('should show login page', async ({ page }) => {
     await page.goto('/login')
-    await expect(page.locator('h1, h2').first()).toContainText(/login|sign in/i)
+    // Check for the login form with email and password fields
+    await expect(page.locator('input[type="email"], input[name="email"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('input[type="password"]')).toBeVisible()
+    await expect(page.locator('button[type="submit"]')).toBeVisible()
   })
 
   test('should reject invalid credentials', async ({ page }) => {

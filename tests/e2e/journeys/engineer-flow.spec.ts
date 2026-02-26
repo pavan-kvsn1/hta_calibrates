@@ -33,9 +33,12 @@ test.describe('Engineer Flow', () => {
   test('can see certificate form sections', async ({ page }) => {
     await page.goto('/certificates/new')
 
-    // The form should have various sections
-    // Check for some common form elements
-    await expect(page.locator('form, [role="form"]').first()).toBeVisible({ timeout: 10000 })
+    // The page should show the certificate creation heading and sections
+    await expect(page.locator('h1')).toContainText(/certificate/i, { timeout: 10000 })
+
+    // Check for navigation sections (Summary, UUC Details, etc.)
+    await expect(page.locator('text=Summary')).toBeVisible()
+    await expect(page.locator('text=UUC Details')).toBeVisible()
   })
 
   test('dashboard shows certificate status badges', async ({ page }) => {
