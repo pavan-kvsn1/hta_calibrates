@@ -6,9 +6,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 // For Prisma 7, use the SQLite adapter with options
-// The db is at ./dev.db (relative to where the command runs from)
+// Read from DATABASE_URL env var, fallback to dev.db for local development
 const adapter = new PrismaBetterSqlite3({
-  url: 'file:./dev.db',
+  url: process.env.DATABASE_URL || 'file:./dev.db',
 })
 const prisma = new PrismaClient({ adapter })
 
