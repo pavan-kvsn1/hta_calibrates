@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import TypedSignature, { type TypedSignatureHandle } from '@/components/signatures/TypedSignature'
-import { CONSENT_STATEMENTS, CONSENT_VERSION } from '@/lib/consent-text'
+import { CONSENT_STATEMENTS, CONSENT_VERSION } from '@/lib/constants/consent-text'
 import type { ClientEvidence } from '@/types/signatures'
 
 interface ApproveModalProps {

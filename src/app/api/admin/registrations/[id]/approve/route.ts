@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
-import { notifyCustomerOnRegistrationApproved } from '@/lib/notifications'
+import { notifyCustomerOnRegistrationApproved } from '@/lib/services/notifications'
 
 // POST /api/admin/registrations/[id]/approve - Approve customer registration
 export async function POST(

@@ -14,7 +14,7 @@ import {
   ConclusionSection,
   FinalizeSection,
 } from '@/components/forms'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 

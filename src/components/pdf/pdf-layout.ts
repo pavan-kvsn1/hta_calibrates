@@ -11,7 +11,7 @@
  * 4. If overflow > 15% → multi-page with strategic breaks + compression
  */
 
-import { CertificateFormData } from '@/lib/certificate-store'
+import { CertificateFormData } from '@/lib/stores/certificate-store'
 
 // ============================================================================
 // CONSTANTS

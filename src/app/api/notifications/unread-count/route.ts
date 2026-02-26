@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { getUnreadCount } from '@/lib/notifications'
+import { getUnreadCount } from '@/lib/services/notifications'
 
 export async function GET() {
   try {

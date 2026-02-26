@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SignatureModal } from '@/components/signatures'
 import type { SignatureData } from '@/types/signatures'
-import type { CertificateFormData } from '@/lib/certificate-store'
+import type { CertificateFormData } from '@/lib/stores/certificate-store'
 import type { PDFSignatureData } from '@/components/pdf/pdf-utils'
 import {
   Loader2,

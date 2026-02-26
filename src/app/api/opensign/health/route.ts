@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { isOpenSignHealthy } from '@/lib/opensign'
+import { isOpenSignHealthy } from '@/lib/services/opensign'
 import { prisma } from '@/lib/prisma'
 
 /**

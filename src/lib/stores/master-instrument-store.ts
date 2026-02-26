@@ -6,7 +6,7 @@ import {
   enrichInstrument,
   canMeasureParameter,
   getSimpleValue,
-} from './master-instruments'
+} from '@/lib/master-instruments'
 
 // Import the JSON data as fallback
 import masterListData from '@/data/master-instruments.json'

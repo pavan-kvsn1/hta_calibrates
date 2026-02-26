@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { notifyOnCustomerApproval } from '@/lib/notifications'
-import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/opensign'
-import { getPageCountFromBuffer } from '@/lib/pdf-generator'
+import { notifyOnCustomerApproval } from '@/lib/services/notifications'
+import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/services/opensign'
+import { getPageCountFromBuffer } from '@/lib/services/pdf/generator'
 import {
   appendSigningEvidence,
   collectServerEvidence,
   buildSigningEvidencePayload,
   type ClientEvidence,
-} from '@/lib/signing-evidence'
+} from '@/lib/stores/signing-evidence'
 
 export async function POST(
   request: NextRequest,
@@ -174,8 +174,8 @@ export async function POST(
 
     // Generate signed PDF (best-effort — don't fail the approval)
     try {
-      const { generateSignedPDF } = await import('@/lib/pdf-generator')
-      const { storePDF } = await import('@/lib/pdf-storage')
+      const { generateSignedPDF } = await import('@/lib/services/pdf/generator')
+      const { storePDF } = await import('@/lib/services/pdf/storage')
 
       const pdfBuffer = await generateSignedPDF(tokenRecord.certificateId)
       const pdfPath = await storePDF(tokenRecord.certificateId, pdfBuffer)
@@ -364,8 +364,8 @@ async function handleSessionBasedApproval(
 
   // Generate signed PDF (best-effort — don't fail the approval)
   try {
-    const { generateSignedPDF } = await import('@/lib/pdf-generator')
-    const { storePDF } = await import('@/lib/pdf-storage')
+    const { generateSignedPDF } = await import('@/lib/services/pdf/generator')
+    const { storePDF } = await import('@/lib/services/pdf/storage')
 
     const pdfBuffer = await generateSignedPDF(certificate.id)
     const pdfPath = await storePDF(certificate.id, pdfBuffer)

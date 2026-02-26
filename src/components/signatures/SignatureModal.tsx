@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui/button'
 import TypedSignature, { type TypedSignatureHandle } from './TypedSignature'
 import type { SignatureData } from '@/types/signatures'
-import { CONSENT_STATEMENTS, CONSENT_VERSION } from '@/lib/consent-text'
+import { CONSENT_STATEMENTS, CONSENT_VERSION } from '@/lib/constants/consent-text'
 import {
   CheckCircle,
   Loader2,

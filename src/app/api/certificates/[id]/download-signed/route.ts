@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { readPDF } from '@/lib/pdf-storage'
+import { readPDF } from '@/lib/services/pdf/storage'
 
 export async function GET(
   request: NextRequest,
@@ -89,8 +89,8 @@ export async function GET(
  * Used as fallback when no stored PDF exists or the file is missing.
  */
 async function generateAndStore(certificateId: string): Promise<Buffer> {
-  const { generateSignedPDF } = await import('@/lib/pdf-generator')
-  const { storePDF } = await import('@/lib/pdf-storage')
+  const { generateSignedPDF } = await import('@/lib/services/pdf/generator')
+  const { storePDF } = await import('@/lib/services/pdf/storage')
 
   const pdfBuffer = await generateSignedPDF(certificateId)
   const pdfPath = await storePDF(certificateId, pdfBuffer)

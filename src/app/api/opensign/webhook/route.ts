@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { downloadSignedPdf, type WebhookPayload } from '@/lib/opensign'
-import { storePDF } from '@/lib/pdf-storage'
+import { downloadSignedPdf, type WebhookPayload } from '@/lib/services/opensign'
+import { storePDF } from '@/lib/services/pdf/storage'
 
 /**
  * POST /api/opensign/webhook

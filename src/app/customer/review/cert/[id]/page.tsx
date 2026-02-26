@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { CustomerReviewClient } from '../../[token]/CustomerReviewClient'
+import { CustomerReviewClient } from '@/components/customer/CustomerReviewClient'
 
 interface Props {
   params: Promise<{ id: string }>

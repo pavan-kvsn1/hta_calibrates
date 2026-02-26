@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
-import { notifyOnSentToCustomer } from '@/lib/notifications'
+import { notifyOnSentToCustomer } from '@/lib/services/notifications'
 
 export async function POST(
   request: NextRequest,

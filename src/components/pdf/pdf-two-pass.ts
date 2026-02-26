@@ -7,7 +7,7 @@
  */
 
 import React from 'react'
-import { CertificateFormData } from '@/lib/certificate-store'
+import { CertificateFormData } from '@/lib/stores/certificate-store'
 import { PDFSignatureData } from './pdf-utils'
 
 // Binary search bounds for multiplier

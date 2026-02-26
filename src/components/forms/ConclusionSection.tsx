@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { FormSection } from './FormSection'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 
 // Conclusion statements data from the reference document
 const CONCLUSION_STATEMENTS: Record<string, string> = {

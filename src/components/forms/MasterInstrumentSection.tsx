@@ -12,8 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { FormSection } from './FormSection'
-import { useCertificateStore, SelectedMasterInstrument, Parameter } from '@/lib/certificate-store'
-import { useMasterInstrumentStore } from '@/lib/master-instrument-store'
+import { useCertificateStore, SelectedMasterInstrument, Parameter } from '@/lib/stores/certificate-store'
+import { useMasterInstrumentStore } from '@/lib/stores/master-instrument-store'
 import {
   MasterInstrument,
   InstrumentCategory,

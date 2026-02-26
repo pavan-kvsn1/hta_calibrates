@@ -4,7 +4,7 @@ import { Info } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FormSection } from './FormSection'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
 const CALIBRATION_STATUS_OPTIONS = [

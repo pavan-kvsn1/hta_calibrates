@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FileText, Loader2, AlertCircle, Download, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import type { CertificateFormData } from '@/lib/certificate-store'
+import type { CertificateFormData } from '@/lib/stores/certificate-store'
 import type { PDFSignatureData } from '@/components/pdf/pdf-utils'
 
 interface CustomerPDFViewerProps {

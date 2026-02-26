@@ -18,7 +18,7 @@ import {
   CalibrationResult,
   ACCURACY_TYPE_CONFIG,
   AccuracyType,
-} from '@/lib/certificate-store'
+} from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
 const FORMULA_OPTIONS = [

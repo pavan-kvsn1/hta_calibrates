@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
-import { notifyCustomerOnRegistrationRejected } from '@/lib/notifications'
+import { notifyCustomerOnRegistrationRejected } from '@/lib/services/notifications'
 
 // POST /api/admin/registrations/[id]/reject - Reject customer registration
 export async function POST(

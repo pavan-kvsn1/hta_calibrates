@@ -128,6 +128,7 @@ function StaffLoginForm() {
   )
 }
 
+//Contains loading state 
 function LoginFormSkeleton() {
   return (
     <div className="bg-white rounded-lg shadow-lg p-8">
@@ -138,6 +139,7 @@ function LoginFormSkeleton() {
   )
 }
 
+// Used to display loading state while fetching data
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

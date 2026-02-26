@@ -38,13 +38,6 @@ export default function Home() {
             Streamline your calibration workflow with our digital certificate management system.
             Create, review, and approve certificates with ease.
           </p>
-          <Link
-            href="/certificates/new"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-all shadow-lg"
-          >
-            Create New Certificate
-            <ArrowRight className="size-5" />
-          </Link>
         </div>
 
         {/* Features Grid */}
@@ -95,14 +88,8 @@ export default function Home() {
           <p className="text-slate-500 mb-4">Quick Links:</p>
           <div className="flex flex-wrap justify-center gap-4">
             <Link
-              href="/login"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-            >
-              Staff Login
-            </Link>
-            <Link
               href="/customer/login"
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
             >
               Customer Login
             </Link>
