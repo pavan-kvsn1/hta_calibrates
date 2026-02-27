@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  push:
+    branches: [main, stage4-auth-users, refactor_repo]
+  pull_request:
+    branches: [main]
+
+# Cancel previous runs when new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: Code Quality (runs first, fail fast)
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+        continue-on-error: true  # Report issues but don't block CI (fix incrementally)
+
+      - name: Run TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: Report lint status
+        run: |
+          echo "## Code Quality Report" >> $GITHUB_STEP_SUMMARY
+          if npm run lint 2>&1 | grep -q "error"; then
+            echo "⚠️ ESLint found issues that should be fixed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ No ESLint errors" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Job 2: Unit Tests (parallel with build, after code-quality)
+  unit-tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # Job 3: Build Check (parallel with unit tests, after code-quality)
+  build:
+    name: Build Check
+    runs-on: ubuntu-latest
+    needs: code-quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build application
+        run: npm run build
+        env:
+          DATABASE_URL: file:./prisma/build.db
+
+  # Job 4: E2E Tests (after unit tests and build pass)
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, build]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Setup and seed database
+        run: npx prisma db push && npm run db:seed
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # Job 5: Security Scan (after E2E tests pass)
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: e2e-tests
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true  # Don't fail the build, but report
+
+      - name: Check for known vulnerabilities
+        run: |
+          echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          npm audit --json > audit-results.json || true
+          VULNS=$(cat audit-results.json | jq '.metadata.vulnerabilities | .high + .critical' 2>/dev/null || echo "0")
+          if [ "$VULNS" -gt "0" ]; then
+            echo "⚠️ Found $VULNS high/critical vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            npm audit --audit-level=high >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          else
+            echo "✅ No high/critical vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+          fi

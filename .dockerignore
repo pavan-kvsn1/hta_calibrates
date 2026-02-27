@@ -1,0 +1,50 @@
+# Dependencies (will be installed fresh in container)
+node_modules
+
+# Build output (will be built fresh in container)
+.next
+
+# Version control
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Tests
+tests/
+playwright-report/
+test-results/
+coverage/
+
+# Development files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files (will use external DB in production)
+*.db
+*.db-journal
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Misc
+*.log
+.npmrc
