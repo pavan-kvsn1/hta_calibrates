@@ -30,20 +30,42 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Run ESLint
         run: npm run lint
         continue-on-error: true  # Report issues but don't block CI (fix incrementally)
 
       - name: Run TypeScript type check
         run: npx tsc --noEmit
+        continue-on-error: true  # Report issues but don't block CI (fix incrementally)
 
-      - name: Report lint status
+      - name: Report code quality status
         run: |
           echo "## Code Quality Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check ESLint
           if npm run lint 2>&1 | grep -q "error"; then
-            echo "⚠️ ESLint found issues that should be fixed" >> $GITHUB_STEP_SUMMARY
+            LINT_ERRORS=$(npm run lint 2>&1 | grep -c "error" || echo "0")
+            echo "### ESLint" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Found lint issues that should be fixed" >> $GITHUB_STEP_SUMMARY
           else
+            echo "### ESLint" >> $GITHUB_STEP_SUMMARY
             echo "✅ No ESLint errors" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Check TypeScript
+          if npx tsc --noEmit 2>&1 | grep -q "error TS"; then
+            TS_ERRORS=$(npx tsc --noEmit 2>&1 | grep -c "error TS" || echo "0")
+            echo "### TypeScript" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ Found $TS_ERRORS type errors that should be fixed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### TypeScript" >> $GITHUB_STEP_SUMMARY
+            echo "✅ No TypeScript errors" >> $GITHUB_STEP_SUMMARY
           fi
 
   # Job 2: Unit Tests (parallel with build, after code-quality)
