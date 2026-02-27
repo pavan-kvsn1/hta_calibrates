@@ -1,48 +1,13 @@
 import { describe, it, expect } from 'vitest'
-
-// Certificate status constants
-const CERTIFICATE_STATUSES = {
-  DRAFT: 'DRAFT',
-  PENDING_REVIEW: 'PENDING_REVIEW',
-  REVISION_REQUIRED: 'REVISION_REQUIRED',
-  PENDING_CUSTOMER_APPROVAL: 'PENDING_CUSTOMER_APPROVAL',
-  CUSTOMER_REVISION_REQUIRED: 'CUSTOMER_REVISION_REQUIRED',
-  APPROVED: 'APPROVED',
-  PENDING_ADMIN_AUTHORIZATION: 'PENDING_ADMIN_AUTHORIZATION',
-  AUTHORIZED: 'AUTHORIZED',
-  REJECTED: 'REJECTED',
-} as const
-
-type CertificateStatus = typeof CERTIFICATE_STATUSES[keyof typeof CERTIFICATE_STATUSES]
-
-// Status transition validation
-const VALID_TRANSITIONS: Record<CertificateStatus, CertificateStatus[]> = {
-  DRAFT: ['PENDING_REVIEW'],
-  PENDING_REVIEW: ['REVISION_REQUIRED', 'PENDING_CUSTOMER_APPROVAL', 'REJECTED'],
-  REVISION_REQUIRED: ['PENDING_REVIEW'],
-  PENDING_CUSTOMER_APPROVAL: ['CUSTOMER_REVISION_REQUIRED', 'APPROVED'],
-  CUSTOMER_REVISION_REQUIRED: ['PENDING_CUSTOMER_APPROVAL', 'REVISION_REQUIRED'],
-  APPROVED: ['PENDING_ADMIN_AUTHORIZATION'],
-  PENDING_ADMIN_AUTHORIZATION: ['AUTHORIZED'],
-  AUTHORIZED: [],
-  REJECTED: [],
-}
-
-function canTransition(from: CertificateStatus, to: CertificateStatus): boolean {
-  return VALID_TRANSITIONS[from]?.includes(to) ?? false
-}
-
-function isTerminalStatus(status: CertificateStatus): boolean {
-  return status === 'AUTHORIZED' || status === 'REJECTED'
-}
-
-function requiresCustomerAction(status: CertificateStatus): boolean {
-  return status === 'PENDING_CUSTOMER_APPROVAL' || status === 'CUSTOMER_REVISION_REQUIRED'
-}
-
-function requiresStaffAction(status: CertificateStatus): boolean {
-  return ['DRAFT', 'PENDING_REVIEW', 'REVISION_REQUIRED', 'PENDING_ADMIN_AUTHORIZATION'].includes(status)
-}
+import {
+  CERTIFICATE_STATUSES,
+  canTransition,
+  isTerminalStatus,
+  requiresCustomerAction,
+  requiresStaffAction,
+  getStatusLabel,
+  getNextStatuses,
+} from '@/lib/utils/certificate-status'
 
 describe('Certificate Status Transitions', () => {
   describe('canTransition', () => {
@@ -144,6 +109,47 @@ describe('Certificate Status Transitions', () => {
 
     it('returns false for PENDING_CUSTOMER_APPROVAL', () => {
       expect(requiresStaffAction('PENDING_CUSTOMER_APPROVAL')).toBe(false)
+    })
+  })
+
+  describe('getStatusLabel', () => {
+    it('returns human-readable label for DRAFT', () => {
+      expect(getStatusLabel('DRAFT')).toBe('Draft')
+    })
+
+    it('returns human-readable label for PENDING_REVIEW', () => {
+      expect(getStatusLabel('PENDING_REVIEW')).toBe('Pending HoD Review')
+    })
+
+    it('returns human-readable label for AUTHORIZED', () => {
+      expect(getStatusLabel('AUTHORIZED')).toBe('Authorized')
+    })
+  })
+
+  describe('getNextStatuses', () => {
+    it('returns valid next statuses for DRAFT', () => {
+      expect(getNextStatuses('DRAFT')).toEqual(['PENDING_REVIEW'])
+    })
+
+    it('returns multiple options for PENDING_REVIEW', () => {
+      const nextStatuses = getNextStatuses('PENDING_REVIEW')
+      expect(nextStatuses).toContain('REVISION_REQUIRED')
+      expect(nextStatuses).toContain('PENDING_CUSTOMER_APPROVAL')
+      expect(nextStatuses).toContain('REJECTED')
+    })
+
+    it('returns empty array for terminal status', () => {
+      expect(getNextStatuses('AUTHORIZED')).toEqual([])
+      expect(getNextStatuses('REJECTED')).toEqual([])
+    })
+  })
+
+  describe('CERTIFICATE_STATUSES', () => {
+    it('contains all expected statuses', () => {
+      expect(CERTIFICATE_STATUSES.DRAFT).toBe('DRAFT')
+      expect(CERTIFICATE_STATUSES.PENDING_REVIEW).toBe('PENDING_REVIEW')
+      expect(CERTIFICATE_STATUSES.AUTHORIZED).toBe('AUTHORIZED')
+      expect(CERTIFICATE_STATUSES.REJECTED).toBe('REJECTED')
     })
   })
 })
