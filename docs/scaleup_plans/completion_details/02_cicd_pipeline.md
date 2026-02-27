@@ -490,6 +490,53 @@ When infrastructure is ready:
 
 ---
 
+## Known Issues & Technical Debt
+
+### Dependency Vulnerabilities (as of 2026-02-27)
+
+The CI pipeline reports but does not block on these known vulnerabilities:
+
+| Package | Severity | Type | Fix Available | Status |
+|---------|----------|------|---------------|--------|
+| `next` | ~~High~~ | DoS vulnerabilities | Yes | ✅ Fixed - upgraded to 16.1.6 |
+| `xlsx` | ~~High~~ | Prototype Pollution, ReDoS | N/A | ✅ Removed - was unused |
+| `hono` | Moderate | XSS, cache deception, IP spoofing | Via Prisma update | ℹ️ Dev tooling only, not runtime |
+| `lodash` | Moderate | Prototype Pollution | Via Prisma update | ℹ️ Schema parsing only, not runtime |
+| `minimatch` | ~~High~~ | ReDoS | Yes | ✅ Fixed via `npm audit fix` |
+| `ajv` | ~~Moderate~~ | ReDoS | Yes | ✅ Fixed via `npm audit fix` |
+
+**Current Status:** 8 moderate vulnerabilities (dev tooling only, no runtime risk)
+
+**Remediation Plan:**
+1. ~~Run `npm audit fix` to resolve safe updates~~ ✅ Done
+2. ~~Upgrade Next.js to 16.1.6~~ ✅ Done
+3. ~~Remove unused `xlsx` package~~ ✅ Done
+4. Monitor Prisma updates for hono/lodash fixes (low priority - dev tooling only)
+
+### xlsx Package (Resolved)
+
+The `xlsx` package was listed as a devDependency but was never actually used in the codebase. It has been removed entirely. If Excel file handling is needed in the future, **ExcelJS** is the recommended alternative (4.6M downloads, native TypeScript, full read/write support).
+
+### ESLint Issues (Pre-existing)
+
+| Category | Count | Fix Priority |
+|----------|-------|--------------|
+| Unescaped entities (`"`, `'`) | 10 | Low - cosmetic |
+| Unused variables | 6 | Low - cleanup |
+| Missing useEffect deps | 2 | Medium - potential bugs |
+
+These are reported in CI but do not block the pipeline. Fix incrementally.
+
+### TypeScript Issues
+
+| Category | Status | Notes |
+|----------|--------|-------|
+| `prisma/` and `scripts/` | Excluded from tsc | Utility scripts, run with tsx |
+| `tests/` and `__tests__/` | Excluded from tsc | Test files have own config |
+| Implicit `any` in src/ | Fixed via exclusions | Main app code passes type check |
+
+---
+
 ## Related Documents
 
 - [Testing Strategy Implementation](./01_testing_strategy.md) - Test details
