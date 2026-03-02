@@ -11,9 +11,10 @@ export default defineConfig({
     include: [
       'src/**/*.{test,spec}.{js,ts,jsx,tsx}',
       'tests/unit/**/*.{test,spec}.{js,ts,jsx,tsx}',
-      'tests/integration/**/*.{test,spec}.{js,ts,jsx,tsx}',
+      'tests/evals/**/*.eval.{js,ts}',
     ],
-    exclude: ['node_modules', 'tests/e2e'],
+    // Integration tests require database setup - run separately with: npm run test:integration
+    exclude: ['node_modules', 'tests/e2e', 'tests/integration'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

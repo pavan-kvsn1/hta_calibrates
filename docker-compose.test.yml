@@ -1,0 +1,43 @@
+# Docker Compose for PostgreSQL Integration Testing
+#
+# Usage:
+#   Start:   docker compose -f docker-compose.test.yml up -d
+#   Stop:    docker compose -f docker-compose.test.yml down
+#   Reset:   docker compose -f docker-compose.test.yml down -v && docker compose -f docker-compose.test.yml up -d
+#
+# This provides a PostgreSQL instance for production-parity integration tests.
+# Tests run against this database to catch PostgreSQL-specific behaviors that
+# SQLite cannot reproduce (JSON operators, concurrent transactions, etc.)
+
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: hta-postgres-test
+    environment:
+      POSTGRES_USER: hta_test
+      POSTGRES_PASSWORD: hta_test_password
+      POSTGRES_DB: hta_calibration_test
+    ports:
+      - "5433:5432"  # Use 5433 to avoid conflicts with dev PostgreSQL on 5432
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hta_test -d hta_calibration_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Optimize for testing (faster writes, less durability)
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+      -c max_connections=100
+
+volumes:
+  postgres-test-data:
+    # Named volume - persists between test runs for faster startup
+    # Use `docker compose -f docker-compose.test.yml down -v` to reset
+
+# Connection string for tests:
+# DATABASE_URL=postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test

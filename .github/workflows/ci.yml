@@ -101,6 +101,65 @@ jobs:
           path: coverage/
           retention-days: 7
 
+  # Job 2b: PostgreSQL Integration Tests (production parity)
+  integration-postgres:
+    name: PostgreSQL Integration Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hta_test
+          POSTGRES_PASSWORD: hta_test_password
+          POSTGRES_DB: hta_calibration_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate PostgreSQL Prisma client
+        run: npx prisma generate --schema=prisma/schema.postgres.prisma
+
+      - name: Push schema to PostgreSQL
+        run: npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss
+        env:
+          DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+
+      - name: Run PostgreSQL integration tests
+        run: npm run test:integration:postgres
+        env:
+          DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+
+      - name: PostgreSQL test summary
+        if: always()
+        run: |
+          echo "## PostgreSQL Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Tests ran against PostgreSQL 16 for production parity" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This ensures PostgreSQL-specific behaviors are tested:" >> $GITHUB_STEP_SUMMARY
+          echo "- Native JSON operators" >> $GITHUB_STEP_SUMMARY
+          echo "- Concurrent transaction handling" >> $GITHUB_STEP_SUMMARY
+          echo "- Constraint enforcement" >> $GITHUB_STEP_SUMMARY
+
   # Job 3: Build Check (parallel with unit tests, after code-quality)
   build:
     name: Build Check

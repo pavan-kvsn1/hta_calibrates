@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Pre-commit hook: Run fast unit tests
+# Target: < 30 seconds
+# Runs only unit tests on changed files
+
+echo "🧪 Running pre-commit checks..."
+
+# Run fast unit tests
+npm run test:fast
+
+# If tests pass, allow commit
+if [ $? -eq 0 ]; then
+  echo "✅ Pre-commit checks passed"
+else
+  echo "❌ Pre-commit checks failed"
+  echo "Fix the issues above before committing."
+  exit 1
+fi
