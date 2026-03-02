@@ -18,7 +18,7 @@ import {
   CalibrationResult,
   ACCURACY_TYPE_CONFIG,
   AccuracyType,
-} from '@/lib/certificate-store'
+} from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
 const FORMULA_OPTIONS = [
@@ -308,6 +308,40 @@ function ResultsTable({
   // Get accuracy type config
   const accuracyTypeConfig = ACCURACY_TYPE_CONFIG[parameter.accuracyType]
 
+  // Validate if standard reading is within operating range
+  const validateOperatingRange = (value: string): { isValid: boolean; message: string | null } => {
+    if (!value || value.trim() === '') return { isValid: true, message: null }
+
+    const numValue = parseFloat(value)
+    if (isNaN(numValue)) return { isValid: true, message: null }
+
+    const opMin = parseFloat(parameter.operatingMin)
+    const opMax = parseFloat(parameter.operatingMax)
+
+    // If operating range is not defined, skip validation
+    if (isNaN(opMin) && isNaN(opMax)) return { isValid: true, message: null }
+
+    if (!isNaN(opMin) && numValue < opMin) {
+      return { isValid: false, message: `Below operating min (${parameter.operatingMin} ${parameter.parameterUnit})` }
+    }
+
+    if (!isNaN(opMax) && numValue > opMax) {
+      return { isValid: false, message: `Exceeds operating max (${parameter.operatingMax} ${parameter.parameterUnit})` }
+    }
+
+    return { isValid: true, message: null }
+  }
+
+  // Count operating range violations
+  const operatingRangeViolations = useMemo(() => {
+    let count = 0
+    parameter.results.forEach(result => {
+      const validation = validateOperatingRange(result.standardReading)
+      if (!validation.isValid) count++
+    })
+    return count
+  }, [parameter])
+
   // Count precision violations
   const precisionViolations = useMemo(() => {
     let count = 0
@@ -484,6 +518,20 @@ function ResultsTable({
           </div>
         </div>
 
+        {/* Operating range violation alert */}
+        {operatingRangeViolations > 0 && (
+          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-[11px] text-red-800">
+            <AlertTriangle className="size-4 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Operating Range Error:</span>{' '}
+              {operatingRangeViolations} standard reading{operatingRangeViolations !== 1 ? 's are' : ' is'} outside the operating range.
+              <span className="text-red-600 ml-1">
+                (Operating range: {parameter.operatingMin || '—'} to {parameter.operatingMax || '—'} {parameter.parameterUnit})
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Precision violation alert */}
         {precisionViolations > 0 && (
           <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800">
@@ -540,6 +588,9 @@ function ResultsTable({
               const uucViolation = getPrecisionViolation(result.beforeAdjustment, precision)
               const afterViolation = getPrecisionViolation(result.afterAdjustment, precision)
 
+              // Check operating range violation for standard reading
+              const operatingRangeViolation = validateOperatingRange(result.standardReading)
+
               return (
                 <tr
                   key={result.id}
@@ -560,13 +611,21 @@ function ResultsTable({
                         placeholder={`0.${'0'.repeat(precision)}`}
                         className={cn(
                           "w-full max-w-[140px] rounded-lg font-semibold",
-                          stdViolation.isViolation
+                          !operatingRangeViolation.isValid
+                            ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200"
+                            : stdViolation.isViolation
                             ? "border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-200"
                             : "border-slate-200"
                         )}
-                        title={stdViolation.isViolation ? stdViolation.message : undefined}
+                        title={!operatingRangeViolation.isValid ? operatingRangeViolation.message ?? undefined : stdViolation.isViolation ? stdViolation.message : undefined}
                       />
-                      {stdViolation.isViolation && (
+                      {!operatingRangeViolation.isValid ? (
+                        <div className="absolute -top-1 -right-1">
+                          <span className="flex size-4 items-center justify-center rounded-full bg-red-500 text-white text-[8px] font-bold">
+                            !
+                          </span>
+                        </div>
+                      ) : stdViolation.isViolation && (
                         <div className="absolute -top-1 -right-1">
                           <span className="flex size-4 items-center justify-center rounded-full bg-amber-400 text-white text-[8px] font-bold">
                             !

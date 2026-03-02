@@ -4,7 +4,7 @@ import { Info } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FormSection } from './FormSection'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
 const CALIBRATION_STATUS_OPTIONS = [
@@ -19,7 +19,6 @@ const CALIBRATION_STATUS_OPTIONS = [
 const STICKER_OPTIONS = [
   { value: 'yes', label: 'Yes', colorClass: 'sticker-label-yes' },
   { value: 'no', label: 'No', colorClass: 'sticker-label-no' },
-  { value: 'na', label: 'N/A', colorClass: 'sticker-label-na' },
 ] as const
 
 export function RemarksSection() {
@@ -187,19 +186,6 @@ export function RemarksSection() {
           </div>
         </div>
 
-        {/* Status Notes */}
-        <div>
-          <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
-            Status Notes (optional)
-          </Label>
-          <Textarea
-            value={formData.statusNotes}
-            onChange={(e) => setFormField('statusNotes', e.target.value)}
-            placeholder="Add any additional notes about the calibration status..."
-            rows={3}
-            className="w-full rounded-xl border-slate-200 px-4 py-3 focus:ring-primary focus:border-primary font-medium"
-          />
-        </div>
       </div>
     </FormSection>
   )

@@ -1,0 +1,180 @@
+name: Nightly Checks
+
+on:
+  schedule:
+    # Run at 2:00 AM UTC daily
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  # Full test suite across all browsers
+  full-test-suite:
+    name: Full Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run all unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-coverage-report
+          path: coverage/
+          retention-days: 14
+
+      - name: Setup and seed database
+        run: npx prisma db push && npm run db:seed
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+
+      - name: Install all Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests (all browsers)
+        run: npx playwright test --project=chromium --project=firefox --project=webkit
+        env:
+          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+          NEXTAUTH_SECRET: test-secret-for-ci
+          NEXTAUTH_URL: http://localhost:3000
+        continue-on-error: true  # Don't fail nightly if browser-specific issues
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  # Comprehensive security audit
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full npm audit
+        run: |
+          echo "## Security Audit Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          npm audit --json > audit-report.json || true
+
+          # Parse and summarize
+          CRITICAL=$(cat audit-report.json | jq '.metadata.vulnerabilities.critical // 0')
+          HIGH=$(cat audit-report.json | jq '.metadata.vulnerabilities.high // 0')
+          MODERATE=$(cat audit-report.json | jq '.metadata.vulnerabilities.moderate // 0')
+          LOW=$(cat audit-report.json | jq '.metadata.vulnerabilities.low // 0')
+
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+          echo "| Moderate | $MODERATE |" >> $GITHUB_STEP_SUMMARY
+          echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$CRITICAL" -gt "0" ] || [ "$HIGH" -gt "0" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Action Required:** High or critical vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: audit-report.json
+          retention-days: 30
+
+  # Check for outdated dependencies
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Check for outdated packages
+        run: |
+          echo "## Outdated Dependencies" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          npm outdated >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check for major updates
+        run: |
+          npm outdated --json > outdated.json || true
+          MAJORS=$(cat outdated.json | jq 'to_entries | map(select(.value.current != .value.wanted and .value.latest != .value.wanted)) | length')
+
+          if [ "$MAJORS" -gt "0" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📦 **$MAJORS packages** have major version updates available" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # Build verification
+  build-check:
+    name: Build Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build application
+        run: npm run build
+        env:
+          DATABASE_URL: file:./prisma/build.db
+
+      - name: Check bundle size
+        run: |
+          echo "## Build Output" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Bundle Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          du -sh .next/ >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

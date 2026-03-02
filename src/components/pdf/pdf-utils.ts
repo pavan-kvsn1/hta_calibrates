@@ -144,6 +144,81 @@ export const SIGNATORIES = {
   approvedIssuedBy: 'HEMANTH KUMAR',
 }
 
+// Signing evidence metadata displayed in PDF
+export interface SigningMetadata {
+  signedAt: string        // ISO date string
+  ipAddress?: string      // IP address at signing
+  timezone?: string       // Timezone (e.g., "Asia/Kolkata")
+  location?: string       // Derived location description
+  deviceInfo?: string     // Simplified device/browser info
+}
+
+export interface PDFSignatureData {
+  engineer?: {
+    name: string      // Shown in CALIBRATED BY
+    image?: string    // base64 data URI, rendered in signature box
+    signatureId: string   // Signature record UUID
+    metadata?: SigningMetadata  // Evidence metadata for display
+  }
+  hod?: {
+    name: string      // Shown in CHECKED BY
+    image?: string    // base64 data URI, rendered in signature box
+    signatureId: string   // Signature record UUID
+    metadata?: SigningMetadata  // Evidence metadata for display
+  }
+  admin?: {
+    name: string      // Shown in APPROVED & ISSUED BY
+    image?: string    // base64 data URI, rendered in signature box
+    signatureId: string   // Signature record UUID
+    metadata?: SigningMetadata  // Evidence metadata for display
+  }
+  customer?: {
+    name: string
+    companyName: string
+    email: string
+    image?: string
+    signedAt: string      // ISO date string
+    signatureId: string   // Signature record UUID
+    metadata?: SigningMetadata  // Evidence metadata for display
+  }
+}
+
+/**
+ * Parse user agent to extract simplified device/browser info
+ */
+export function parseUserAgent(userAgent: string): string {
+  if (!userAgent || userAgent === 'unknown') return ''
+
+  // Extract browser
+  let browser = ''
+  if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) {
+    browser = 'Chrome'
+  } else if (userAgent.includes('Firefox')) {
+    browser = 'Firefox'
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    browser = 'Safari'
+  } else if (userAgent.includes('Edg')) {
+    browser = 'Edge'
+  }
+
+  // Extract OS
+  let os = ''
+  if (userAgent.includes('Windows')) {
+    os = 'Windows'
+  } else if (userAgent.includes('Mac OS')) {
+    os = 'macOS'
+  } else if (userAgent.includes('Linux')) {
+    os = 'Linux'
+  } else if (userAgent.includes('Android')) {
+    os = 'Android'
+  } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+    os = 'iOS'
+  }
+
+  const parts = [browser, os].filter(Boolean)
+  return parts.length > 0 ? parts.join(' / ') : ''
+}
+
 /**
  * Footer notes (mandatory legal statements)
  */
@@ -158,6 +233,9 @@ export const FOOTER_NOTES = [
  */
 export const VALIDITY_STATEMENT =
   'The results reported in this Certificate are valid at the time of & under the stipulated conditions of measurement.'
+
+export const CUSTOMER_ACKNOWLEDGMENT_TEXT =
+  'I, the undersigned, acknowledge receipt and acceptance of this calibration certificate and its reported results.'
 
 /**
  * Conclusion statements mapping (key -> full text)

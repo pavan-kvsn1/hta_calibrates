@@ -6,13 +6,17 @@ datasource db {
   provider = "sqlite"
 }
 
+// ====================
 // USERS
+// ====================
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
   name          String
-  passwordHash  String
+  passwordHash  String?  // Nullable for Google-only users
   role          String   @default("ENGINEER") // ENGINEER, HOD, ADMIN
+  isAdmin       Boolean  @default(false)      // HoD users can have admin access
   assignedHodId String?
   assignedHod   User?    @relation("EngineerToHod", fields: [assignedHodId], references: [id])
   engineers     User[]   @relation("EngineerToHod")
@@ -21,199 +25,484 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  createdCertificates Certificate[]        @relation("CreatedBy")
-  submittedVersions   CertificateVersion[] @relation("SubmittedBy")
-  reviewComments      ReviewComment[]
+  // Google OAuth fields
+  googleId        String?  @unique  // Google OAuth subject ID
+  authProvider    String   @default("PASSWORD") // PASSWORD or GOOGLE
+  profileImageUrl String?  // From Google profile
+
+  // Certificate relations
+  createdCertificates  Certificate[] @relation("CertificateCreator")
+  modifiedCertificates Certificate[] @relation("CertificateModifier")
+
+  // Event/Revision relations
+  events               CertificateEvent[]    @relation("EventActor")
+  submittedRevisions   CertificateRevision[] @relation("RevisionSubmitter")
+  reviewedRevisions    CertificateRevision[] @relation("RevisionReviewer")
+
+  // Feedback relations
+  authoredFeedback     ReviewFeedback[]      @relation("FeedbackAuthor")
+  resolvedFeedback     ReviewFeedback[]      @relation("FeedbackResolver")
+
+  // Legacy (for gradual migration)
+  signatures           Signature[]
+
+  // Notifications
+  notifications        Notification[]
+
+  // Admin relations
+  reviewedRegistrations  CustomerRegistration[] @relation("RegistrationReviewer")
+  managedCustomerAccounts CustomerAccount[]     @relation("HodToCustomerAccount")
+  modifiedInstruments    MasterInstrument[]     @relation("InstrumentModifier")
 }
 
 model CustomerUser {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  passwordHash String
-  companyName  String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  id                 String   @id @default(uuid())
+  email              String   @unique
+  name               String
+  passwordHash       String
+  companyName        String?  // Deprecated: use customerAccount.companyName (kept for migration)
+  customerAccountId  String?  // Will become required after data migration
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
 
-  signatures     Signature[]
-  approvalTokens ApprovalToken[]
+  // Relations
+  customerAccount CustomerAccount? @relation(fields: [customerAccountId], references: [id])
+  signatures      Signature[]
+  approvalTokens  ApprovalToken[]
+  notifications   Notification[]
+  events          CertificateEvent[]
+
+  @@index([customerAccountId])
 }
 
-// MASTER INSTRUMENTS
+// ====================
+// CUSTOMER ACCOUNTS
+// ====================
+
+model CustomerAccount {
+  id            String   @id @default(uuid())
+  companyName   String   @unique
+  address       String?
+  contactEmail  String?
+  contactPhone  String?
+  assignedHodId String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  assignedHod   User?                   @relation("HodToCustomerAccount", fields: [assignedHodId], references: [id])
+  users         CustomerUser[]
+  registrations CustomerRegistration[]
+
+  @@index([companyName])
+  @@index([assignedHodId])
+}
+
+// ====================
+// GOOGLE OAUTH WHITELIST
+// ====================
+
+model AllowedGoogleEmail {
+  id        String   @id @default(uuid())
+  email     String   @unique  // Full email or domain pattern (e.g., "@htaipl.com")
+  type      String   // EMAIL or DOMAIN
+  role      String   @default("ENGINEER")  // Pre-assigned role
+  hodId     String?  // Pre-assigned HoD (for engineers)
+  name      String?  // Pre-filled display name
+  isActive  Boolean  @default(true)
+  createdBy String   // Admin who created this
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([type])
+}
+
+// ====================
+// CUSTOMER REGISTRATION
+// ====================
+
+model CustomerRegistration {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  passwordHash      String
+  customerAccountId String
+  status            String    @default("PENDING")  // PENDING, APPROVED, REJECTED
+  reviewedById      String?
+  reviewedAt        DateTime?
+  rejectionReason   String?
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  customerAccount CustomerAccount @relation(fields: [customerAccountId], references: [id])
+  reviewedBy      User?           @relation("RegistrationReviewer", fields: [reviewedById], references: [id])
+
+  @@index([status])
+  @@index([customerAccountId])
+}
+
+// ====================
+// MASTER INSTRUMENTS (Versioned)
+// ====================
+
 model MasterInstrument {
-  id                   String   @id @default(uuid())
-  category             String   // ELECTRO_TECHNICAL, THERMAL, MECHANICAL, OTHERS, SOURCE_INSTRUMENTS
+  id                   String    @id @default(uuid())
+
+  // Versioning
+  instrumentId         String    // Groups all versions of same instrument
+  version              Int       @default(1)
+  isLatest             Boolean   @default(true)
+
+  // Core fields
+  legacyId             Int?      // Original JSON ID for migration tracking
+  category             String    // Electro-Technical, Thermal, Mechanical, Dimensions, Others, Source
   description          String
-  rangeSopReference    String
-  make                 String
-  model                String
-  assetNumber          String?
-  serialNumber         String
-  calibratedAtLocation String?
-  calibrationDueDate   DateTime
-  remarks              String?
-  isActive             Boolean  @default(true)
+  make                 String    // Serialized composite: "Ind: X / Sen: Y" for composite values
+  model                String    // Serialized composite
+  assetNumber          String    // Asset tracking number
+  serialNumber         String    // Serialized composite
+  usage                String?   // "For Lab" / "For Site"
+  calibratedAtLocation String?   // Where it was calibrated
+  reportNo             String?   // Calibration report number
+  calibrationDueDate   DateTime? // When recalibration is due
+  rangeData            String?   // JSON array: [{ parameter, minValue, maxValue, unit, uncertainty }, { referenceDoc }]
+  remarks              String?   // Additional notes
+  status               String?   // Explicit status override: UNDER_RECAL, SERVICE_PENDING (null = auto-compute from dates)
+  isActive             Boolean   @default(true)
 
-  certificateLinks CertificateMasterInstrument[]
+  // Audit fields (each version is immutable after creation)
+  createdAt            DateTime  @default(now())
+  createdById          String?   // User who created this version
+  changeReason         String?   // "Import", "Manual Edit", "Recalibration Update", etc.
 
+  // Migration tracking (only relevant for v1 records)
+  importedFromJson     Boolean   @default(false)
+
+  // Relations
+  createdBy            User?     @relation("InstrumentModifier", fields: [createdById], references: [id])
+
+  @@unique([instrumentId, version])
+  @@index([instrumentId, isLatest])
   @@index([category])
   @@index([description])
+  @@index([assetNumber])
+  @@index([calibrationDueDate])
 }
 
-// CERTIFICATES
+// ====================
+// CERTIFICATES (Projection - Current State)
+// ====================
+
 model Certificate {
   id                String   @id @default(uuid())
   certificateNumber String   @unique
-  status            String   @default("DRAFT") // DRAFT, PENDING_HOD_REVIEW, REVISION_REQUIRED, PENDING_CUSTOMER_APPROVAL, CUSTOMER_REVISION_REQUIRED, APPROVED, REJECTED
-  currentVersion    Int      @default(1)
-  createdById       String
-  createdBy         User     @relation("CreatedBy", fields: [createdById], references: [id])
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  versions       CertificateVersion[]
-  signatures     Signature[]
-  approvalTokens ApprovalToken[]
-}
-
-model CertificateVersion {
-  id            String      @id @default(uuid())
-  certificateId String
-  certificate   Certificate @relation(fields: [certificateId], references: [id])
-  versionNumber Int
+  status            String   @default("DRAFT") // DRAFT, PENDING_HOD_REVIEW, REVISION_REQUIRED, PENDING_CUSTOMER_APPROVAL, CUSTOMER_REVISION_REQUIRED, PENDING_ADMIN_AUTHORIZATION, AUTHORIZED, APPROVED, REJECTED
+  currentRevision   Int      @default(1)
 
   // Section 1: Summary
-  calibratedAt        String   // LAB, SITE
-  dateOfCalibration   DateTime
-  calibrationDueDate  DateTime
-  calibrationTenure   Int
-  customerName        String
-  customerAddress     String
+  calibratedAt       String?  // LAB, SITE
+  srfNumber          String?
+  srfDate            DateTime?
+  dateOfCalibration  DateTime?
+  calibrationTenure      Int      @default(12)
+  dueDateAdjustment      Int      @default(0)
+  calibrationDueDate     DateTime?
+  dueDateNotApplicable   Boolean  @default(false)
+  customerName           String?
+  customerAddress    String?
 
-  // Section 2: UUC
-  uucDescription   String
-  uucMake          String
-  uucModel         String
-  uucInstrumentId  String?
-  uucSerialNumber  String
-  uucLocationName  String?
-  uucMachineName   String?
+  // Section 2: UUC Details
+  uucDescription  String?
+  uucMake         String?
+  uucModel        String?
+  uucSerialNumber String?
+  uucInstrumentId String?
+  uucLocationName String?
+  uucMachineName  String?
 
-  // Section 4: Environmental
-  ambientTemperature Float
-  relativeHumidity   Float
+  // Section 4: Environmental Conditions
+  ambientTemperature String?
+  relativeHumidity   String?
 
-  // Section 6: Uncertainty
-  uncertaintyValue Float?
-  uncertaintyUnit  String?
+  // Section 6: Remarks
+  calibrationStatus String?  // JSON array stored as string for SQLite
+  stickerOldRemoved String?  // yes, no, na
+  stickerNewAffixed String?  // yes, no, na
+  statusNotes       String?  // Used for customer rejection feedback
 
-  // Section 7: Traceability
-  traceabilityStatement String?
-
-  // Section 8: Remarks
-  calibrationStatus String?  // JSON array stored as string
-  statusNotes       String?
-  stickerOldRemoved Boolean  @default(false)
-  stickerNewAffixed Boolean  @default(false)
+  // Section 7: Conclusion Statements
+  selectedConclusionStatements String? // JSON array stored as string for SQLite
+  additionalConclusionStatement String? // Custom user-entered conclusion statement
 
   // Metadata
-  submittedAt   DateTime?
-  submittedById String?
-  submittedBy   User?     @relation("SubmittedBy", fields: [submittedById], references: [id])
-  createdAt     DateTime  @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdById      String
+  lastModifiedById String
 
-  parameters        CertificateParameter[]
+  // Relations
+  createdBy        User     @relation("CertificateCreator", fields: [createdById], references: [id])
+  lastModifiedBy   User     @relation("CertificateModifier", fields: [lastModifiedById], references: [id])
+
+  // Related data
+  parameters        Parameter[]
   masterInstruments CertificateMasterInstrument[]
-  reviewComments    ReviewComment[]
 
-  @@unique([certificateId, versionNumber])
+  // Event sourcing relations
+  events    CertificateEvent[]
+  revisions CertificateRevision[]
+  feedbacks ReviewFeedback[]
+
+  // Customer workflow
+  signatures     Signature[]
+  approvalTokens ApprovalToken[]
+
+  // Signed PDF
+  signedPdfPath  String?   // Path to stored signed PDF (relative to uploads dir)
+
+  // OpenSign integration
+  openSignDocuments OpenSignDocument[]
+
+  // Signing evidence (Layers 1-4 defensibility)
+  signingEvidence SigningEvidence[]
+
+  // Notifications
+  notifications  Notification[]
+
+  @@index([status])
+  @@index([createdById])
 }
 
-model CertificateParameter {
-  id        String             @id @default(uuid())
-  versionId String
-  version   CertificateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+// ====================
+// CERTIFICATE EVENT (Event Log - Immutable)
+// ====================
 
-  parameterName       String
-  parameterUnit       String
-  rangeValue          String
-  rangeUnit           String
-  operatingRangeValue String?
-  operatingRangeUnit  String?
-  leastCountValue     String
-  leastCountUnit      String
-  accuracyValue       Float
-  accuracyUnit        String
-  errorFormula        String  @default("A-B")
-  displayOrder        Int
+model CertificateEvent {
+  id             String   @id @default(uuid())
+  certificateId  String
+  sequenceNumber Int      // Ordered sequence within certificate
+  revision       Int      // Which revision this event belongs to
 
-  results           CalibrationResult[]
+  eventType String // CERTIFICATE_CREATED, FIELD_UPDATED, BULK_FIELDS_UPDATED, PARAMETER_ADDED, etc.
+  eventData String // JSON payload stored as string for SQLite
+
+  userId     String?  // For staff events (engineer, HoD, admin)
+  customerId String?  // For customer events
+  userRole   String   // ENGINEER, HOD, ADMIN, CUSTOMER
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  certificate Certificate      @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  user        User?            @relation("EventActor", fields: [userId], references: [id])
+  customer    CustomerUser?    @relation(fields: [customerId], references: [id])
+  feedbacks   ReviewFeedback[]
+
+  @@unique([certificateId, sequenceNumber])
+  @@index([certificateId, createdAt])
+  @@index([certificateId, revision])
+}
+
+// ====================
+// CERTIFICATE REVISION (Snapshots at Workflow Transitions)
+// ====================
+
+model CertificateRevision {
+  id             String @id @default(uuid())
+  certificateId  String
+  revisionNumber Int
+
+  // Full snapshot of certificate data at this revision
+  snapshotData String // JSON stored as string for SQLite
+
+  // Workflow metadata
+  status        String    // Status at this revision
+  submittedAt   DateTime?
+  submittedById String?
+  reviewedAt    DateTime?
+  reviewedById  String?
+  reviewOutcome String?   // APPROVED, REVISION_REQUIRED, REJECTED
+  reviewNotes   String?
+
+  // Event range for this revision
+  fromEventSeq Int // First event sequence in this revision
+  toEventSeq   Int // Last event sequence in this revision
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  submittedBy User?       @relation("RevisionSubmitter", fields: [submittedById], references: [id])
+  reviewedBy  User?       @relation("RevisionReviewer", fields: [reviewedById], references: [id])
+
+  @@unique([certificateId, revisionNumber])
+  @@index([certificateId, createdAt])
+}
+
+// ====================
+// REVIEW FEEDBACK (HOD Comments)
+// ====================
+
+model ReviewFeedback {
+  id             String  @id @default(uuid())
+  certificateId  String
+  revisionNumber Int
+  eventId        String? // Optional: link to specific event
+
+  feedbackType  String  // COMMENT, REVISION_REQUEST, APPROVAL_NOTE, REJECTION_REASON
+  targetField   String? // Which field this feedback refers to (optional)
+  targetSection String? // Which section this feedback refers to (optional)
+
+  comment      String
+  isResolved   Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedById String?
+
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  certificate Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  event       CertificateEvent? @relation(fields: [eventId], references: [id])
+  user        User              @relation("FeedbackAuthor", fields: [userId], references: [id])
+  resolvedBy  User?             @relation("FeedbackResolver", fields: [resolvedById], references: [id])
+
+  @@index([certificateId, revisionNumber])
+  @@index([certificateId, isResolved])
+}
+
+// ====================
+// PARAMETERS & RESULTS
+// ====================
+
+model Parameter {
+  id            String @id @default(uuid())
+  certificateId String
+
+  parameterName String
+  parameterUnit String
+  rangeMin      String?
+  rangeMax      String?
+  rangeUnit     String?
+  operatingMin  String?
+  operatingMax  String?
+  operatingUnit String?
+  leastCountValue String?
+  leastCountUnit  String?
+  accuracyValue   String?
+  accuracyUnit    String?
+  accuracyType    String  @default("ABSOLUTE") // PERCENT_READING, ABSOLUTE, PERCENT_SCALE
+  errorFormula    String  @default("A-B")
+  showAfterAdjustment Boolean @default(false)
+
+  // Binning support
+  requiresBinning Boolean @default(false)
+  bins            String? // JSON array of bin objects
+
+  // SOP reference and master instrument assignment
+  sopReference       String?
+  masterInstrumentId String?  // Reference to JSON master instrument ID (for parameter assignment)
+
+  sortOrder Int @default(0)
+
+  // Relations
+  certificate Certificate         @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  results     CalibrationResult[]
   masterInstruments CertificateMasterInstrument[]
+
+  @@index([certificateId])
 }
 
 model CalibrationResult {
-  id          String               @id @default(uuid())
+  id          String @id @default(uuid())
   parameterId String
-  parameter   CertificateParameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
 
   pointNumber      Int
-  standardReading  Float
-  beforeAdjustment Float
-  afterAdjustment  Float?
-  errorObserved    Float
+  standardReading  String?
+  beforeAdjustment String?
+  afterAdjustment  String?
+  errorObserved    Float?
   isOutOfLimit     Boolean @default(false)
 
-  @@unique([parameterId, pointNumber])
+  // Relations
+  parameter Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  @@index([parameterId])
 }
+
+// ====================
+// MASTER INSTRUMENT LINKS (stores snapshot of instrument details at time of certificate creation)
+// ====================
 
 model CertificateMasterInstrument {
-  id                 String               @id @default(uuid())
-  versionId          String
-  version            CertificateVersion   @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  id                 String  @id @default(uuid())
+  certificateId      String
   parameterId        String?
-  parameter          CertificateParameter? @relation(fields: [parameterId], references: [id])
-  masterInstrumentId String
-  masterInstrument   MasterInstrument     @relation(fields: [masterInstrumentId], references: [id])
+
+  // Reference to JSON source (not a FK - instruments come from JSON file, not database)
+  masterInstrumentId String   // ID from master-instruments.json
+
+  // Snapshot of instrument details at time of certificate creation
+  category           String?  // Electro-Technical, Thermal, Mechanical, etc.
+  description        String?
+  make               String?
+  model              String?
+  assetNo            String?
+  serialNumber       String?
+  calibratedAt       String?  // Where it was calibrated
+  reportNo           String?  // Calibration report number
+  calibrationDueDate String?  // Due date at time of certificate
+
   sopReference       String
+
+  // Relations (no FK to MasterInstrument - data comes from JSON)
+  certificate      Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  parameter        Parameter?        @relation(fields: [parameterId], references: [id])
+
+  @@index([certificateId])
 }
 
-// REVIEW
-model ReviewComment {
-  id               String             @id @default(uuid())
-  versionId        String
-  version          CertificateVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
-  authorUserId     String?
-  authorUser       User?              @relation(fields: [authorUserId], references: [id])
-  sectionReference String
-  commentText      String
-  status           String             @default("OPEN") // OPEN, RESOLVED
-  createdAt        DateTime           @default(now())
-}
+// ====================
+// SIGNATURES & APPROVAL
+// ====================
 
 model Signature {
   id            String       @id @default(uuid())
   certificateId String
-  certificate   Certificate  @relation(fields: [certificateId], references: [id])
   signerType    String       // ENGINEER, HOD, CUSTOMER
   signerName    String
   signerEmail   String
   signatureData String
   signedAt      DateTime     @default(now())
   customerId    String?
-  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+  signerId      String?
+
+  // Relations
+  certificate Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  customer    CustomerUser? @relation(fields: [customerId], references: [id])
+  signer      User?         @relation(fields: [signerId], references: [id])
 }
 
 model ApprovalToken {
   id            String       @id @default(uuid())
   certificateId String
-  certificate   Certificate  @relation(fields: [certificateId], references: [id])
   customerId    String
-  customer      CustomerUser @relation(fields: [customerId], references: [id])
   token         String       @unique
   expiresAt     DateTime
   usedAt        DateTime?
   createdAt     DateTime     @default(now())
+
+  // Relations
+  certificate Certificate  @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  customer    CustomerUser @relation(fields: [customerId], references: [id])
 }
+
+// ====================
+// AUDIT LOG (General system audit)
+// ====================
 
 model AuditLog {
   id         String   @id @default(uuid())
@@ -226,4 +515,94 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+}
+
+// ====================
+// NOTIFICATIONS
+// ====================
+
+model Notification {
+  id            String   @id @default(uuid())
+
+  // Recipient (one of these will be set)
+  userId        String?  // For staff (Engineer, HoD, Admin)
+  customerId    String?  // For customers
+
+  // Content
+  type          String   // NotificationType: REVISION_REQUESTED, CERTIFICATE_APPROVED, SENT_TO_CUSTOMER, SUBMITTED_FOR_REVIEW, ENGINEER_RESPONDED, CUSTOMER_REVISION_REQUEST, CUSTOMER_APPROVED, CERTIFICATE_READY, HOD_REPLIED, CERTIFICATE_FINALIZED
+  title         String
+  message       String
+
+  // Reference
+  certificateId String?
+
+  // Metadata
+  data          String?  // JSON for additional context (e.g., sender name, cert number)
+
+  // Status
+  read          Boolean  @default(false)
+  readAt        DateTime?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+
+  // Relations
+  user          User?         @relation(fields: [userId], references: [id])
+  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+  certificate   Certificate?  @relation(fields: [certificateId], references: [id])
+
+  @@index([userId, read])
+  @@index([customerId, read])
+  @@index([createdAt])
+}
+
+// ====================
+// OPENSIGN INTEGRATION
+// ====================
+
+model OpenSignDocument {
+  id                  String   @id @default(cuid())
+  certificateId       String
+  openSignDocumentId  String   @unique
+  signerType          String   // HOD, CUSTOMER
+  signerEmail         String
+  status              String   @default("PENDING") // PENDING, VIEWED, SIGNED, DECLINED, EXPIRED
+  signingUrl          String?
+  signedPdfUrl        String?
+  auditTrailUrl       String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  certificate         Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+
+  @@index([certificateId])
+  @@index([status])
+}
+
+// ====================
+// SIGNING EVIDENCE (Layers 1-4 Defensibility)
+// ====================
+
+model SigningEvidence {
+  id              String   @id @default(cuid())
+  certificateId   String
+  signatureId     String?  // Links to Signature record (null for non-signing events)
+  revision        Int      // Certificate revision number at time of signing
+
+  // Chain integrity
+  sequenceNumber  Int      // Monotonically increasing per certificate
+  previousHash    String   // SHA-256 of previous record (or "GENESIS")
+  recordHash      String   // SHA-256 of this record's evidence field
+
+  // Evidence payload (immutable after creation)
+  eventType       String   // ENGINEER_SIGNED, HOD_SIGNED, CUSTOMER_SIGNED
+  evidence        String   // JSON blob with all captured evidence
+
+  createdAt       DateTime @default(now())
+
+  certificate     Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+
+  @@unique([certificateId, sequenceNumber])
+  @@index([certificateId])
+  @@index([certificateId, revision])
 }

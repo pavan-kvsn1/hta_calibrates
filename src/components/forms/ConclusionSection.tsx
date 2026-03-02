@@ -1,6 +1,7 @@
 'use client'
 
-import { X, FileText } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, FileText, Plus } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -10,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { FormSection } from './FormSection'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
 
 // Conclusion statements data from the reference document
 const CONCLUSION_STATEMENTS: Record<string, string> = {
@@ -50,6 +51,14 @@ const CONCLUSION_LABELS: Record<string, string> = {
 
 export function ConclusionSection() {
   const { formData, setFormField } = useCertificateStore()
+  const [showAdditionalInput, setShowAdditionalInput] = useState(false)
+
+  // Initialize checkbox state based on existing data
+  useEffect(() => {
+    if (formData.additionalConclusionStatement) {
+      setShowAdditionalInput(true)
+    }
+  }, [formData.additionalConclusionStatement])
 
   const handleAddStatement = (key: string) => {
     if (key && !formData.selectedConclusionStatements.includes(key)) {
@@ -65,6 +74,13 @@ export function ConclusionSection() {
       'selectedConclusionStatements',
       formData.selectedConclusionStatements.filter((k) => k !== key)
     )
+  }
+
+  const handleAdditionalCheckboxChange = (checked: boolean) => {
+    setShowAdditionalInput(checked)
+    if (!checked) {
+      setFormField('additionalConclusionStatement', '')
+    }
   }
 
   // Get available options (not yet selected)
@@ -141,7 +157,7 @@ export function ConclusionSection() {
         )}
 
         {/* Empty State */}
-        {formData.selectedConclusionStatements.length === 0 && (
+        {formData.selectedConclusionStatements.length === 0 && !showAdditionalInput && (
           <div className="text-center py-8 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
             <FileText className="size-10 mx-auto text-slate-300 mb-3" />
             <p className="text-sm text-slate-500 font-medium">
@@ -152,6 +168,42 @@ export function ConclusionSection() {
             </p>
           </div>
         )}
+
+        {/* Additional Custom Statement */}
+        <div className="pt-4 border-t border-slate-200">
+          <label className="flex items-center gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={showAdditionalInput}
+              onChange={(e) => handleAdditionalCheckboxChange(e.target.checked)}
+              className="rounded border-slate-300 text-primary focus:ring-primary h-4 w-4"
+            />
+            <div className="flex items-center gap-2">
+              <Plus className="size-4 text-slate-400 group-hover:text-primary transition-colors" />
+              <span className="text-sm font-medium text-slate-700 group-hover:text-primary transition-colors">
+                Add additional conclusion statement
+              </span>
+            </div>
+          </label>
+
+          {showAdditionalInput && (
+            <div className="mt-4 ml-7">
+              <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Additional Statement
+              </Label>
+              <textarea
+                value={formData.additionalConclusionStatement}
+                onChange={(e) => setFormField('additionalConclusionStatement', e.target.value)}
+                placeholder="Enter your additional conclusion statement here..."
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary resize-none text-sm"
+                rows={3}
+              />
+              <p className="mt-2 text-[10px] text-slate-400">
+                This statement will be added at the end of the conclusion section on the certificate.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </FormSection>
   )

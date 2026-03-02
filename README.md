@@ -1,36 +1,220 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HTA Calibration Certificate Management System
+
+A web application for managing calibration certificates, including multi-stage approval workflows, digital signatures, and PDF generation.
+
+## Features
+
+### Certificate Management
+- Create and edit calibration certificates with comprehensive form sections
+- Support for multiple calibration parameters with measurement results
+- Master instrument tracking and assignment
+- Event sourcing for complete audit trail of all changes
+
+### Approval Workflow
+- **Engineer** → Creates and submits certificates for review
+- **Head of Department (HoD)** → Reviews, approves, requests revisions, or rejects
+- **Customer** → Reviews and approves certificates via secure token links or dashboard
+
+### Digital Signatures
+- Canvas-based signature capture for HoD and customer approval
+- Signatures embedded directly in generated PDFs
+- Signature storage with signer metadata and timestamps
+
+### PDF Generation
+- Dynamic calibration certificate PDF generation using `@react-pdf/renderer`
+- Two-pass rendering with binary search for optimal spacing
+- Signature blocks with embedded images
+- Customer acknowledgment section
+
+### Signed PDF Storage & Download
+- Server-side PDF generation after customer approval
+- Filesystem storage under `uploads/certificates/{id}/signed.pdf`
+- Auth-gated download endpoint for engineers, HoD, and customers
+
+### Notifications
+- Real-time notification system for workflow events
+- Bell icon with unread count in navigation
+- Notifications for: submissions, approvals, revisions, customer actions
+
+### OpenSign Integration (Optional)
+- Integration with self-hosted OpenSign for legally compliant e-signatures
+- Best-effort digital signing with fallback to local signatures
+- Webhook handler for signing completion events
+- Health check and retry endpoints
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Database**: SQLite with Prisma ORM
+- **Authentication**: NextAuth.js
+- **PDF Generation**: @react-pdf/renderer
+- **UI Components**: Tailwind CSS, Radix UI, Lucide Icons
+- **Form Handling**: React Hook Form
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/pavan-kvsn1/hta_calibrates.git
+cd hta_calibrates
+
+# Install dependencies
+npm install
+
+# Set up the database
+npx prisma generate
+npx prisma migrate dev
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env` file in the root directory:
 
-## Learn More
+```env
+# Database
+DATABASE_URL="file:./dev.db"
 
-To learn more about Next.js, take a look at the following resources:
+# NextAuth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key-here"
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# OpenSign (optional - for digital signing)
+OPENSIGN_SERVER_URL="http://localhost:8080/app"
+OPENSIGN_API_KEY="your-opensign-api-key"
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# App URL (for email links)
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/
+│   ├── (dashboard)/           # Staff dashboard routes
+│   │   ├── engineer/          # Engineer pages
+│   │   └── hod/               # HoD pages (dashboard, review)
+│   ├── api/                   # API routes
+│   │   ├── certificates/      # Certificate CRUD, review, download
+│   │   ├── customer/          # Customer approval endpoints
+│   │   ├── notifications/     # Notification endpoints
+│   │   └── opensign/          # OpenSign integration
+│   ├── certificates/          # Certificate view/edit pages
+│   └── customer/              # Customer portal
+├── components/
+│   ├── dashboard/             # Dashboard components
+│   ├── feedback/              # Review feedback sidebars
+│   ├── forms/                 # Certificate form sections
+│   ├── notifications/         # Notification components
+│   ├── pdf/                   # PDF generation components
+│   └── signatures/            # Signature capture components
+├── lib/
+│   ├── auth.ts                # NextAuth configuration
+│   ├── notifications.ts       # Notification helpers
+│   ├── opensign.ts            # OpenSign API client
+│   ├── pdf-generator.ts       # Server-side PDF generation
+│   ├── pdf-storage.ts         # PDF filesystem storage
+│   └── prisma.ts              # Prisma client
+└── types/                     # TypeScript type definitions
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Database Schema
+
+Key models:
+
+- **User** - Staff users (Engineer, HoD, Admin)
+- **CustomerUser** - Customer accounts
+- **Certificate** - Calibration certificates with all form data
+- **CertificateEvent** - Immutable event log (event sourcing)
+- **CertificateRevision** - Snapshots at workflow transitions
+- **Parameter** - Calibration parameters with results
+- **Signature** - Stored signatures (Engineer, HoD, Customer)
+- **ApprovalToken** - Secure tokens for customer review links
+- **Notification** - User notifications
+- **OpenSignDocument** - OpenSign integration tracking
+
+## User Roles
+
+| Role | Capabilities |
+|------|-------------|
+| **Engineer** | Create certificates, submit for review, respond to revision requests |
+| **HoD** | Review submissions, approve/reject/request revisions, send to customers, override dates |
+| **Admin** | All HoD capabilities + user management |
+| **Customer** | View assigned certificates, approve or request revisions |
+
+## Workflow States
+
+```
+DRAFT
+  ↓ (Engineer submits)
+PENDING_HOD_REVIEW
+  ↓ (HoD approves)        → REVISION_REQUIRED (back to Engineer)
+  ↓                       → REJECTED (terminal)
+PENDING_CUSTOMER_APPROVAL
+  ↓ (Customer approves)   → CUSTOMER_REVISION_REQUIRED (HoD responds)
+  ↓
+APPROVED (terminal - signed PDF generated)
+```
+
+## API Endpoints
+
+### Certificates
+- `POST /api/certificates` - Create certificate
+- `GET /api/certificates/[id]` - Get certificate
+- `PUT /api/certificates/[id]` - Update certificate
+- `POST /api/certificates/[id]/submit` - Submit for review
+- `POST /api/certificates/[id]/review` - HoD review action
+- `POST /api/certificates/[id]/send-to-customer` - Send to customer
+- `GET /api/certificates/[id]/download-signed` - Download signed PDF
+
+### Customer
+- `GET /api/customer/review/[token]/certificate` - Get certificate data
+- `POST /api/customer/review/[token]/approve` - Approve certificate
+- `POST /api/customer/review/[token]/reject` - Request revision
+
+### Notifications
+- `GET /api/notifications` - Get user notifications
+- `POST /api/notifications/mark-read` - Mark as read
+- `GET /api/notifications/unread-count` - Get unread count
+
+### OpenSign (optional)
+- `POST /api/opensign/send-for-signature` - Send to OpenSign
+- `POST /api/opensign/webhook` - Webhook handler
+- `GET /api/opensign/health` - Health check
+- `POST /api/opensign/retry` - Retry failed signings
+
+## Development
+
+```bash
+# Run development server
+npm run dev
+
+# Run type checking
+npx tsc --noEmit
+
+# Run Prisma Studio (database GUI)
+npx prisma studio
+
+# Create a migration
+npx prisma migrate dev --name migration-name
+
+# Reset database
+npx prisma migrate reset
+```
+
+## License
+
+Proprietary - HTA Instrumentation

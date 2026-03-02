@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { FileDown, Loader2, AlertCircle } from 'lucide-react'
-import { useCertificateStore, CertificateFormData } from '@/lib/certificate-store'
+import { useCertificateStore, CertificateFormData } from '@/lib/stores/certificate-store'
 
 interface PDFPreviewSectionProps {
   showPreview?: boolean
@@ -51,12 +51,24 @@ export function PDFPreviewSection({ showPreview = false }: PDFPreviewSectionProp
     validationErrors.push('At least one master instrument must be selected')
   }
 
+  // Validate that all parameters are assigned to a master instrument
+  const unassignedParams = formData.parameters.filter(p => p.parameterName && !p.masterInstrumentId)
+  if (unassignedParams.length > 0) {
+    validationErrors.push(`Parameter(s) not assigned to master instrument: ${unassignedParams.map(p => p.parameterName).join(', ')}`)
+  }
+
+  // Validate that all assigned parameters have SOP reference
+  const paramsWithoutSOP = formData.parameters.filter(p => p.masterInstrumentId && !p.sopReference)
+  if (paramsWithoutSOP.length > 0) {
+    validationErrors.push(`SOP reference missing for parameter(s): ${paramsWithoutSOP.map(p => p.parameterName).join(', ')}`)
+  }
+
   const canGeneratePDF = validationErrors.length === 0
 
   // Generate filename for download
   const fileName = `${formData.certificateNumber.replace(/\//g, '-') || 'Certificate'}.pdf`
 
-  // Generate and download PDF
+  // Generate and download PDF using two-pass optimization
   const handleDownloadPDF = useCallback(async () => {
     if (!canGeneratePDF || isGenerating) return
 
@@ -64,20 +76,16 @@ export function PDFPreviewSection({ showPreview = false }: PDFPreviewSectionProp
     setError(null)
 
     try {
-      // Dynamically import PDF renderer and document
-      const [pdfRenderer, pdfDoc] = await Promise.all([
-        import('@react-pdf/renderer'),
-        import('./CalibrationCertificatePDF'),
-      ])
+      console.log('Starting PDF generation...')
+      // Use two-pass generation for optimal spacing
+      const twoPass = await import('./pdf-two-pass')
+      console.log('Two-pass module loaded')
+      const result = await twoPass.generatePDFWithOptimalSpacing(formData)
 
-      // Create the PDF document element
-      const documentElement = React.createElement(pdfDoc.CalibrationCertificatePDF, { data: formData })
-
-      // Generate PDF blob - cast to any to avoid TypeScript issues with react-pdf types
-      const blob = await (pdfRenderer.pdf(documentElement as any).toBlob())
+      console.log(`PDF generated: ${result.pageCount} pages, multiplier: ${result.multiplier.toFixed(2)}, iterations: ${result.iterations}`)
 
       // Create download link and trigger download
-      const url = URL.createObjectURL(blob)
+      const url = URL.createObjectURL(result.blob)
       const link = document.createElement('a')
       link.href = url
       link.download = fileName
@@ -95,7 +103,7 @@ export function PDFPreviewSection({ showPreview = false }: PDFPreviewSectionProp
     }
   }, [canGeneratePDF, isGenerating, formData, fileName])
 
-  // Generate PDF for preview
+  // Generate PDF for preview using two-pass optimization
   const handleGeneratePreview = useCallback(async () => {
     if (!canGeneratePDF) return
 
@@ -103,20 +111,18 @@ export function PDFPreviewSection({ showPreview = false }: PDFPreviewSectionProp
     setError(null)
 
     try {
-      const [pdfRenderer, pdfDoc] = await Promise.all([
-        import('@react-pdf/renderer'),
-        import('./CalibrationCertificatePDF'),
-      ])
+      // Use two-pass generation for optimal spacing
+      const { generatePDFWithOptimalSpacing } = await import('./pdf-two-pass')
+      const result = await generatePDFWithOptimalSpacing(formData)
 
-      const documentElement = React.createElement(pdfDoc.CalibrationCertificatePDF, { data: formData })
-      const blob = await (pdfRenderer.pdf(documentElement as any).toBlob())
+      console.log(`Preview generated: ${result.pageCount} pages, multiplier: ${result.multiplier.toFixed(2)}, iterations: ${result.iterations}`)
 
       // Revoke old URL if exists
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl)
       }
 
-      const url = URL.createObjectURL(blob)
+      const url = URL.createObjectURL(result.blob)
       setPdfUrl(url)
     } catch (err) {
       console.error('PDF preview generation failed:', err)

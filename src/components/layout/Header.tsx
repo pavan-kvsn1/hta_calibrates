@@ -1,9 +1,19 @@
 'use client'
 
-import { Bell, ChevronDown, Clock } from 'lucide-react'
-import { useCertificateStore } from '@/lib/certificate-store'
+import { useSession, signOut } from 'next-auth/react'
+import Link from 'next/link'
+import Image from 'next/image'
+import { Clock, LogOut, Settings } from 'lucide-react'
+import { useCertificateStore } from '@/lib/stores/certificate-store'
+import { NotificationBell } from '@/components/notifications'
 
-export function Header() {
+interface HeaderProps {
+  title?: string
+  showAutoSave?: boolean
+}
+
+export function Header({ title, showAutoSave = true }: HeaderProps) {
+  const { data: session } = useSession()
   const { formData, isSaving } = useCertificateStore()
 
   const formatLastSaved = () => {
@@ -15,46 +25,115 @@ export function Header() {
     return formData.lastSaved.toLocaleTimeString()
   }
 
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/login' })
+  }
+
+  const getDashboardLink = (role: string) => {
+    switch (role) {
+      case 'HOD':
+        return '/hod/dashboard'
+      case 'CUSTOMER':
+        return '/customer/dashboard'
+      default:
+        return '/dashboard'
+    }
+  }
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'ENGINEER':
+        return 'Engineer'
+      case 'HOD':
+        return 'Head of Department'
+      case 'ADMIN':
+        return 'Administrator'
+      case 'CUSTOMER':
+        return 'Customer'
+      default:
+        return role
+    }
+  }
+
+  // Get user initials
+  const getInitials = (name: string) => {
+    if (!name) return 'U'
+    const parts = name.split(' ')
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    }
+    return name.substring(0, 2).toUpperCase()
+  }
+
   return (
-    <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-6 py-3 sticky top-0 z-[60] shadow-sm">
+    <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-6 py-2.5 sticky top-0 z-[60] shadow-sm">
       <div className="flex items-center gap-4">
         {/* Logo */}
-        <div className="size-8 text-primary">
-          <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M44 11.2727C44 14.0109 39.8386 16.3957 33.69 17.6364C39.8386 18.877 44 21.2618 44 24C44 26.7382 39.8386 29.123 33.69 30.3636C39.8386 31.6043 44 33.9891 44 36.7273C44 40.7439 35.0457 44 24 44C12.9543 44 4 40.7439 4 36.7273C4 33.9891 8.16144 31.6043 14.31 30.3636C8.16144 29.123 4 26.7382 4 24C4 21.2618 8.16144 18.877 14.31 17.6364C8.16144 16.3957 4 14.0109 4 11.2727C4 7.25611 12.9543 4 24 4C35.0457 4 44 7.25611 44 11.2727Z"
-              fill="currentColor"
-            />
-          </svg>
-        </div>
-        <div className="h-6 w-px bg-slate-200" />
-        <h2 className="text-slate-800 text-lg font-bold tracking-tight">HTA Calibration</h2>
+        <Link href={getDashboardLink(session?.user?.role || 'ENGINEER')}>
+          <Image
+            src="/hta-logo.jpg"
+            alt="HTA Instrumentation"
+            width={55}
+            height={28}
+            className="object-contain"
+          />
+        </Link>
+        {title && (
+          <>
+            <div className="h-5 w-px bg-slate-300" />
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">{title}</h2>
+          </>
+        )}
       </div>
 
-      <div className="flex flex-1 justify-end gap-6 items-center">
-        {/* Auto-save indicator */}
-        <div className="hidden md:flex items-center gap-2 text-sm text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-          <Clock className="size-4" />
-          <span>
-            {isSaving ? 'Saving...' : `Last auto-save: ${formatLastSaved()}`}
-          </span>
-        </div>
+      <div className="flex flex-1 justify-end gap-3 items-center">
+        {/* Auto-save indicator (only for certificate forms) */}
+        {showAutoSave && (
+          <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-500 bg-slate-50 px-2.5 py-1 rounded-full border border-slate-100">
+            <Clock className="size-3.5" />
+            <span>
+              {isSaving ? 'Saving...' : `Auto-save: ${formatLastSaved()}`}
+            </span>
+          </div>
+        )}
+
+        {/* Admin Link (for Admin users or HoD with isAdmin) */}
+        {(session?.user?.role === 'ADMIN' || session?.user?.isAdmin) && (
+          <Link
+            href="/admin"
+            className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-md border border-blue-200 hover:border-blue-300 transition-colors"
+          >
+            <Settings className="size-3.5" />
+            <span className="hidden sm:inline">Admin Panel</span>
+          </Link>
+        )}
 
         {/* Notifications */}
-        <button className="relative p-2 hover:bg-slate-50 rounded-full transition-colors text-slate-600">
-          <Bell className="size-5" />
-          <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border border-white" />
-        </button>
+        <NotificationBell userRole={session?.user?.role || 'ENGINEER'} />
 
-        {/* User menu */}
-        <div className="flex items-center gap-2 cursor-pointer group">
-          <div
-            className="bg-center bg-no-repeat bg-cover rounded-full size-9 ring-2 ring-slate-100 bg-primary text-white flex items-center justify-center font-bold text-sm"
-          >
-            RK
+        {/* User info and logout */}
+        <div className="flex items-center gap-2 pl-3 border-l border-slate-200">
+          <div className="flex items-center gap-2">
+            <div className="size-7 rounded-full ring-1 ring-slate-100 bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+              {getInitials(session?.user?.name || 'User')}
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-xs font-semibold text-slate-800">
+                {session?.user?.name || 'User'}
+              </p>
+              <p className="text-[10px] text-slate-500">
+                {getRoleLabel(session?.user?.role || '')}
+              </p>
+            </div>
           </div>
-          <span className="text-sm font-semibold text-slate-700 hidden sm:block">Ramesh K</span>
-          <ChevronDown className="size-4 text-slate-400" />
+
+          <button
+            onClick={handleSignOut}
+            className="p-1.5 hover:bg-slate-50 rounded-full transition-colors text-slate-500 hover:text-slate-700"
+            title="Sign out"
+          >
+            <LogOut className="size-3.5" />
+          </button>
         </div>
       </div>
     </header>

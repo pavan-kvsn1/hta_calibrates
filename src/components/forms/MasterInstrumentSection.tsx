@@ -12,8 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { FormSection } from './FormSection'
-import { useCertificateStore, SelectedMasterInstrument, Parameter } from '@/lib/certificate-store'
-import { useMasterInstrumentStore } from '@/lib/master-instrument-store'
+import { useCertificateStore, SelectedMasterInstrument, Parameter } from '@/lib/stores/certificate-store'
+import { useMasterInstrumentStore } from '@/lib/stores/master-instrument-store'
 import {
   MasterInstrument,
   InstrumentCategory,
@@ -23,6 +23,7 @@ import {
   STATUS_CONFIG,
   CATEGORY_LABELS,
   canMeasureParameter,
+  coversRange,
 } from '@/lib/master-instruments'
 import { cn } from '@/lib/utils'
 
@@ -91,6 +92,26 @@ function MasterInstrumentCard({
   const [selectedCategory, setSelectedCategory] = useState<InstrumentCategory | ''>('')
   const [selectedDescription, setSelectedDescription] = useState('')
   const [selectedMake, setSelectedMake] = useState('')
+
+  // Initialize local state from instrument prop (for loading saved drafts)
+  useEffect(() => {
+    if (instrument.masterInstrumentId && instrument.masterInstrumentId > 0 && isLoaded) {
+      // Find the original instrument in the master list to get the exact description
+      const originalInstrument = instruments.find(inst => inst.id === instrument.masterInstrumentId)
+
+      if (originalInstrument) {
+        // Use data from the master list for accurate dropdown matching
+        setSelectedCategory(originalInstrument.type)
+        setSelectedDescription(originalInstrument.instrument_desc)
+        setSelectedMake(getSimpleValue(originalInstrument.make))
+      } else if (instrument.category) {
+        // Fallback to saved data if instrument not found in master list
+        setSelectedCategory(instrument.category as InstrumentCategory)
+        setSelectedDescription(instrument.description || '')
+        setSelectedMake(instrument.make || '')
+      }
+    }
+  }, [instrument.masterInstrumentId, instrument.category, instrument.description, instrument.make, instruments, isLoaded])
 
   // Get unique categories
   const categories = useMemo(() => {
@@ -404,7 +425,7 @@ function MasterInstrumentCard({
         <div className="mt-4 rounded-xl border border-slate-200 bg-white overflow-hidden">
           <div className="bg-slate-100 px-4 py-3 border-b border-slate-200">
             <p className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
-              Parameter & SOP Assignment
+              Parameter & SOP Assignment <span className="text-red-500">*</span>
             </p>
             <p className="text-[11px] text-slate-500 mt-1">
               Select the parameter(s) calibrated using this instrument and specify the SOP reference for each.
@@ -420,6 +441,13 @@ function MasterInstrumentCard({
               const isCompatible = param.parameterName
                 ? canMeasureParameter(selectedInstrumentData, param.parameterName)
                 : true // If no parameter name set, allow selection
+
+              // Check if parameter range is within instrument's range
+              const rangeMin = param.rangeMin ? parseFloat(param.rangeMin) : null
+              const rangeMax = param.rangeMax ? parseFloat(param.rangeMax) : null
+              const isRangeCovered = (rangeMin === null || rangeMax === null || !param.parameterName)
+                ? true
+                : coversRange(selectedInstrumentData, param.parameterName, rangeMin, rangeMax)
 
               const rangeStr = param.rangeMin && param.rangeMax
                 ? `${param.rangeMin} to ${param.rangeMax} ${param.parameterUnit}`
@@ -459,7 +487,7 @@ function MasterInstrumentCard({
 
                   {/* Parameter Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-slate-800 truncate">
                         {param.parameterName || `Parameter ${paramIdx + 1}`}
                       </p>
@@ -469,17 +497,24 @@ function MasterInstrumentCard({
                           Incompatible
                         </span>
                       )}
+                      {isCompatible && !isRangeCovered && !isAssignedToOther && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-orange-100 text-orange-700">
+                          <AlertTriangle className="size-3" />
+                          Range Exceeds
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-slate-500 truncate">
                       {rangeStr}
                       {statusMessage && ` • ${statusMessage}`}
+                      {!isRangeCovered && isCompatible && !isAssignedToOther && ' • Parameter range exceeds instrument capability'}
                     </p>
                   </div>
 
                   {/* SOP Reference Input */}
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Label className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap hidden sm:block">
-                      SOP Ref
+                      SOP Ref <span className="text-red-500">*</span>
                     </Label>
                     <Input
                       type="text"
@@ -522,6 +557,39 @@ function MasterInstrumentCard({
                       <span className="font-semibold">
                         {incompatibleParams.map(p => p.parameterName).join(', ')}
                       </span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Warning for parameters with range exceeding instrument capability */}
+          {(() => {
+            const rangeExceededParams = parameters.filter(p => {
+              if (!p.parameterName || !p.rangeMin || !p.rangeMax) return false
+              if (!canMeasureParameter(selectedInstrumentData, p.parameterName)) return false // Already shown in incompatible warning
+              const min = parseFloat(p.rangeMin)
+              const max = parseFloat(p.rangeMax)
+              if (isNaN(min) || isNaN(max)) return false
+              return !coversRange(selectedInstrumentData, p.parameterName, min, max)
+            })
+            if (rangeExceededParams.length === 0) return null
+
+            return (
+              <div className="px-4 py-3 bg-orange-50 border-t border-orange-200">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="size-4 text-orange-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-orange-800">
+                      Parameter range exceeds instrument capability
+                    </p>
+                    <p className="text-[11px] text-orange-700 mt-0.5">
+                      The following parameters have a range that exceeds this instrument's calibration range:{' '}
+                      <span className="font-semibold">
+                        {rangeExceededParams.map(p => p.parameterName).join(', ')}
+                      </span>
+                      . Consider using a different instrument or adjusting the parameter range.
                     </p>
                   </div>
                 </div>
