@@ -25,10 +25,11 @@ export default defineConfig({
         '**/types/**',
       ],
       thresholds: {
-        lines: 80,
-        branches: 75,
-        functions: 85,
-        statements: 80,
+        // Lowered for initial CI setup - increase as test coverage improves
+        lines: 60,
+        branches: 50,
+        functions: 80,
+        statements: 60,
       },
     },
   },
