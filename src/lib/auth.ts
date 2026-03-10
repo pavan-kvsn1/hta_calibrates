@@ -182,16 +182,9 @@ export function hasRole(user: { role: string } | null, allowedRoles: string[]): 
 }
 
 // Check if user can access admin features
-// Returns true if user is ADMIN role OR is HoD with isAdmin flag (legacy)
-export function canAccessAdmin(user: { role: string; isAdmin?: boolean } | null | undefined): boolean {
+export function canAccessAdmin(user: { role: string } | null | undefined): boolean {
   if (!user) return false
-  return user.role === 'ADMIN' || (user.role === 'HOD' && user.isAdmin === true)
-}
-
-// Check if user can access HoD features (DEPRECATED: use canReviewCertificate instead)
-export function canAccessHod(user: { role: string } | null | undefined): boolean {
-  if (!user) return false
-  return user.role === 'HOD' || user.role === 'ADMIN'
+  return user.role === 'ADMIN'
 }
 
 // ====================

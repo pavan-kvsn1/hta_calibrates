@@ -49,8 +49,7 @@ export const config = {
   matcher: [
     // Match dashboard routes that need protection
     '/dashboard/:path*',
-    '/hod/:path*',        // Legacy: will be migrated to /review
-    '/review/:path*',     // NEW: Reviewer dashboard and review pages
+    '/review/:path*',     // Reviewer dashboard and review pages
     '/customer/:path*',
     '/admin/:path*',
   ],
