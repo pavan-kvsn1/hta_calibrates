@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const unreadOnly = searchParams.get('unreadOnly') === 'true'
 
     const isCustomer = session.user.role === 'CUSTOMER'
+    const isEngineer = session.user.role === 'ENGINEER'
 
     const result = await getNotifications({
       userId: isCustomer ? undefined : session.user.id,
@@ -26,6 +27,8 @@ export async function GET(request: NextRequest) {
       limit,
       offset,
       unreadOnly,
+      // Engineers only see notifications for certificates they created or are reviewing
+      filterByInvolvement: isEngineer,
     })
 
     return NextResponse.json(result)

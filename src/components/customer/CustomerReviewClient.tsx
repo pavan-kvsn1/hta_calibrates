@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -17,10 +17,11 @@ import {
   Loader2,
   ChevronLeft,
   LogOut,
-  Send,
-  MessageSquare,
   FileEdit,
+  AlertTriangle,
+  User,
 } from 'lucide-react'
+import { CustomerChatPanel } from './CustomerChatPanel'
 
 interface CertificateData {
   id: string
@@ -44,13 +45,10 @@ interface CustomerData {
   companyName: string
 }
 
-interface RevisionHistoryItem {
-  id: string
-  type: 'customer_request' | 'hod_response' | 'sent_to_customer'
-  message: string
-  createdAt: string
-  userName?: string
-  companyName?: string
+interface SignatureInfo {
+  engineer?: { name: string }
+  hod?: { name: string }
+  customer?: { name: string }
 }
 
 interface CustomerReviewClientProps {
@@ -58,7 +56,7 @@ interface CustomerReviewClientProps {
   certificate: CertificateData
   customer: CustomerData
   expiresAt: string | null // null for session-based access (no token)
-  revisionHistory?: RevisionHistoryItem[]
+  sentAt?: string // when the certificate was sent for review (for TAT calculation)
 }
 
 function formatDate(dateStr: string | null): string {
@@ -79,20 +77,164 @@ function getInitials(name: string): string {
   return name.substring(0, 2).toUpperCase()
 }
 
+function formatTATTime(ms: number): { hours: number; minutes: number } {
+  const hours = Math.floor(ms / (1000 * 60 * 60))
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  return { hours, minutes }
+}
+
+function TATBanner({ sentAt, targetHours = 48 }: { sentAt: string; targetHours?: number }) {
+  const [elapsed, setElapsed] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 })
+  const [remaining, setRemaining] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 })
+  const [status, setStatus] = useState<'good' | 'warning' | 'critical'>('good')
+
+  useEffect(() => {
+    const calculateTAT = () => {
+      const sentTime = new Date(sentAt).getTime()
+      const now = Date.now()
+      const elapsedMs = now - sentTime
+      const targetMs = targetHours * 60 * 60 * 1000
+      const remainingMs = targetMs - elapsedMs
+
+      setElapsed(formatTATTime(elapsedMs))
+
+      if (remainingMs <= 0) {
+        setRemaining({ hours: 0, minutes: 0 })
+        setStatus('critical')
+      } else if (remainingMs <= 6 * 60 * 60 * 1000) { // < 6 hours
+        setRemaining(formatTATTime(remainingMs))
+        setStatus('warning')
+      } else {
+        setRemaining(formatTATTime(remainingMs))
+        setStatus('good')
+      }
+    }
+
+    calculateTAT()
+    const interval = setInterval(calculateTAT, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [sentAt, targetHours])
+
+  const statusColors = {
+    good: 'bg-green-50 border-green-200 text-green-800',
+    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+    critical: 'bg-red-50 border-red-200 text-red-800',
+  }
+
+  const statusIcons = {
+    good: <Clock className="h-4 w-4 text-green-600" />,
+    warning: <AlertTriangle className="h-4 w-4 text-amber-600" />,
+    critical: <AlertTriangle className="h-4 w-4 text-red-600" />,
+  }
+
+  return (
+    <div className={`px-4 py-2 border-b ${statusColors[status]} flex items-center justify-between text-sm`}>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {statusIcons[status]}
+          <span className="font-medium">
+            TAT: {elapsed.hours}h {elapsed.minutes}m elapsed
+          </span>
+        </div>
+        <span className="text-gray-500">|</span>
+        <span>Target: {targetHours}h</span>
+      </div>
+      <div>
+        {status === 'critical' ? (
+          <span className="font-medium text-red-700">Target exceeded</span>
+        ) : (
+          <span>
+            {remaining.hours}h {remaining.minutes}m remaining
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SignatureStatusPanel({ signatures }: { signatures?: SignatureInfo }) {
+  return (
+    <div className="space-y-2 text-sm">
+      <div className="flex items-center gap-2">
+        {signatures?.engineer ? (
+          <>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <span className="text-green-700">Assignee: {signatures.engineer.name}</span>
+          </>
+        ) : (
+          <>
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span className="text-gray-500">Assignee: Pending</span>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {signatures?.hod ? (
+          <>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <span className="text-green-700">Reviewer: {signatures.hod.name}</span>
+          </>
+        ) : (
+          <>
+            <Clock className="h-4 w-4 text-gray-400" />
+            <span className="text-gray-500">Reviewer: Pending</span>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {signatures?.customer ? (
+          <>
+            <CheckCircle className="h-4 w-4 text-green-600" />
+            <span className="text-green-700">Customer: {signatures.customer.name}</span>
+          </>
+        ) : (
+          <>
+            <User className="h-4 w-4 text-blue-500" />
+            <span className="text-blue-700 font-medium">Customer: Awaiting your signature</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function CustomerReviewClient({
   token,
   certificate,
   customer,
   expiresAt,
-  revisionHistory = [],
+  sentAt,
 }: CustomerReviewClientProps) {
   const router = useRouter()
   const [showApproveModal, setShowApproveModal] = useState(false)
-  const [revisionNotes, setRevisionNotes] = useState('')
-  const [isRequestingRevision, setIsRequestingRevision] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [revisionError, setRevisionError] = useState<string | null>(null)
+  const [signatures, setSignatures] = useState<SignatureInfo | undefined>()
+
+  // Fetch signature status
+  useEffect(() => {
+    const fetchSignatures = async () => {
+      try {
+        const encodedToken = encodeURIComponent(token)
+        const response = await fetch(`/api/customer/review/${encodedToken}/certificate`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.signatures) {
+            setSignatures({
+              engineer: data.signatures.engineer,
+              hod: data.signatures.hod,
+              customer: data.signatures.customer,
+            })
+          }
+        }
+      } catch {
+        // Ignore errors - signatures are optional
+      }
+    }
+
+    fetchSignatures()
+  }, [token])
 
   // Check if certificate is being revised by engineer (no approval allowed)
   const isBeingRevised = certificate.status === 'REVISION_REQUIRED'
@@ -145,54 +287,6 @@ export function CustomerReviewClient({
       setSubmitError('An error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)
-    }
-  }
-
-  const handleRequestRevision = async () => {
-    if (!revisionNotes.trim()) {
-      setRevisionError('Please provide feedback for the revision request')
-      return
-    }
-
-    setIsRequestingRevision(true)
-    setRevisionError(null)
-
-    try {
-      // Encode token to handle special characters like colon in cert:ID format
-      const encodedToken = encodeURIComponent(token)
-      const response = await fetch(`/api/customer/review/${encodedToken}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notes: revisionNotes }),
-      })
-
-      if (response.ok) {
-        // For session-based access, redirect to dashboard instead of token-based success page
-        if (token.startsWith('cert:')) {
-          router.push('/customer/dashboard')
-        } else {
-          router.push(`/customer/review/${encodedToken}/revision-requested`)
-        }
-      } else {
-        // Try to parse error response, handle empty responses
-        let errorMessage = 'Failed to submit revision request'
-        try {
-          const text = await response.text()
-          if (text) {
-            const data = JSON.parse(text)
-            errorMessage = data.error || errorMessage
-          }
-        } catch {
-          // Response was not JSON or empty
-          errorMessage = `Server error (${response.status})`
-        }
-        setRevisionError(errorMessage)
-      }
-    } catch (error) {
-      console.error('Revision request error:', error)
-      setRevisionError('An error occurred. Please try again.')
-    } finally {
-      setIsRequestingRevision(false)
     }
   }
 
@@ -255,6 +349,9 @@ export function CustomerReviewClient({
         </div>
       </header>
 
+      {/* TAT Banner (only for token-based access with sentAt) */}
+      {sentAt && !isCompleted && <TATBanner sentAt={sentAt} />}
+
       {/* Certificate Info Banner */}
       <div className="bg-white border-b px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -298,116 +395,12 @@ export function CustomerReviewClient({
 
           {/* Right Side Panels */}
           <div className="flex flex-col gap-4 overflow-hidden min-h-0">
-            {/* Revision History Panel - WhatsApp Style */}
-            <div className="bg-white rounded-lg border shadow-sm flex flex-col flex-1 overflow-hidden min-h-0">
-              <div className="px-4 py-3 border-b bg-gray-50">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-gray-500" />
-                  <h2 className="font-semibold text-gray-900 text-[13px]">Conversation</h2>
-                  {revisionHistory.length > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">
-                      {revisionHistory.length}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 p-3 overflow-y-auto bg-gray-50 flex flex-col-reverse">
-                {revisionHistory.length === 0 ? (
-                  <div className="text-[12px] text-gray-500 text-center py-4">
-                    <p>No messages yet.</p>
-                    <p className="text-[11px] mt-1">Send feedback below if changes are needed.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {/* Sort oldest first for chat display */}
-                    {[...revisionHistory].reverse().map((item) => {
-                      const isOwnMessage = item.type === 'customer_request'
-                      return (
-                        <div
-                          key={item.id}
-                          className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div
-                            className={`relative max-w-[85%] px-3 py-2 rounded-lg text-[12px] border ${
-                              isOwnMessage
-                                ? 'bg-purple-50 border-purple-200 rounded-br-none'
-                                : item.type === 'hod_response'
-                                ? 'bg-orange-50 border-orange-200 rounded-bl-none'
-                                : 'bg-blue-50 border-blue-200 rounded-bl-none'
-                            }`}
-                          >
-                            {/* Sender label for non-self messages */}
-                            {!isOwnMessage && (
-                              <p className={`text-[10px] font-semibold mb-0.5 ${
-                                item.type === 'hod_response' ? 'text-orange-600' : 'text-blue-600'
-                              }`}>
-                                {item.type === 'hod_response' ? 'HoD' : 'HTA'}
-                                {item.userName && ` • ${item.userName}`}
-                              </p>
-                            )}
-                            {/* Message content */}
-                            <p className="text-gray-700 whitespace-pre-wrap">{item.message}</p>
-                            {/* Timestamp */}
-                            <p className={`text-[9px] mt-1 ${isOwnMessage ? 'text-purple-400 text-right' : 'text-gray-400'}`}>
-                              {new Date(item.createdAt).toLocaleString('en-IN', {
-                                day: 'numeric',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Message Input */}
-              {isCompleted ? (
-                <div className="p-3 border-t bg-green-50">
-                  <div className="flex items-center gap-2 text-green-700">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="text-[12px] font-medium">Certificate approved</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-2 border-t bg-gray-50">
-                  <div className="flex gap-2 items-end">
-                    <textarea
-                      value={revisionNotes}
-                      onChange={(e) => setRevisionNotes(e.target.value)}
-                      placeholder="Type a message..."
-                      className="flex-1 p-2 border border-gray-200 rounded-lg text-xs resize-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 max-h-20 bg-white"
-                      rows={1}
-                      onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement
-                        target.style.height = 'auto'
-                        target.style.height = Math.min(target.scrollHeight, 80) + 'px'
-                      }}
-                    />
-                    <Button
-                      onClick={handleRequestRevision}
-                      disabled={!revisionNotes.trim() || isRequestingRevision}
-                      size="sm"
-                      className="h-8 w-8 rounded-full p-0 flex-shrink-0"
-                    >
-                      {isRequestingRevision ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Send className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  {revisionError && (
-                    <p className="text-[11px] text-red-600 mt-1 px-2">{revisionError}</p>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Chat Panel */}
+            <CustomerChatPanel
+              token={token}
+              isCompleted={isCompleted}
+              className="flex-1 min-h-0"
+            />
 
             {/* Approval Panel */}
             {isCompleted ? (
@@ -422,11 +415,12 @@ export function CustomerReviewClient({
                   </div>
                 </div>
                 <div className="p-4">
-                  <p className="text-[12px] text-gray-600 text-center">
+                  <p className="text-[12px] text-gray-600 text-center mb-3">
                     {certificate.status === 'AUTHORIZED'
                       ? 'This certificate has been fully authorized and completed.'
                       : 'This certificate has been approved and signed. Awaiting final admin authorization.'}
                   </p>
+                  {signatures && <SignatureStatusPanel signatures={signatures} />}
                 </div>
 
                 {/* Customer Info */}
@@ -448,9 +442,10 @@ export function CustomerReviewClient({
                   </div>
                 </div>
                 <div className="p-4">
-                  <p className="text-[12px] text-gray-600 text-center">
+                  <p className="text-[12px] text-gray-600 text-center mb-3">
                     Your feedback has been forwarded to the engineer. The certificate is being updated.
                   </p>
+                  {signatures && <SignatureStatusPanel signatures={signatures} />}
                 </div>
 
                 {/* Customer Info */}
@@ -472,6 +467,13 @@ export function CustomerReviewClient({
                   </div>
                 </div>
                 <div className="p-4">
+                  {/* Signature Status */}
+                  {signatures && (
+                    <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                      <SignatureStatusPanel signatures={signatures} />
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-gray-500 mb-3 text-center">
                     By approving, you confirm all details are correct.
                   </p>

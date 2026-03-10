@@ -14,10 +14,13 @@ export async function GET() {
     }
 
     const isCustomer = session.user.role === 'CUSTOMER'
+    const isEngineer = session.user.role === 'ENGINEER'
 
     const count = await getUnreadCount({
       userId: isCustomer ? undefined : session.user.id,
       customerId: isCustomer ? session.user.id : undefined,
+      // Engineers only count notifications for certificates they created or are reviewing
+      filterByInvolvement: isEngineer,
     })
 
     return NextResponse.json({ count })

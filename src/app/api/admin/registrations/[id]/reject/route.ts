@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth, canAccessAdmin } from '@/lib/auth'
+import { auth, isMasterAdmin } from '@/lib/auth'
 import { notifyCustomerOnRegistrationRejected } from '@/lib/services/notifications'
 
-// POST /api/admin/registrations/[id]/reject - Reject customer registration
+// POST /api/admin/registrations/[id]/reject - Reject customer registration (Master Admin only)
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
-    if (!canAccessAdmin(session?.user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Master Admin only for registration management
+    if (!isMasterAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden - Master Admin access required' }, { status: 403 })
     }
 
     const { id } = await params

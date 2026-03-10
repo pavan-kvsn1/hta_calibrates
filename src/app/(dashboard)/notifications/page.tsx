@@ -1,11 +1,9 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { Header } from '@/components/layout/Header'
 import { NotificationItem } from '@/components/notifications/NotificationItem'
 import { Button } from '@/components/ui/button'
-import { Bell, CheckCheck, Loader2, ChevronLeft } from 'lucide-react'
+import { Bell, CheckCheck, Loader2 } from 'lucide-react'
 
 interface Notification {
   id: string
@@ -28,7 +26,6 @@ interface NotificationsResponse {
 }
 
 export default function NotificationsPage() {
-  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [total, setTotal] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
@@ -133,21 +130,10 @@ export default function NotificationsPage() {
   const hasMore = notifications.length < total
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header title="Notifications" showAutoSave={false} />
-
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Button */}
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-6"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back
-        </button>
-
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+    <div className="h-full overflow-auto">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-100 rounded-lg">
               <Bell className="h-6 w-6 text-blue-600" />
@@ -248,7 +234,7 @@ export default function NotificationsPage() {
             )}
           </div>
         )}
-      </main>
+    </div>
     </div>
   )
 }

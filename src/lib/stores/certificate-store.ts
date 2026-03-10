@@ -90,8 +90,11 @@ export interface SelectedMasterInstrument {
 export interface CertificateFormData {
   // Meta
   certificateNumber: string
-  status: 'DRAFT' | 'PENDING_HOD_REVIEW' | 'REVISION_REQUIRED' | 'PENDING_CUSTOMER_APPROVAL' | 'CUSTOMER_REVISION_REQUIRED' | 'APPROVED' | 'REJECTED'
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'PENDING_HOD_REVIEW' | 'REVISION_REQUIRED' | 'PENDING_CUSTOMER_APPROVAL' | 'CUSTOMER_REVISION_REQUIRED' | 'PENDING_ADMIN_AUTHORIZATION' | 'AUTHORIZED' | 'APPROVED' | 'REJECTED'
   lastSaved: Date | null
+
+  // Reviewer assignment (peer review model)
+  reviewerId: string | null
 
   // Section 1: Summary
   calibratedAt: 'LAB' | 'SITE'
@@ -134,6 +137,9 @@ export interface CertificateFormData {
 
   // Engineer notes (for responding to HoD feedback)
   engineerNotes: string
+
+  // Section-specific responses to reviewer feedback (stored locally until submission)
+  sectionResponses: Record<string, string>
 }
 
 interface CertificateStore {
@@ -169,6 +175,8 @@ interface CertificateStore {
   setCertificateId: (id: string | null) => void
   saveDraft: () => Promise<{ success: boolean; error?: string }>
   setEngineerNotes: (notes: string) => void
+  setSectionResponse: (sectionId: string, response: string) => void
+  clearSectionResponses: () => void
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 9)
@@ -335,6 +343,9 @@ const initialFormData: CertificateFormData = {
   status: 'DRAFT',
   lastSaved: null,
 
+  // Reviewer assignment
+  reviewerId: null,
+
   // Section 1: Summary
   calibratedAt: 'LAB',
   srfNumber: '',
@@ -376,6 +387,9 @@ const initialFormData: CertificateFormData = {
 
   // Engineer notes (for responding to HoD feedback)
   engineerNotes: '',
+
+  // Section-specific responses to reviewer feedback
+  sectionResponses: {},
 }
 
 export const useCertificateStore = create<CertificateStore>((set, get) => ({
@@ -731,5 +745,23 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
   setEngineerNotes: (notes) => set((state) => ({
     formData: { ...state.formData, engineerNotes: notes },
     isDirty: true,
+  })),
+
+  setSectionResponse: (sectionId, response) => set((state) => ({
+    formData: {
+      ...state.formData,
+      sectionResponses: {
+        ...state.formData.sectionResponses,
+        [sectionId]: response,
+      },
+    },
+    isDirty: true,
+  })),
+
+  clearSectionResponses: () => set((state) => ({
+    formData: {
+      ...state.formData,
+      sectionResponses: {},
+    },
   })),
 }))

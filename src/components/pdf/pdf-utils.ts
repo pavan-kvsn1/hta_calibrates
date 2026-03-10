@@ -238,6 +238,29 @@ export const CUSTOMER_ACKNOWLEDGMENT_TEXT =
   'I, the undersigned, acknowledge receipt and acceptance of this calibration certificate and its reported results.'
 
 /**
+ * Calibration status options mapping (key -> label and type)
+ */
+export const CALIBRATION_STATUS_OPTIONS: Record<string, { label: string; type: 'success' | 'error' | 'warning' | 'info' }> = {
+  'satisfied': { label: 'Satisfied - Results within accuracy limits', type: 'success' },
+  'dissatisfied': { label: 'Dissatisfied - Results NOT within accuracy limits', type: 'error' },
+  'not_working': { label: 'Not Working - Device non-functional', type: 'error' },
+  'out_of_accuracy': { label: '(*) Indicated calibration points are out of accuracy', type: 'warning' },
+  'physical_damage': { label: 'Not working due to physical damage', type: 'error' },
+  'circuitry_problem': { label: 'Not working due to internal circuitry problem', type: 'error' },
+  // Legacy status values
+  'SATISFACTORY': { label: 'Satisfactory', type: 'success' },
+  'UNSATISFACTORY': { label: 'Unsatisfactory', type: 'error' },
+  'LIMITED': { label: 'Limited Use', type: 'warning' },
+}
+
+/**
+ * Get calibration status label and type from key
+ */
+export function getCalibrationStatus(key: string): { label: string; type: 'success' | 'error' | 'warning' | 'info' } {
+  return CALIBRATION_STATUS_OPTIONS[key] || { label: key.replace(/_/g, ' '), type: 'info' }
+}
+
+/**
  * Conclusion statements mapping (key -> full text)
  */
 export const CONCLUSION_STATEMENTS: Record<string, string> = {

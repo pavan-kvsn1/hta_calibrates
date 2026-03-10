@@ -656,7 +656,11 @@ function ParameterCard({
   )
 }
 
-export function UUCSection() {
+interface UUCSectionProps {
+  feedbackSlot?: React.ReactNode
+}
+
+export function UUCSection({ feedbackSlot }: UUCSectionProps = {}) {
   const { formData, setFormField, setParameter, addParameter, removeParameter, setParameterMasterInstrument } = useCertificateStore()
 
   return (
@@ -664,6 +668,7 @@ export function UUCSection() {
       id="uuc-details"
       sectionNumber="Section 02"
       title="Unit Under Calibration (UUC) Details"
+      feedbackSlot={feedbackSlot}
     >
       <div className="space-y-6">
         {/* UUC Basic Info Grid */}

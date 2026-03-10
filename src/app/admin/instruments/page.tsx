@@ -197,11 +197,14 @@ export default function InstrumentsPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Master Instruments</h1>
-          <p className="text-gray-600 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">Master Instruments</h1>
+          <p className="text-slate-600 mt-1">
             Manage calibration instruments and their status
           </p>
         </div>
@@ -225,15 +228,15 @@ export default function InstrumentsPage() {
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-6">
-          <Card className="cursor-pointer hover:border-gray-400" onClick={() => setStatusFilter('ALL')}>
+          <Card className="cursor-pointer hover:border-slate-400" onClick={() => setStatusFilter('ALL')}>
             <CardContent className="pt-4 pb-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gray-100 rounded-lg">
-                  <Gauge className="h-5 w-5 text-gray-600" />
+                <div className="p-2 bg-slate-100 rounded-lg">
+                  <Gauge className="h-5 w-5 text-slate-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                  <p className="text-sm text-gray-500">Total</p>
+                  <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+                  <p className="text-sm text-slate-500">Total</p>
                 </div>
               </div>
             </CardContent>
@@ -247,7 +250,7 @@ export default function InstrumentsPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-green-600">{stats.valid}</p>
-                  <p className="text-sm text-gray-500">Valid</p>
+                  <p className="text-sm text-slate-500">Valid</p>
                 </div>
               </div>
             </CardContent>
@@ -261,7 +264,7 @@ export default function InstrumentsPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-amber-600">{stats.expiring}</p>
-                  <p className="text-sm text-gray-500">Expiring</p>
+                  <p className="text-sm text-slate-500">Expiring</p>
                 </div>
               </div>
             </CardContent>
@@ -275,7 +278,7 @@ export default function InstrumentsPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-red-600">{stats.expired}</p>
-                  <p className="text-sm text-gray-500">Expired</p>
+                  <p className="text-sm text-slate-500">Expired</p>
                 </div>
               </div>
             </CardContent>
@@ -289,7 +292,7 @@ export default function InstrumentsPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-blue-600">{stats.underRecal}</p>
-                  <p className="text-sm text-gray-500">Under Recal</p>
+                  <p className="text-sm text-slate-500">Under Recal</p>
                 </div>
               </div>
             </CardContent>
@@ -303,7 +306,7 @@ export default function InstrumentsPage() {
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex-1 min-w-[200px]">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Search by description, asset number, make..."
                   value={searchInput}
@@ -346,17 +349,17 @@ export default function InstrumentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Gauge className="h-5 w-5 text-gray-400" />
+            <Gauge className="h-5 w-5 text-slate-400" />
             Instruments
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
             </div>
           ) : instruments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-slate-500">
               No instruments found
             </div>
           ) : (
@@ -376,14 +379,14 @@ export default function InstrumentsPage() {
                   {instruments.map((inst) => (
                     <TableRow
                       key={inst.id}
-                      className="cursor-pointer hover:bg-gray-50"
+                      className="cursor-pointer hover:bg-slate-50"
                       onClick={() => (window.location.href = `/admin/instruments/${inst.id}`)}
                     >
-                      <TableCell className="text-sm text-gray-600">
+                      <TableCell className="text-sm text-slate-600">
                         {inst.category}
                       </TableCell>
                       <TableCell className="font-medium">{inst.description}</TableCell>
-                      <TableCell className="text-sm text-gray-600">
+                      <TableCell className="text-sm text-slate-600">
                         {inst.make}
                         {inst.model && ` / ${inst.model}`}
                       </TableCell>
@@ -402,7 +405,7 @@ export default function InstrumentsPage() {
               {/* Pagination */}
               {pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between pt-4 border-t mt-4">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-slate-500">
                     Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
                     {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
                     {pagination.total} instruments
@@ -431,6 +434,8 @@ export default function InstrumentsPage() {
           )}
         </CardContent>
       </Card>
+        </div>
+      </div>
     </div>
   )
 }

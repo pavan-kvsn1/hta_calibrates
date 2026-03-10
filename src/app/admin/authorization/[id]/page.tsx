@@ -255,8 +255,8 @@ export default function AuthorizationDetailPage() {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-          <p className="text-gray-500">Loading certificate...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          <p className="text-slate-500">Loading certificate...</p>
         </div>
       </div>
     )
@@ -269,8 +269,8 @@ export default function AuthorizationDetailPage() {
           <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="h-6 w-6 text-red-600" />
           </div>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Unable to Load Certificate</h3>
-          <p className="text-sm text-gray-500 mb-4">{error}</p>
+          <h3 className="text-lg font-medium text-slate-900 mb-2">Unable to Load Certificate</h3>
+          <p className="text-sm text-slate-500 mb-4">{error}</p>
           <div className="flex gap-2 justify-center">
             <Button onClick={() => router.push('/admin/authorization')} variant="outline" size="sm">
               <ChevronLeft className="h-4 w-4 mr-1" />
@@ -289,7 +289,7 @@ export default function AuthorizationDetailPage() {
   const isAuthorized = certificate?.status === 'AUTHORIZED'
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+    <div className="h-screen bg-slate-50 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-white border-b px-4 py-2.5 z-50 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -301,8 +301,8 @@ export default function AuthorizationDetailPage() {
               height={25}
               className="object-contain"
             />
-            <div className="h-5 w-px bg-gray-300" />
-            <span className="text-sm font-bold text-gray-700">
+            <div className="h-5 w-px bg-slate-300" />
+            <span className="text-sm font-bold text-slate-700">
               Certificate Authorization: {certificate?.certificateNumber}
             </span>
           </div>
@@ -312,30 +312,30 @@ export default function AuthorizationDetailPage() {
       {/* Certificate Info Banner */}
       <div className="bg-white border-b px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <Link href="/admin/authorization" className="text-sm font-semibold hover:text-gray-700 flex items-center gap-1">
+          <Link href="/admin/authorization" className="text-sm font-semibold hover:text-slate-700 flex items-center gap-1">
             <ChevronLeft className="h-4 w-4" />
             Back to Authorization List
           </Link>
 
           <div className="flex flex-wrap items-center gap-4 text-sm">
             <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-gray-400" />
+              <Building2 className="h-4 w-4 text-slate-400" />
               <span className="font-medium">{certificate?.customerName || 'N/A'}</span>
             </div>
-            <div className="h-4 w-px bg-gray-300" />
+            <div className="h-4 w-px bg-slate-300" />
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">Instrument:</span>
+              <span className="text-slate-500">Instrument:</span>
               <span className="font-medium">{certificate?.uucDescription || 'N/A'}</span>
             </div>
             {certificate?.uucMake && (
               <>
-                <div className="h-4 w-px bg-gray-300" />
-                <span className="text-gray-500">{certificate.uucMake} {certificate.uucModel}</span>
+                <div className="h-4 w-px bg-slate-300" />
+                <span className="text-slate-500">{certificate.uucMake} {certificate.uucModel}</span>
               </>
             )}
-            <div className="h-4 w-px bg-gray-300" />
+            <div className="h-4 w-px bg-slate-300" />
             <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-gray-400" />
+              <Calendar className="h-4 w-4 text-slate-400" />
               <span>Calibration: {formatDate(certificate?.dateOfCalibration || null)}</span>
             </div>
           </div>
@@ -348,9 +348,9 @@ export default function AuthorizationDetailPage() {
           {/* PDF Preview Panel */}
           <div className="lg:col-span-2 bg-white rounded-lg border shadow-sm overflow-hidden flex flex-col min-h-0">
             {/* Header with controls */}
-            <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between flex-shrink-0">
-              <h2 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
-                <FileText className="h-4 w-4 text-gray-400" />
+            <div className="px-4 py-2 border-b bg-slate-50 flex items-center justify-between flex-shrink-0">
+              <h2 className="font-semibold text-slate-900 text-sm flex items-center gap-2">
+                <FileText className="h-4 w-4 text-slate-400" />
                 Certificate Preview
               </h2>
               <div className="flex items-center gap-2">
@@ -373,8 +373,8 @@ export default function AuthorizationDetailPage() {
 
             {/* PDF iframe */}
             {isGeneratingPdf || (!pdfUrl && formData) ? (
-              <div className="flex-1 bg-gray-100 flex items-center justify-center">
-                <div className="flex flex-col items-center gap-3 text-gray-500">
+              <div className="flex-1 bg-slate-100 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3 text-slate-500">
                   <Loader2 className="h-8 w-8 animate-spin" />
                   <p>Generating PDF preview...</p>
                 </div>
@@ -386,10 +386,10 @@ export default function AuthorizationDetailPage() {
                 title="Certificate Preview"
               />
             ) : (
-              <div className="flex-1 bg-gray-100 flex items-center justify-center">
+              <div className="flex-1 bg-slate-100 flex items-center justify-center">
                 <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
-                  <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No preview available</p>
+                  <FileText className="h-16 w-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-500">No preview available</p>
                 </div>
               </div>
             )}
@@ -399,12 +399,12 @@ export default function AuthorizationDetailPage() {
           <div className="flex flex-col gap-4 overflow-hidden min-h-0">
             {/* Chat History Panel */}
             <div className="bg-white rounded-lg border shadow-sm flex flex-col flex-1 overflow-hidden min-h-0">
-              <div className="px-4 py-3 border-b bg-gray-50">
+              <div className="px-4 py-3 border-b bg-slate-50">
                 <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-gray-500" />
-                  <h2 className="font-semibold text-gray-900 text-[13px]">Conversation History</h2>
+                  <MessageSquare className="h-4 w-4 text-slate-500" />
+                  <h2 className="font-semibold text-slate-900 text-[13px]">Conversation History</h2>
                   {revisionHistory.length > 0 && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600 font-medium">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium">
                       {revisionHistory.length}
                     </span>
                   )}
@@ -412,9 +412,9 @@ export default function AuthorizationDetailPage() {
               </div>
 
               {/* Chat Messages */}
-              <div className="flex-1 p-3 overflow-y-auto bg-gray-50 flex flex-col-reverse">
+              <div className="flex-1 p-3 overflow-y-auto bg-slate-50 flex flex-col-reverse">
                 {revisionHistory.length === 0 ? (
-                  <div className="text-[12px] text-gray-500 text-center py-4">
+                  <div className="text-[12px] text-slate-500 text-center py-4">
                     <p>No messages in this conversation.</p>
                   </div>
                 ) : (
@@ -455,8 +455,8 @@ export default function AuthorizationDetailPage() {
                                 Admin {item.userName && `• ${item.userName}`}
                               </p>
                             )}
-                            <p className="text-gray-700 whitespace-pre-wrap">{item.message}</p>
-                            <p className={`text-[9px] mt-1 ${isAdminMessage ? 'text-green-400 text-right' : 'text-gray-400'}`}>
+                            <p className="text-slate-700 whitespace-pre-wrap">{item.message}</p>
+                            <p className={`text-[9px] mt-1 ${isAdminMessage ? 'text-green-400 text-right' : 'text-slate-400'}`}>
                               {new Date(item.createdAt).toLocaleString('en-IN', {
                                 day: 'numeric',
                                 month: 'short',
@@ -474,13 +474,13 @@ export default function AuthorizationDetailPage() {
 
               {/* Message Input */}
               {!isAuthorized && (
-                <div className="p-2 border-t bg-gray-50">
+                <div className="p-2 border-t bg-slate-50">
                   <div className="flex gap-2 items-end">
                     <textarea
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       placeholder="Type a message..."
-                      className="flex-1 p-2 border border-gray-200 rounded-lg text-xs resize-none focus:ring-2 focus:ring-green-500 focus:border-green-500 max-h-20 bg-white"
+                      className="flex-1 p-2 border border-slate-200 rounded-lg text-xs resize-none focus:ring-2 focus:ring-green-500 focus:border-green-500 max-h-20 bg-white"
                       rows={1}
                       onInput={(e) => {
                         const target = e.target as HTMLTextAreaElement
@@ -521,12 +521,12 @@ export default function AuthorizationDetailPage() {
               </div>
               <div className="p-4">
                 {isAuthorized ? (
-                  <p className="text-[12px] text-gray-600 text-center">
+                  <p className="text-[12px] text-slate-600 text-center">
                     This certificate has been authorized and is now complete.
                   </p>
                 ) : (
                   <>
-                    <p className="text-[11px] text-gray-500 mb-3 text-center">
+                    <p className="text-[11px] text-slate-500 mb-3 text-center">
                       By authorizing, you confirm the certificate is complete and approved by the customer.
                     </p>
                     <Button
@@ -541,10 +541,10 @@ export default function AuthorizationDetailPage() {
               </div>
 
               {/* Certificate Info */}
-              <div className="px-4 py-3 border-t bg-gray-50">
-                <div className="text-xs text-gray-600 space-y-1">
-                  <p><span className="text-gray-400">Revision:</span> {certificate?.currentRevision}</p>
-                  <p><span className="text-gray-400">Created by:</span> {certificate?.createdBy?.name || '-'}</p>
+              <div className="px-4 py-3 border-t bg-slate-50">
+                <div className="text-xs text-slate-600 space-y-1">
+                  <p><span className="text-slate-400">Revision:</span> {certificate?.currentRevision}</p>
+                  <p><span className="text-slate-400">Created by:</span> {certificate?.createdBy?.name || '-'}</p>
                 </div>
               </div>
             </div>

@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth, canAccessAdmin } from '@/lib/auth'
+import { auth, isMasterAdmin } from '@/lib/auth'
 
-// GET /api/admin/customers/[id] - Get customer account details
+// GET /api/admin/customers/[id] - Get customer account details (Master Admin only)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
-    if (!canAccessAdmin(session?.user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!isMasterAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden - Master Admin access required' }, { status: 403 })
     }
 
     const { id } = await params
@@ -21,23 +21,38 @@ export async function GET(
         assignedHod: {
           select: { id: true, name: true, email: true },
         },
+        primaryPoc: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            isActive: true,
+            activatedAt: true,
+            createdAt: true,
+          },
+        },
         users: {
           select: {
             id: true,
             email: true,
             name: true,
+            isPoc: true,
             isActive: true,
+            activatedAt: true,
             createdAt: true,
           },
-          orderBy: { name: 'asc' },
+          orderBy: [{ isPoc: 'desc' }, { name: 'asc' }], // POC first, then by name
         },
-        registrations: {
+        requests: {
           where: { status: 'PENDING' },
           select: {
             id: true,
-            email: true,
-            name: true,
+            type: true,
+            data: true,
             createdAt: true,
+            requestedBy: {
+              select: { id: true, name: true, email: true },
+            },
           },
           orderBy: { createdAt: 'desc' },
         },
@@ -76,15 +91,25 @@ export async function GET(
         contactPhone: account.contactPhone,
         isActive: account.isActive,
         assignedHod: account.assignedHod,
+        primaryPocId: account.primaryPocId,
+        primaryPoc: account.primaryPoc ? {
+          ...account.primaryPoc,
+          activatedAt: account.primaryPoc.activatedAt?.toISOString() || null,
+          createdAt: account.primaryPoc.createdAt.toISOString(),
+        } : null,
         createdAt: account.createdAt.toISOString(),
         updatedAt: account.updatedAt.toISOString(),
       },
       users: account.users.map((u) => ({
         ...u,
+        activatedAt: u.activatedAt?.toISOString() || null,
         createdAt: u.createdAt.toISOString(),
       })),
-      pendingRegistrations: account.registrations.map((r) => ({
-        ...r,
+      pendingRequests: account.requests.map((r) => ({
+        id: r.id,
+        type: r.type,
+        data: JSON.parse(r.data),
+        requestedBy: r.requestedBy,
         createdAt: r.createdAt.toISOString(),
       })),
       recentCertificates: recentCertificates.map((c) => ({
@@ -102,15 +127,15 @@ export async function GET(
   }
 }
 
-// PUT /api/admin/customers/[id] - Update customer account
+// PUT /api/admin/customers/[id] - Update customer account (Master Admin only)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
-    if (!canAccessAdmin(session?.user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!isMasterAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden - Master Admin access required' }, { status: 403 })
     }
 
     const { id } = await params

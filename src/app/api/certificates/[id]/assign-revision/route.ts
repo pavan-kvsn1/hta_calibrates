@@ -19,7 +19,21 @@ export async function POST(
     }
 
     const { id } = await params
-    const { customerFeedback, additionalNotes, edits } = await request.json()
+    const { customerFeedback, additionalNotes, edits, sectionFeedbacks, generalNotes } = await request.json() as {
+      customerFeedback?: string
+      additionalNotes?: string
+      edits?: Array<{
+        field: 'dateOfCalibration' | 'calibrationDueDate'
+        fieldLabel: string
+        originalValue: string
+        newValue: string
+        reason: string
+        autoCalculated?: boolean
+      }>
+      // New: section-specific customer feedback
+      sectionFeedbacks?: Array<{ section: string; comment: string }>
+      generalNotes?: string
+    }
 
     // Pending edit type
     interface PendingEdit {
@@ -98,16 +112,56 @@ export async function POST(
         data: certificateUpdateData,
       })
 
-      // 2. Create feedback record
-      await tx.reviewFeedback.create({
-        data: {
-          certificateId: id,
-          revisionNumber: certificate.currentRevision,
-          feedbackType: 'CUSTOMER_REVISION_FORWARDED',
-          comment: feedbackComment,
-          userId: session.user.id,
-        },
-      })
+      // 2. Create feedback records - separate entry for each section
+      // If we have structured section feedbacks, create individual entries
+      if (sectionFeedbacks && sectionFeedbacks.length > 0) {
+        for (const sf of sectionFeedbacks) {
+          if (sf.comment?.trim()) {
+            await tx.reviewFeedback.create({
+              data: {
+                certificateId: id,
+                revisionNumber: certificate.currentRevision,
+                feedbackType: 'CUSTOMER_REVISION_FORWARDED',
+                comment: sf.comment.trim(),
+                targetSection: sf.section,
+                userId: session.user.id,
+              },
+            })
+          }
+        }
+      }
+
+      // Create general notes entry (either from generalNotes or legacy customerFeedback)
+      const generalComment = generalNotes?.trim() || (
+        // Fallback to legacy format if no structured data
+        !sectionFeedbacks?.length ? feedbackComment : null
+      )
+      if (generalComment) {
+        await tx.reviewFeedback.create({
+          data: {
+            certificateId: id,
+            revisionNumber: certificate.currentRevision,
+            feedbackType: 'CUSTOMER_REVISION_FORWARDED',
+            comment: generalComment,
+            targetSection: null, // General/no section
+            userId: session.user.id,
+          },
+        })
+      }
+
+      // Create HoD additional notes as separate entry if provided
+      if (additionalNotes?.trim() && sectionFeedbacks?.length) {
+        await tx.reviewFeedback.create({
+          data: {
+            certificateId: id,
+            revisionNumber: certificate.currentRevision,
+            feedbackType: 'REVISION_REQUESTED', // HoD's own note, not customer
+            comment: additionalNotes.trim(),
+            targetSection: null,
+            userId: session.user.id,
+          },
+        })
+      }
 
       // 3. Log event
       const lastEvent = await tx.certificateEvent.findFirst({
@@ -124,6 +178,9 @@ export async function POST(
           eventData: JSON.stringify({
             customerFeedback,
             additionalNotes: additionalNotes || null,
+            // Include structured section feedbacks
+            sectionFeedbacks: sectionFeedbacks || null,
+            generalNotes: generalNotes || null,
             edits: pendingEdits.length > 0 ? pendingEdits : null,
             forwardedAt: now.toISOString(),
             forwardedBy: session.user.name,

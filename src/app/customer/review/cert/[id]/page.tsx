@@ -1,75 +1,19 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { CustomerReviewClient } from '@/components/customer/CustomerReviewClient'
+import { CustomerCertReviewClient } from './CustomerCertReviewClient'
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
-interface RevisionHistoryItem {
-  id: string
-  type: 'customer_request' | 'hod_response' | 'sent_to_customer'
-  message: string
-  createdAt: string
-  userName?: string
-  companyName?: string
-}
-
-async function getRevisionHistory(certificateId: string): Promise<RevisionHistoryItem[]> {
-  const events = await prisma.certificateEvent.findMany({
-    where: {
-      certificateId,
-      eventType: {
-        in: [
-          'SENT_TO_CUSTOMER',
-          'CUSTOMER_REVISION_REQUESTED',
-          'HOD_REPLIED_TO_CUSTOMER',
-        ],
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: {
-        select: { name: true },
-      },
-    },
-  })
-
-  return events.map(event => {
-    let eventData: Record<string, string> = {}
-    try {
-      eventData = JSON.parse(event.eventData)
-    } catch {
-      eventData = {}
-    }
-
-    let type: RevisionHistoryItem['type'] = 'sent_to_customer'
-    let message = ''
-
-    if (event.eventType === 'CUSTOMER_REVISION_REQUESTED') {
-      type = 'customer_request'
-      message = eventData.notes || 'Revision requested'
-    } else if (event.eventType === 'HOD_REPLIED_TO_CUSTOMER') {
-      type = 'hod_response'
-      message = eventData.response || 'HoD responded to your feedback'
-    } else if (event.eventType === 'SENT_TO_CUSTOMER') {
-      type = 'sent_to_customer'
-      // If this is a resend with response to feedback, show that
-      message = eventData.responseToFeedback || eventData.message || 'Certificate sent for review'
-    }
-
-    return {
-      id: event.id,
-      type,
-      message,
-      createdAt: event.createdAt.toISOString(),
-      userName: event.eventType === 'CUSTOMER_REVISION_REQUESTED'
-        ? eventData.customerName
-        : event.user?.name,
-      companyName: eventData.customerCompany,
-    }
-  })
+// Status badge configuration
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  PENDING_CUSTOMER_APPROVAL: { label: 'Pending Your Approval', className: 'bg-purple-50 text-purple-600 border-purple-100' },
+  CUSTOMER_REVISION_REQUIRED: { label: 'Revision in Progress', className: 'bg-orange-50 text-orange-600 border-orange-100' },
+  REVISION_REQUIRED: { label: 'Under Revision', className: 'bg-amber-50 text-amber-600 border-amber-100' },
+  APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-600 border-green-100' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-600 border-green-100' },
 }
 
 export default async function CustomerCertReviewPage({ params }: Props) {
@@ -83,7 +27,7 @@ export default async function CustomerCertReviewPage({ params }: Props) {
 
   const customerEmail = session.user.email!
 
-  // Get customer info
+  // Get customer info with account
   const customer = await prisma.customerUser.findUnique({
     where: { email: customerEmail },
     include: { customerAccount: true },
@@ -93,9 +37,41 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     redirect('/customer/login')
   }
 
-  // Get certificate
+  // Get certificate with all related data
   const certificate = await prisma.certificate.findUnique({
     where: { id },
+    include: {
+      createdBy: {
+        select: { id: true, name: true, email: true },
+      },
+      reviewer: {
+        select: { id: true, name: true, email: true },
+      },
+      parameters: {
+        include: {
+          results: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+      masterInstruments: true,
+      signatures: {
+        select: {
+          id: true,
+          signerType: true,
+          signerName: true,
+          signedAt: true,
+        },
+      },
+      chatThreads: {
+        where: { threadType: 'REVIEWER_CUSTOMER' },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      },
+    },
   })
 
   if (!certificate) {
@@ -106,7 +82,6 @@ export default async function CustomerCertReviewPage({ params }: Props) {
   const customerCompanyName = customer.customerAccount?.companyName || customer.companyName || ''
 
   // Verify access: certificate's customerName must match customer's companyName
-  // Allow access for various customer-relevant statuses
   const allowedStatuses = [
     'PENDING_CUSTOMER_APPROVAL',
     'CUSTOMER_REVISION_REQUIRED',
@@ -116,6 +91,7 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     'PENDING_ADMIN_APPROVAL',
     'AUTHORIZED',
   ]
+
   const hasAccess =
     allowedStatuses.includes(certificate.status) &&
     !!customerCompanyName &&
@@ -142,18 +118,18 @@ export default async function CustomerCertReviewPage({ params }: Props) {
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h1>
           <p className="text-gray-600 mb-6">
-            You don't have permission to review this certificate.
+            You don&apos;t have permission to review this certificate.
           </p>
           <div className="space-y-3">
             <a
               href="/customer/dashboard"
-              className="block w-full py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              className="block w-full py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               Go to Dashboard
             </a>
             <p className="text-sm text-gray-500">
               Need help?{' '}
-              <a href="mailto:calibration@htainstruments.com" className="text-green-600 hover:underline">
+              <a href="mailto:calibration@htainstruments.com" className="text-blue-600 hover:underline">
                 Contact HTA
               </a>
             </p>
@@ -163,21 +139,92 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     )
   }
 
-  // Transform data for client component
+  // Parse JSON fields
+  const conclusionStatements = certificate.selectedConclusionStatements
+    ? JSON.parse(certificate.selectedConclusionStatements)
+    : []
+
+  const calibrationStatus = certificate.calibrationStatus
+    ? JSON.parse(certificate.calibrationStatus)
+    : []
+
+  // Get chat thread
+  const chatThread = certificate.chatThreads[0] || null
+
+  // Get status config
+  const statusConfig = STATUS_CONFIG[certificate.status] || { label: certificate.status, className: 'bg-gray-50 text-gray-600 border-gray-100' }
+
+  // Serialize certificate data
   const certificateData = {
     id: certificate.id,
     certificateNumber: certificate.certificateNumber,
     status: certificate.status,
     customerName: certificate.customerName,
     customerAddress: certificate.customerAddress,
+    calibratedAt: certificate.calibratedAt,
+    srfNumber: certificate.srfNumber,
+    srfDate: certificate.srfDate?.toISOString() || null,
+    dateOfCalibration: certificate.dateOfCalibration?.toISOString() || null,
+    calibrationDueDate: certificate.calibrationDueDate?.toISOString() || null,
+    dueDateNotApplicable: certificate.dueDateNotApplicable,
     uucDescription: certificate.uucDescription,
     uucMake: certificate.uucMake,
     uucModel: certificate.uucModel,
     uucSerialNumber: certificate.uucSerialNumber,
-    dateOfCalibration: certificate.dateOfCalibration?.toISOString() || null,
-    calibrationDueDate: certificate.calibrationDueDate?.toISOString() || null,
+    uucLocationName: certificate.uucLocationName,
+    ambientTemperature: certificate.ambientTemperature,
+    relativeHumidity: certificate.relativeHumidity,
+    calibrationStatus,
+    conclusionStatements,
+    additionalConclusionStatement: certificate.additionalConclusionStatement,
     currentRevision: certificate.currentRevision,
+    parameters: certificate.parameters.map((p) => ({
+      id: p.id,
+      parameterName: p.parameterName,
+      parameterUnit: p.parameterUnit,
+      rangeMin: p.rangeMin,
+      rangeMax: p.rangeMax,
+      rangeUnit: p.rangeUnit,
+      operatingMin: p.operatingMin,
+      operatingMax: p.operatingMax,
+      operatingUnit: p.operatingUnit,
+      leastCountValue: p.leastCountValue,
+      leastCountUnit: p.leastCountUnit,
+      accuracyValue: p.accuracyValue,
+      accuracyUnit: p.accuracyUnit,
+      accuracyType: p.accuracyType,
+      errorFormula: p.errorFormula,
+      showAfterAdjustment: p.showAfterAdjustment,
+      requiresBinning: p.requiresBinning,
+      bins: p.bins,
+      sopReference: p.sopReference,
+      results: p.results.map((r) => ({
+        id: r.id,
+        pointNumber: r.pointNumber,
+        standardReading: r.standardReading,
+        beforeAdjustment: r.beforeAdjustment,
+        afterAdjustment: r.afterAdjustment,
+        errorObserved: r.errorObserved,
+        isOutOfLimit: r.isOutOfLimit,
+      })),
+    })),
+    masterInstruments: certificate.masterInstruments.map((mi) => ({
+      id: mi.id,
+      description: mi.description,
+      make: mi.make,
+      model: mi.model,
+      serialNumber: mi.serialNumber,
+      calibrationDueDate: mi.calibrationDueDate,
+    })),
   }
+
+  // Serialize signatures
+  const signatures = certificate.signatures.map((s) => ({
+    id: s.id,
+    signerType: s.signerType,
+    signerName: s.signerName,
+    signedAt: s.signedAt?.toISOString() || null,
+  }))
 
   const customerData = {
     id: customer.id,
@@ -186,18 +233,23 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     companyName: customerCompanyName,
   }
 
-  // Fetch revision history for this certificate
-  const revisionHistory = await getRevisionHistory(certificate.id)
+  const headerData = {
+    certificateNumber: certificate.certificateNumber,
+    status: certificate.status,
+    statusLabel: statusConfig.label,
+    statusClassName: statusConfig.className,
+    customerName: certificate.customerName || '-',
+    currentRevision: certificate.currentRevision,
+    dateOfCalibration: certificate.dateOfCalibration?.toISOString() || null,
+  }
 
-  // For cert-based review, we use the certificate ID as a pseudo-token
-  // The API endpoints will need to handle this
   return (
-    <CustomerReviewClient
-      token={`cert:${certificate.id}`}
+    <CustomerCertReviewClient
       certificate={certificateData}
       customer={customerData}
-      expiresAt={null}
-      revisionHistory={revisionHistory}
+      signatures={signatures}
+      chatThreadId={chatThread?.id || null}
+      headerData={headerData}
     />
   )
 }

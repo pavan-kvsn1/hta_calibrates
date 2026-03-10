@@ -25,6 +25,14 @@ export async function GET() {
     const companyName = customer.customerAccount?.companyName || customer.companyName || ''
     const companyNameLower = companyName.toLowerCase()
 
+    // Check if user is the Primary POC
+    const isPrimaryPoc = customer.customerAccount?.primaryPocId === customer.id
+
+    // Count total users for the account (for Users tab badge)
+    const userCount = customer.customerAccount ? await prisma.customerUser.count({
+      where: { customerAccountId: customer.customerAccount.id }
+    }) : 0
+
     // Fetch all data in parallel
     const [
       pendingTokens,
@@ -325,6 +333,9 @@ export async function GET() {
       completed,
       authorized,
       traceability,
+      isPrimaryPoc,
+      companyName,
+      userCount,
     })
   } catch (error) {
     console.error('Error fetching customer dashboard data:', error)

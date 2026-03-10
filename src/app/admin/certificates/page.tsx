@@ -157,7 +157,7 @@ function AdminCertificatesContent() {
     switch (status) {
       case 'DRAFT':
         return (
-          <Badge className="bg-gray-100 text-gray-800">
+          <Badge className="bg-slate-100 text-slate-800">
             <Edit className="h-3 w-3 mr-1" />
             Draft
           </Badge>
@@ -215,226 +215,231 @@ function AdminCertificatesContent() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">All Certificates</h1>
-          <p className="text-gray-600 mt-1">
-            View and manage all certificates in the system
-          </p>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
-          <Card className="cursor-pointer hover:border-gray-400" onClick={() => setStatusFilter('ALL')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                <p className="text-xs text-gray-500">Total</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-gray-400" onClick={() => setStatusFilter('DRAFT')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-600">{stats.draft}</p>
-                <p className="text-xs text-gray-500">Draft</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-yellow-400" onClick={() => setStatusFilter('PENDING_HOD_REVIEW')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-yellow-600">{stats.pendingHodReview}</p>
-                <p className="text-xs text-gray-500">Pending HoD</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-orange-400" onClick={() => setStatusFilter('REVISION_REQUIRED')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-orange-600">{stats.revisionRequired}</p>
-                <p className="text-xs text-gray-500">Revision</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-blue-400" onClick={() => setStatusFilter('PENDING_CUSTOMER_APPROVAL')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">{stats.pendingCustomerApproval}</p>
-                <p className="text-xs text-gray-500">With Customer</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-purple-400" onClick={() => setStatusFilter('CUSTOMER_REVISION_REQUIRED')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-purple-600">{stats.customerRevisionRequired}</p>
-                <p className="text-xs text-gray-500">Cust. Revision</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-green-400" onClick={() => setStatusFilter('APPROVED')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-                <p className="text-xs text-gray-500">Approved</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="cursor-pointer hover:border-red-400" onClick={() => setStatusFilter('REJECTED')}>
-            <CardContent className="pt-4 pb-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
-                <p className="text-xs text-gray-500">Rejected</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardContent className="pt-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by certificate number, customer, description..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="pl-10"
-                />
-              </div>
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">All Certificates</h1>
+              <p className="text-slate-600 mt-1">
+                View and manage all certificates in the system
+              </p>
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSearch}>Search</Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Certificates Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-gray-400" />
-            Certificates
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-            </div>
-          ) : certificates.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No certificates found
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Certificate No.</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>UUC Description</TableHead>
-                    <TableHead>Calibration Date</TableHead>
-                    <TableHead>Engineer</TableHead>
-                    <TableHead>Manager (HoD)</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[120px]">Preview</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {certificates.map((cert) => (
-                    <TableRow key={cert.id}>
-                      <TableCell className="font-mono font-medium">
-                        {cert.certificateNumber}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {cert.customerName}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {cert.uucDescription}
-                        {cert.uucMake && ` - ${cert.uucMake}`}
-                        {cert.uucModel && ` ${cert.uucModel}`}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDate(cert.dateOfCalibration)}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {cert.createdBy.name}
-                      </TableCell>
-                      <TableCell className="text-sm text-gray-600">
-                        {cert.assignedHod?.name || '-'}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(cert.status)}</TableCell>
-                      <TableCell>
-                        <Link href={`/hod/review/${cert.id}`}>
-                          <Button variant="outline" size="sm">
-                            Preview
-                          </Button>
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+          {/* Stats Cards */}
+          {stats && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
+              <Card className="cursor-pointer hover:border-slate-400" onClick={() => setStatusFilter('ALL')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+                    <p className="text-xs text-slate-500">Total</p>
+                  </div>
+                </CardContent>
+              </Card>
 
-              {/* Pagination */}
-              {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 border-t mt-4">
-                  <p className="text-sm text-gray-500">
-                    Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-                    {pagination.total} certificates
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fetchCertificates(pagination.page - 1)}
-                      disabled={pagination.page === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fetchCertificates(pagination.page + 1)}
-                      disabled={pagination.page === pagination.totalPages}
-                    >
-                      Next
-                    </Button>
+              <Card className="cursor-pointer hover:border-slate-400" onClick={() => setStatusFilter('DRAFT')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-slate-600">{stats.draft}</p>
+                    <p className="text-xs text-slate-500">Draft</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-yellow-400" onClick={() => setStatusFilter('PENDING_HOD_REVIEW')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-yellow-600">{stats.pendingHodReview}</p>
+                    <p className="text-xs text-slate-500">Pending HoD</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-orange-400" onClick={() => setStatusFilter('REVISION_REQUIRED')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-orange-600">{stats.revisionRequired}</p>
+                    <p className="text-xs text-slate-500">Revision</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-blue-400" onClick={() => setStatusFilter('PENDING_CUSTOMER_APPROVAL')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{stats.pendingCustomerApproval}</p>
+                    <p className="text-xs text-slate-500">With Customer</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-purple-400" onClick={() => setStatusFilter('CUSTOMER_REVISION_REQUIRED')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-purple-600">{stats.customerRevisionRequired}</p>
+                    <p className="text-xs text-slate-500">Cust. Revision</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-green-400" onClick={() => setStatusFilter('APPROVED')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
+                    <p className="text-xs text-slate-500">Approved</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-red-400" onClick={() => setStatusFilter('REJECTED')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
+                    <p className="text-xs text-slate-500">Rejected</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Filters */}
+          <Card className="mb-6">
+            <CardContent className="pt-4">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                      placeholder="Search by certificate number, customer, description..."
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      className="pl-10"
+                    />
                   </div>
                 </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleSearch}>Search</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Certificates Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-slate-400" />
+                Certificates
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                </div>
+              ) : certificates.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  No certificates found
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Certificate No.</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>UUC Description</TableHead>
+                        <TableHead>Calibration Date</TableHead>
+                        <TableHead>Engineer</TableHead>
+                        <TableHead>Manager (HoD)</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-[120px]">Preview</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {certificates.map((cert) => (
+                        <TableRow key={cert.id}>
+                          <TableCell className="font-mono font-medium">
+                            {cert.certificateNumber}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {cert.customerName}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {cert.uucDescription}
+                            {cert.uucMake && ` - ${cert.uucMake}`}
+                            {cert.uucModel && ` ${cert.uucModel}`}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {formatDate(cert.dateOfCalibration)}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {cert.createdBy.name}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {cert.assignedHod?.name || '-'}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(cert.status)}</TableCell>
+                          <TableCell>
+                            <Link href={`/admin/certificates/${cert.id}`}>
+                              <Button variant="outline" size="sm">
+                                View
+                              </Button>
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  {pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t mt-4">
+                      <p className="text-sm text-slate-500">
+                        Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
+                        {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                        {pagination.total} certificates
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchCertificates(pagination.page - 1)}
+                          disabled={pagination.page === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchCertificates(pagination.page + 1)}
+                          disabled={pagination.page === pagination.totalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
@@ -442,8 +447,12 @@ function AdminCertificatesContent() {
 export default function AdminCertificatesPage() {
   return (
     <Suspense fallback={
-      <div className="p-8 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="p-3 h-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+          <div className="p-6 flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          </div>
+        </div>
       </div>
     }>
       <AdminCertificatesContent />

@@ -1,7 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
-import { notifyHoDOnCustomerRevision } from '@/lib/services/notifications'
+import { notifyReviewerOnCustomerRevision } from '@/lib/services/notifications'
+
+// Format section feedbacks into readable notes
+function formatFeedbackNotes(
+  sectionFeedbacks?: { section: string; comment: string }[],
+  generalNotes?: string
+): string {
+  const parts: string[] = []
+
+  // Section labels for display
+  const sectionLabels: Record<string, string> = {
+    'summary': 'Section 1: Summary',
+    'uuc-details': 'Section 2: UUC Details',
+    'master-inst': 'Section 3: Master Instruments',
+    'environment': 'Section 4: Environmental Conditions',
+    'results': 'Section 5: Calibration Results',
+    'remarks': 'Section 6: Remarks',
+    'conclusion': 'Section 7: Conclusion',
+  }
+
+  if (sectionFeedbacks && sectionFeedbacks.length > 0) {
+    for (const feedback of sectionFeedbacks) {
+      const label = sectionLabels[feedback.section] || feedback.section
+      parts.push(`[${label}]\n${feedback.comment}`)
+    }
+  }
+
+  if (generalNotes) {
+    parts.push(`[General Notes]\n${generalNotes}`)
+  }
+
+  return parts.join('\n\n')
+}
 
 export async function POST(
   request: NextRequest,
@@ -9,9 +41,24 @@ export async function POST(
 ) {
   try {
     const { token } = await params
-    const { notes } = await request.json()
+    const body = await request.json()
 
-    if (!notes?.trim()) {
+    // Support both old format (notes) and new format (sectionFeedbacks + generalNotes)
+    const { notes, sectionFeedbacks, generalNotes } = body
+
+    // Format the feedback
+    let formattedNotes: string
+    if (sectionFeedbacks || generalNotes) {
+      // New section-wise format
+      formattedNotes = formatFeedbackNotes(sectionFeedbacks, generalNotes)
+    } else if (notes) {
+      // Legacy simple notes format
+      formattedNotes = notes.trim()
+    } else {
+      formattedNotes = ''
+    }
+
+    if (!formattedNotes) {
       return NextResponse.json(
         { error: 'Feedback notes are required' },
         { status: 400 }
@@ -21,7 +68,7 @@ export async function POST(
     // Check if this is a session-based access (cert:ID format)
     if (token.startsWith('cert:')) {
       const certificateId = token.substring(5)
-      return handleSessionBasedReject(certificateId, notes)
+      return handleSessionBasedReject(certificateId, formattedNotes, { sectionFeedbacks, generalNotes })
     }
 
     // Validate token
@@ -29,7 +76,7 @@ export async function POST(
       where: { token },
       include: {
         certificate: {
-          include: { createdBy: true },
+          include: { createdBy: true, reviewer: true },
         },
         customer: true,
       },
@@ -73,7 +120,7 @@ export async function POST(
         where: { id: tokenRecord.certificateId },
         data: {
           status: 'CUSTOMER_REVISION_REQUIRED',
-          statusNotes: notes, // Store customer feedback in statusNotes
+          statusNotes: formattedNotes, // Store customer feedback in statusNotes
           updatedAt: now,
         },
       })
@@ -97,7 +144,9 @@ export async function POST(
           revision: tokenRecord.certificate.currentRevision,
           eventType: 'CUSTOMER_REVISION_REQUESTED',
           eventData: JSON.stringify({
-            notes,
+            notes: formattedNotes,
+            sectionFeedbacks: sectionFeedbacks || null,
+            generalNotes: generalNotes || null,
             customerEmail: tokenRecord.customer.email,
             customerName: tokenRecord.customer.name,
             customerCompany: tokenRecord.customer.companyName,
@@ -110,11 +159,14 @@ export async function POST(
       })
     })
 
-    // Notify HoD about customer revision request (fire and forget)
-    notifyHoDOnCustomerRevision({
-      certificateId: tokenRecord.certificateId,
-      certificateNumber: tokenRecord.certificate.certificateNumber,
-    }).catch((err) => console.error('Failed to send notification:', err))
+    // Notify reviewer about customer revision request (fire and forget)
+    if (tokenRecord.certificate.reviewerId) {
+      notifyReviewerOnCustomerRevision({
+        certificateId: tokenRecord.certificateId,
+        certificateNumber: tokenRecord.certificate.certificateNumber,
+        reviewerId: tokenRecord.certificate.reviewerId,
+      }).catch((err) => console.error('Failed to send notification:', err))
+    }
 
     return NextResponse.json({
       success: true,
@@ -131,7 +183,11 @@ export async function POST(
 }
 
 // Handle session-based reject (for customers accessing via dashboard without token)
-async function handleSessionBasedReject(certificateId: string, notes: string) {
+async function handleSessionBasedReject(
+  certificateId: string,
+  formattedNotes: string,
+  structuredData: { sectionFeedbacks?: { section: string; comment: string }[]; generalNotes?: string }
+) {
   // Verify customer session
   const session = await auth()
   if (!session?.user || session.user.role !== 'CUSTOMER') {
@@ -156,10 +212,10 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
     )
   }
 
-  // Get certificate with its creator (we need a valid User ID for events)
+  // Get certificate with its creator and reviewer (we need a valid User ID for events)
   const certificate = await prisma.certificate.findUnique({
     where: { id: certificateId },
-    include: { createdBy: true },
+    include: { createdBy: true, reviewer: true },
   })
 
   if (!certificate) {
@@ -195,7 +251,7 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
       where: { id: certificate.id },
       data: {
         status: 'CUSTOMER_REVISION_REQUIRED',
-        statusNotes: notes, // Store customer feedback in statusNotes
+        statusNotes: formattedNotes, // Store customer feedback in statusNotes
         updatedAt: now,
       },
     })
@@ -213,7 +269,9 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
         revision: certificate.currentRevision,
         eventType: 'CUSTOMER_REVISION_REQUESTED',
         eventData: JSON.stringify({
-          notes,
+          notes: formattedNotes,
+          sectionFeedbacks: structuredData.sectionFeedbacks || null,
+          generalNotes: structuredData.generalNotes || null,
           customerEmail: customer.email,
           customerName: customer.name,
           customerCompany: customer.companyName,
@@ -226,11 +284,14 @@ async function handleSessionBasedReject(certificateId: string, notes: string) {
     })
   })
 
-  // Notify HoD about customer revision request (fire and forget)
-  notifyHoDOnCustomerRevision({
-    certificateId: certificate.id,
-    certificateNumber: certificate.certificateNumber,
-  }).catch((err) => console.error('Failed to send notification:', err))
+  // Notify reviewer about customer revision request (fire and forget)
+  if (certificate.reviewerId) {
+    notifyReviewerOnCustomerRevision({
+      certificateId: certificate.id,
+      certificateNumber: certificate.certificateNumber,
+      reviewerId: certificate.reviewerId,
+    }).catch((err) => console.error('Failed to send notification:', err))
+  }
 
   return NextResponse.json({
     success: true,

@@ -108,6 +108,18 @@ const EDITABLE_FIELDS = [
 
 type EditableField = typeof EDITABLE_FIELDS[number]['value']
 
+// Section options for targeted feedback
+const SECTION_OPTIONS = [
+  { value: '', label: 'General (All Sections)' },
+  { value: 'summary', label: 'Summary' },
+  { value: 'uuc-details', label: 'UUC Details' },
+  { value: 'master-inst', label: 'Master Instruments' },
+  { value: 'environment', label: 'Environmental' },
+  { value: 'results', label: 'Results' },
+  { value: 'remarks', label: 'Remarks' },
+  { value: 'conclusion', label: 'Conclusion' },
+] as const
+
 // Helper to calculate due date
 function calculateDueDate(dateOfCalibration: string, tenure: number, adjustment: number): string {
   if (!dateOfCalibration) return ''
@@ -141,6 +153,7 @@ export function ReviewActions({
 }: ReviewActionsProps) {
   const router = useRouter()
   const [comment, setComment] = useState('')
+  const [targetSection, setTargetSection] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -465,10 +478,12 @@ export function ReviewActions({
     const requestBody: {
       action: string
       comment?: string
+      targetSection?: string
       edits?: PendingEdit[]
     } = {
       action,
       comment: comment.trim() || undefined,
+      targetSection: targetSection || undefined,
     }
 
     // Include pending edits if any
@@ -743,6 +758,29 @@ export function ReviewActions({
             </div>
           )}
 
+          {/* Target Section Selector */}
+          <div>
+            <Label htmlFor="targetSection" className="text-sm font-medium text-slate-700 mb-2 block">
+              Target Section <span className="text-slate-400 font-normal">(optional)</span>
+            </Label>
+            <select
+              id="targetSection"
+              value={targetSection}
+              onChange={(e) => setTargetSection(e.target.value)}
+              className="w-full h-10 px-4 border-2 border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
+              disabled={isSubmitting}
+            >
+              {SECTION_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Select a specific section to highlight your feedback for the engineer
+            </p>
+          </div>
+
           {/* Comment Field */}
           <div>
             <Label htmlFor="comment" className="text-sm font-medium text-slate-700 mb-2 block">
@@ -752,7 +790,7 @@ export function ReviewActions({
               id="comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Add comments (required for rejection/revision)..."
+              placeholder={targetSection ? `Add feedback for ${SECTION_OPTIONS.find(s => s.value === targetSection)?.label}...` : "Add comments (required for rejection/revision)..."}
               className="w-full h-28 px-4 py-3 border-2 border-slate-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               disabled={isSubmitting}
             />

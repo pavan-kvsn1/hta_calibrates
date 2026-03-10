@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { LogOut, Building2 } from 'lucide-react'
+import { LogOut, Building2, Users, Crown } from 'lucide-react'
 import { NotificationBell } from '@/components/notifications'
 
 interface CustomerHeaderProps {
@@ -61,6 +61,17 @@ export function CustomerHeader({ title }: CustomerHeaderProps) {
           </div>
         )}
 
+        {/* Team Management Link (POC only) */}
+        {session?.user?.isPrimaryPoc && (
+          <Link
+            href="/customer/users"
+            className="hidden sm:flex items-center gap-1.5 text-xs text-purple-700 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200 hover:bg-purple-100 transition-colors"
+          >
+            <Users className="size-3.5" />
+            <span>Manage Team</span>
+          </Link>
+        )}
+
         {/* Notifications */}
         <NotificationBell userRole="CUSTOMER" />
 
@@ -74,8 +85,15 @@ export function CustomerHeader({ title }: CustomerHeaderProps) {
               <p className="text-xs font-semibold text-slate-800">
                 {session?.user?.name || 'Customer'}
               </p>
-              <p className="text-[10px] text-slate-500">
-                Customer
+              <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                {session?.user?.isPrimaryPoc ? (
+                  <>
+                    <Crown className="size-2.5 text-amber-500" />
+                    <span>Primary POC</span>
+                  </>
+                ) : (
+                  'Customer'
+                )}
               </p>
             </div>
           </div>

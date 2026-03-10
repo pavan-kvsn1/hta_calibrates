@@ -2,19 +2,21 @@ import { prisma } from '@/lib/prisma'
 
 // Notification types
 export type NotificationType =
-  // Engineer notifications
-  | 'REVISION_REQUESTED'        // HoD requested revision
-  | 'CERTIFICATE_APPROVED'      // HoD approved certificate
+  // Engineer (Assignee) notifications
+  | 'REVISION_REQUESTED'        // Reviewer requested revision
+  | 'CERTIFICATE_APPROVED'      // Reviewer approved certificate
   | 'SENT_TO_CUSTOMER'          // Certificate sent to customer
   | 'CERTIFICATE_FINALIZED'     // Customer approved certificate
-  // HoD notifications
-  | 'SUBMITTED_FOR_REVIEW'      // Engineer submitted for review
-  | 'ENGINEER_RESPONDED'        // Engineer responded to revision
+  // Reviewer notifications
+  | 'SUBMITTED_FOR_REVIEW'      // Assignee submitted for review
+  | 'ENGINEER_RESPONDED'        // Assignee responded to revision
   | 'CUSTOMER_REVISION_REQUEST' // Customer requested revision
   | 'CUSTOMER_APPROVED'         // Customer approved certificate
   // Customer notifications
   | 'CERTIFICATE_READY'         // Certificate sent for approval
-  | 'HOD_REPLIED'               // HoD replied to feedback
+  | 'REVIEWER_REPLIED'          // Reviewer replied to feedback
+  // Chat notifications
+  | 'NEW_CHAT_MESSAGE'          // New chat message received
   // Registration notifications
   | 'REGISTRATION_SUBMITTED'    // Customer submitted registration (to Admin)
   | 'REGISTRATION_APPROVED'     // Admin approved registration (to Customer)
@@ -24,7 +26,7 @@ export type NotificationType =
 const notificationTemplates: Record<NotificationType, { title: string; message: (data: Record<string, string>) => string }> = {
   REVISION_REQUESTED: {
     title: 'Revision Requested',
-    message: (data) => `HoD requested revision on ${data.certificateNumber}`,
+    message: (data) => `${data.reviewerName || 'Reviewer'} requested revision on ${data.certificateNumber}`,
   },
   CERTIFICATE_APPROVED: {
     title: 'Certificate Approved',
@@ -40,11 +42,11 @@ const notificationTemplates: Record<NotificationType, { title: string; message: 
   },
   SUBMITTED_FOR_REVIEW: {
     title: 'Certificate Submitted',
-    message: (data) => `${data.engineerName || 'Engineer'} submitted ${data.certificateNumber} for review`,
+    message: (data) => `${data.assigneeName || 'Engineer'} submitted ${data.certificateNumber} for review`,
   },
   ENGINEER_RESPONDED: {
-    title: 'Engineer Responded',
-    message: (data) => `${data.engineerName || 'Engineer'} responded to revision request on ${data.certificateNumber}`,
+    title: 'Assignee Responded',
+    message: (data) => `${data.assigneeName || 'Engineer'} responded to revision request on ${data.certificateNumber}`,
   },
   CUSTOMER_REVISION_REQUEST: {
     title: 'Customer Revision Request',
@@ -58,9 +60,13 @@ const notificationTemplates: Record<NotificationType, { title: string; message: 
     title: 'Certificate Ready for Review',
     message: (data) => `Certificate ${data.certificateNumber} is ready for your review`,
   },
-  HOD_REPLIED: {
+  REVIEWER_REPLIED: {
     title: 'Response to Your Feedback',
     message: (data) => `HTA has responded to your feedback on ${data.certificateNumber}`,
+  },
+  NEW_CHAT_MESSAGE: {
+    title: 'New Message',
+    message: (data) => `${data.senderName || 'Someone'} sent a message on ${data.certificateNumber}`,
   },
   REGISTRATION_SUBMITTED: {
     title: 'New Registration Request',
@@ -122,6 +128,7 @@ export async function createNotification({
 
 /**
  * Get notifications for a user or customer
+ * For engineers, can optionally filter to only show notifications for certificates they're involved with
  */
 export async function getNotifications({
   userId,
@@ -129,21 +136,39 @@ export async function getNotifications({
   limit = 10,
   offset = 0,
   unreadOnly = false,
+  filterByInvolvement = false,
 }: {
   userId?: string
   customerId?: string
   limit?: number
   offset?: number
   unreadOnly?: boolean
+  filterByInvolvement?: boolean // If true, only show notifications for certificates user created or is reviewer of
 }) {
   if (!userId && !customerId) {
     throw new Error('Either userId or customerId must be provided')
   }
 
-  const where = {
+  // Base where clause
+  const baseWhere = {
     ...(userId ? { userId } : { customerId }),
     ...(unreadOnly ? { read: false } : {}),
   }
+
+  // For engineers with filterByInvolvement, add certificate relationship filter
+  const where = filterByInvolvement && userId
+    ? {
+        ...baseWhere,
+        OR: [
+          // Notifications without a certificate (system notifications)
+          { certificateId: null },
+          // Notifications for certificates user created
+          { certificate: { createdById: userId } },
+          // Notifications for certificates user is reviewer of
+          { certificate: { reviewerId: userId } },
+        ],
+      }
+    : baseWhere
 
   const [notifications, total, unreadCount] = await Promise.all([
     prisma.notification.findMany({
@@ -164,7 +189,16 @@ export async function getNotifications({
     prisma.notification.count({ where }),
     prisma.notification.count({
       where: {
-        ...(userId ? { userId } : { customerId }),
+        ...baseWhere,
+        ...(filterByInvolvement && userId
+          ? {
+              OR: [
+                { certificateId: null },
+                { certificate: { createdById: userId } },
+                { certificate: { reviewerId: userId } },
+              ],
+            }
+          : {}),
         read: false,
       },
     }),
@@ -183,20 +217,33 @@ export async function getNotifications({
 export async function getUnreadCount({
   userId,
   customerId,
+  filterByInvolvement = false,
 }: {
   userId?: string
   customerId?: string
+  filterByInvolvement?: boolean
 }) {
   if (!userId && !customerId) {
     throw new Error('Either userId or customerId must be provided')
   }
 
-  return prisma.notification.count({
-    where: {
-      ...(userId ? { userId } : { customerId }),
-      read: false,
-    },
-  })
+  const baseWhere = {
+    ...(userId ? { userId } : { customerId }),
+    read: false,
+  }
+
+  const where = filterByInvolvement && userId
+    ? {
+        ...baseWhere,
+        OR: [
+          { certificateId: null },
+          { certificate: { createdById: userId } },
+          { certificate: { reviewerId: userId } },
+        ],
+      }
+    : baseWhere
+
+  return prisma.notification.count({ where })
 }
 
 /**
@@ -233,115 +280,71 @@ export async function markNotificationsAsRead({
 }
 
 /**
- * Create notification for HoD when engineer submits for review
+ * Create notification for reviewer when certificate is submitted for review
  */
-export async function notifyHoDOnSubmit({
+export async function notifyReviewerOnSubmit({
   certificateId,
   certificateNumber,
-  engineerId,
-  engineerName,
+  assigneeName,
+  reviewerId,
 }: {
   certificateId: string
   certificateNumber: string
-  engineerId: string
-  engineerName: string
-}) {
-  // Find the engineer's assigned HoD
-  const engineer = await prisma.user.findUnique({
-    where: { id: engineerId },
-    select: { assignedHodId: true },
-  })
-
-  if (!engineer?.assignedHodId) {
-    // If no assigned HoD, notify all HoDs
-    const hods = await prisma.user.findMany({
-      where: { role: 'HOD', isActive: true },
-      select: { id: true },
-    })
-
-    await Promise.all(
-      hods.map((hod) =>
-        createNotification({
-          userId: hod.id,
-          type: 'SUBMITTED_FOR_REVIEW',
-          certificateId,
-          data: { certificateNumber, engineerName },
-        })
-      )
-    )
-  } else {
-    await createNotification({
-      userId: engineer.assignedHodId,
-      type: 'SUBMITTED_FOR_REVIEW',
-      certificateId,
-      data: { certificateNumber, engineerName },
-    })
-  }
-}
-
-/**
- * Create notification for engineer when HoD approves/requests revision
- */
-export async function notifyEngineerOnReview({
-  certificateId,
-  certificateNumber,
-  engineerId,
-  approved,
-}: {
-  certificateId: string
-  certificateNumber: string
-  engineerId: string
-  approved: boolean
+  assigneeName: string
+  reviewerId: string
 }) {
   await createNotification({
-    userId: engineerId,
-    type: approved ? 'CERTIFICATE_APPROVED' : 'REVISION_REQUESTED',
+    userId: reviewerId,
+    type: 'SUBMITTED_FOR_REVIEW',
     certificateId,
-    data: { certificateNumber },
+    data: { certificateNumber, assigneeName },
   })
 }
 
 /**
- * Create notification for HoD when engineer responds to revision
+ * Create notification for assignee when reviewer approves/requests revision
  */
-export async function notifyHoDOnEngineerResponse({
+export async function notifyAssigneeOnReview({
   certificateId,
   certificateNumber,
-  engineerId,
-  engineerName,
-  hodId,
+  assigneeId,
+  approved,
+  reviewerName,
 }: {
   certificateId: string
   certificateNumber: string
-  engineerId: string
-  engineerName: string
-  hodId?: string
+  assigneeId: string
+  approved: boolean
+  reviewerName?: string
 }) {
-  if (hodId) {
-    await createNotification({
-      userId: hodId,
-      type: 'ENGINEER_RESPONDED',
-      certificateId,
-      data: { certificateNumber, engineerName },
-    })
-  } else {
-    // Notify all HoDs if no specific HoD
-    const hods = await prisma.user.findMany({
-      where: { role: 'HOD', isActive: true },
-      select: { id: true },
-    })
+  await createNotification({
+    userId: assigneeId,
+    type: approved ? 'CERTIFICATE_APPROVED' : 'REVISION_REQUESTED',
+    certificateId,
+    data: { certificateNumber, reviewerName: reviewerName || 'Reviewer' },
+  })
+}
 
-    await Promise.all(
-      hods.map((hod) =>
-        createNotification({
-          userId: hod.id,
-          type: 'ENGINEER_RESPONDED',
-          certificateId,
-          data: { certificateNumber, engineerName },
-        })
-      )
-    )
-  }
+/**
+ * Create notification for reviewer when assignee responds to revision request
+ */
+export async function notifyReviewerOnAssigneeResponse({
+  certificateId,
+  certificateNumber,
+  assigneeName,
+  reviewerId,
+}: {
+  certificateId: string
+  certificateNumber: string
+  assigneeName: string
+  reviewerId: string
+}) {
+  await createNotification({
+    userId: reviewerId,
+    type: 'ENGINEER_RESPONDED',
+    certificateId,
+    data: { certificateNumber, assigneeName },
+  })
 }
 
 /**
@@ -350,17 +353,17 @@ export async function notifyHoDOnEngineerResponse({
 export async function notifyOnSentToCustomer({
   certificateId,
   certificateNumber,
-  engineerId,
+  assigneeId,
   customerId,
 }: {
   certificateId: string
   certificateNumber: string
-  engineerId: string
+  assigneeId: string
   customerId?: string
 }) {
-  // Notify engineer
+  // Notify assignee
   await createNotification({
-    userId: engineerId,
+    userId: assigneeId,
     type: 'SENT_TO_CUSTOMER',
     certificateId,
     data: { certificateNumber },
@@ -378,37 +381,29 @@ export async function notifyOnSentToCustomer({
 }
 
 /**
- * Create notification for HoD when customer requests revision
+ * Notify reviewer when customer requests revision
  */
-export async function notifyHoDOnCustomerRevision({
+export async function notifyReviewerOnCustomerRevision({
   certificateId,
   certificateNumber,
+  reviewerId,
 }: {
   certificateId: string
   certificateNumber: string
+  reviewerId: string
 }) {
-  // Notify all HoDs
-  const hods = await prisma.user.findMany({
-    where: { role: 'HOD', isActive: true },
-    select: { id: true },
+  await createNotification({
+    userId: reviewerId,
+    type: 'CUSTOMER_REVISION_REQUEST',
+    certificateId,
+    data: { certificateNumber },
   })
-
-  await Promise.all(
-    hods.map((hod) =>
-      createNotification({
-        userId: hod.id,
-        type: 'CUSTOMER_REVISION_REQUEST',
-        certificateId,
-        data: { certificateNumber },
-      })
-    )
-  )
 }
 
 /**
- * Create notification for customer when HoD replies to feedback
+ * Create notification for customer when reviewer replies to feedback
  */
-export async function notifyCustomerOnHoDReply({
+export async function notifyCustomerOnReviewerReply({
   certificateId,
   certificateNumber,
   customerId,
@@ -419,48 +414,51 @@ export async function notifyCustomerOnHoDReply({
 }) {
   await createNotification({
     customerId,
-    type: 'HOD_REPLIED',
+    type: 'REVIEWER_REPLIED',
     certificateId,
     data: { certificateNumber },
   })
 }
 
 /**
- * Create notifications when customer approves certificate
+ * Notify reviewer and assignee when customer approves certificate
  */
 export async function notifyOnCustomerApproval({
   certificateId,
   certificateNumber,
-  engineerId,
+  assigneeId,
+  reviewerId,
 }: {
   certificateId: string
   certificateNumber: string
-  engineerId: string
+  assigneeId: string
+  reviewerId?: string | null
 }) {
-  // Notify all HoDs
-  const hods = await prisma.user.findMany({
-    where: { role: 'HOD', isActive: true },
-    select: { id: true },
-  })
+  const promises: Promise<unknown>[] = []
 
-  await Promise.all([
-    // Notify HoDs
-    ...hods.map((hod) =>
+  // Notify reviewer
+  if (reviewerId) {
+    promises.push(
       createNotification({
-        userId: hod.id,
+        userId: reviewerId,
         type: 'CUSTOMER_APPROVED',
         certificateId,
         data: { certificateNumber },
       })
-    ),
-    // Notify engineer
+    )
+  }
+
+  // Notify assignee
+  promises.push(
     createNotification({
-      userId: engineerId,
+      userId: assigneeId,
       type: 'CERTIFICATE_FINALIZED',
       certificateId,
       data: { certificateNumber },
-    }),
-  ])
+    })
+  )
+
+  await Promise.all(promises)
 }
 
 /**
@@ -528,5 +526,39 @@ export async function notifyCustomerOnRegistrationRejected({
   // Since rejected customers can't log in, we would typically send an email
   // For now, we'll log this for potential email integration
   console.log(`Registration rejected for ${email} at ${companyName}. Reason: ${reason}`)
-  // TODO: Send rejection email to customer
+}
+
+/**
+ * Create notification for new chat message
+ */
+export async function notifyOnChatMessage({
+  recipientId,
+  recipientType,
+  certificateId,
+  certificateNumber,
+  senderName,
+  threadType,
+}: {
+  recipientId: string
+  recipientType: 'USER' | 'CUSTOMER'
+  certificateId: string
+  certificateNumber: string
+  senderName: string
+  threadType: string
+}) {
+  if (recipientType === 'USER') {
+    await createNotification({
+      userId: recipientId,
+      type: 'NEW_CHAT_MESSAGE',
+      certificateId,
+      data: { certificateNumber, senderName, threadType },
+    })
+  } else {
+    await createNotification({
+      customerId: recipientId,
+      type: 'NEW_CHAT_MESSAGE',
+      certificateId,
+      data: { certificateNumber, senderName, threadType },
+    })
+  }
 }

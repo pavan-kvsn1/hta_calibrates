@@ -1,47 +1,24 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
-import { CustomerReviewClient } from '@/components/customer/CustomerReviewClient'
+import { TokenReviewClient } from './TokenReviewClient'
 
-interface TokenData {
-  id: string
-  token: string
-  expiresAt: Date
-  usedAt: Date | null
-  certificate: {
-    id: string
-    certificateNumber: string
-    status: string
-    customerName: string | null
-    customerAddress: string | null
-    uucDescription: string | null
-    uucMake: string | null
-    uucModel: string | null
-    uucSerialNumber: string | null
-    dateOfCalibration: Date | null
-    calibrationDueDate: Date | null
-    currentRevision: number
-  }
-  customer: {
-    id: string
-    name: string
-    email: string
-    companyName: string
-  }
-}
-
-interface RevisionHistoryItem {
-  id: string
-  type: 'customer_request' | 'hod_response' | 'sent_to_customer'
-  message: string
-  createdAt: string
-  userName?: string
-  companyName?: string
+// Status badge configuration
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  PENDING_CUSTOMER_APPROVAL: { label: 'Pending Your Approval', className: 'bg-purple-50 text-purple-600 border-purple-100' },
+  CUSTOMER_REVISION_REQUIRED: { label: 'Revision in Progress', className: 'bg-orange-50 text-orange-600 border-orange-100' },
+  REVISION_REQUIRED: { label: 'Under Revision', className: 'bg-amber-50 text-amber-600 border-amber-100' },
+  APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-600 border-green-100' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-600 border-green-100' },
 }
 
 async function validateToken(token: string): Promise<{
   valid: boolean
   error?: 'EXPIRED' | 'INVALID' | 'USED' | 'REVOKED'
-  data?: TokenData
+  tokenId?: string
+  certificateId?: string
+  customerId?: string
+  expiresAt?: Date
+  sentAt?: Date
 }> {
   const tokenRecord = await prisma.approvalToken.findUnique({
     where: { token },
@@ -63,72 +40,20 @@ async function validateToken(token: string): Promise<{
     return { valid: false, error: 'EXPIRED' }
   }
 
-  // Check if certificate is still in the right status
-  if (tokenRecord.certificate.status !== 'PENDING_CUSTOMER_APPROVAL') {
+  // Allow access for PENDING_CUSTOMER_APPROVAL and CUSTOMER_REVISION_REQUIRED (after HoD reply)
+  const allowedStatuses = ['PENDING_CUSTOMER_APPROVAL', 'CUSTOMER_REVISION_REQUIRED']
+  if (!allowedStatuses.includes(tokenRecord.certificate.status)) {
     return { valid: false, error: 'USED' }
   }
 
   return {
     valid: true,
-    data: tokenRecord as TokenData,
+    tokenId: tokenRecord.id,
+    certificateId: tokenRecord.certificateId,
+    customerId: tokenRecord.customerId,
+    expiresAt: tokenRecord.expiresAt,
+    sentAt: tokenRecord.createdAt,
   }
-}
-
-async function getRevisionHistory(certificateId: string): Promise<RevisionHistoryItem[]> {
-  const events = await prisma.certificateEvent.findMany({
-    where: {
-      certificateId,
-      eventType: {
-        in: [
-          'SENT_TO_CUSTOMER',
-          'CUSTOMER_REVISION_REQUESTED',
-          'CUSTOMER_REVISION_FORWARDED',
-          'HOD_REPLIED_TO_CUSTOMER',
-        ],
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-    include: {
-      user: {
-        select: { name: true },
-      },
-    },
-  })
-
-  return events.map(event => {
-    let eventData: Record<string, string> = {}
-    try {
-      eventData = JSON.parse(event.eventData)
-    } catch {
-      eventData = {}
-    }
-
-    let type: RevisionHistoryItem['type'] = 'sent_to_customer'
-    let message = ''
-
-    if (event.eventType === 'CUSTOMER_REVISION_REQUESTED') {
-      type = 'customer_request'
-      message = eventData.notes || 'Revision requested'
-    } else if (event.eventType === 'HOD_REPLIED_TO_CUSTOMER') {
-      type = 'hod_response'
-      message = eventData.response || 'HoD responded to your feedback'
-    } else if (event.eventType === 'SENT_TO_CUSTOMER') {
-      type = 'sent_to_customer'
-      // If this is a resend with response to feedback, show that
-      message = eventData.responseToFeedback || eventData.message || 'Certificate sent for review'
-    }
-
-    return {
-      id: event.id,
-      type,
-      message,
-      createdAt: event.createdAt.toISOString(),
-      userName: event.eventType === 'CUSTOMER_REVISION_REQUESTED'
-        ? eventData.customerName
-        : event.user?.name,
-      companyName: eventData.customerCompany,
-    }
-  })
 }
 
 function TokenErrorPage({ error }: { error: 'EXPIRED' | 'INVALID' | 'USED' | 'REVOKED' }) {
@@ -200,53 +125,180 @@ export default async function CustomerReviewPage({
   const { token } = await params
   const result = await validateToken(token)
 
-  if (!result.valid || !result.data) {
+  if (!result.valid) {
     return <TokenErrorPage error={result.error!} />
   }
 
-  const { data } = result
+  const { certificateId, customerId, expiresAt, sentAt } = result
 
-  // Update view count (fire and forget)
-  prisma.approvalToken.update({
-    where: { id: data.id },
-    data: {
-      // We'll add viewedAt and viewCount fields later if needed
+  // Fetch full certificate data
+  const certificate = await prisma.certificate.findUnique({
+    where: { id: certificateId },
+    include: {
+      createdBy: {
+        select: { id: true, name: true, email: true },
+      },
+      reviewer: {
+        select: { id: true, name: true, email: true },
+      },
+      parameters: {
+        include: {
+          results: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+      masterInstruments: true,
+      signatures: {
+        select: {
+          id: true,
+          signerType: true,
+          signerName: true,
+          signedAt: true,
+        },
+      },
+      chatThreads: {
+        where: { threadType: 'REVIEWER_CUSTOMER' },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      },
     },
-  }).catch(() => {})
+  })
 
-  // Fetch revision history for this certificate
-  const revisionHistory = await getRevisionHistory(data.certificate.id)
-
-  // Transform dates to strings for client component
-  const certificateData = {
-    id: data.certificate.id,
-    certificateNumber: data.certificate.certificateNumber,
-    status: data.certificate.status,
-    customerName: data.certificate.customerName,
-    customerAddress: data.certificate.customerAddress,
-    uucDescription: data.certificate.uucDescription,
-    uucMake: data.certificate.uucMake,
-    uucModel: data.certificate.uucModel,
-    uucSerialNumber: data.certificate.uucSerialNumber,
-    dateOfCalibration: data.certificate.dateOfCalibration?.toISOString() || null,
-    calibrationDueDate: data.certificate.calibrationDueDate?.toISOString() || null,
-    currentRevision: data.certificate.currentRevision,
+  if (!certificate) {
+    notFound()
   }
 
+  // Fetch customer data
+  const customer = await prisma.customerUser.findUnique({
+    where: { id: customerId },
+    include: { customerAccount: true },
+  })
+
+  if (!customer) {
+    return <TokenErrorPage error="INVALID" />
+  }
+
+  // Parse JSON fields
+  const conclusionStatements = certificate.selectedConclusionStatements
+    ? JSON.parse(certificate.selectedConclusionStatements)
+    : []
+
+  const calibrationStatus = certificate.calibrationStatus
+    ? JSON.parse(certificate.calibrationStatus)
+    : []
+
+  // Get chat thread
+  const chatThread = certificate.chatThreads[0] || null
+
+  // Get status config
+  const statusConfig = STATUS_CONFIG[certificate.status] || { label: certificate.status, className: 'bg-gray-50 text-gray-600 border-gray-100' }
+
+  // Serialize certificate data
+  const certificateData = {
+    id: certificate.id,
+    certificateNumber: certificate.certificateNumber,
+    status: certificate.status,
+    customerName: certificate.customerName,
+    customerAddress: certificate.customerAddress,
+    calibratedAt: certificate.calibratedAt,
+    srfNumber: certificate.srfNumber,
+    srfDate: certificate.srfDate?.toISOString() || null,
+    dateOfCalibration: certificate.dateOfCalibration?.toISOString() || null,
+    calibrationDueDate: certificate.calibrationDueDate?.toISOString() || null,
+    dueDateNotApplicable: certificate.dueDateNotApplicable,
+    uucDescription: certificate.uucDescription,
+    uucMake: certificate.uucMake,
+    uucModel: certificate.uucModel,
+    uucSerialNumber: certificate.uucSerialNumber,
+    uucLocationName: certificate.uucLocationName,
+    ambientTemperature: certificate.ambientTemperature,
+    relativeHumidity: certificate.relativeHumidity,
+    calibrationStatus,
+    conclusionStatements,
+    additionalConclusionStatement: certificate.additionalConclusionStatement,
+    currentRevision: certificate.currentRevision,
+    parameters: certificate.parameters.map((p) => ({
+      id: p.id,
+      parameterName: p.parameterName,
+      parameterUnit: p.parameterUnit,
+      rangeMin: p.rangeMin,
+      rangeMax: p.rangeMax,
+      rangeUnit: p.rangeUnit,
+      operatingMin: p.operatingMin,
+      operatingMax: p.operatingMax,
+      operatingUnit: p.operatingUnit,
+      leastCountValue: p.leastCountValue,
+      leastCountUnit: p.leastCountUnit,
+      accuracyValue: p.accuracyValue,
+      accuracyUnit: p.accuracyUnit,
+      accuracyType: p.accuracyType,
+      errorFormula: p.errorFormula,
+      showAfterAdjustment: p.showAfterAdjustment,
+      requiresBinning: p.requiresBinning,
+      bins: p.bins,
+      sopReference: p.sopReference,
+      results: p.results.map((r) => ({
+        id: r.id,
+        pointNumber: r.pointNumber,
+        standardReading: r.standardReading,
+        beforeAdjustment: r.beforeAdjustment,
+        afterAdjustment: r.afterAdjustment,
+        errorObserved: r.errorObserved,
+        isOutOfLimit: r.isOutOfLimit,
+      })),
+    })),
+    masterInstruments: certificate.masterInstruments.map((mi) => ({
+      id: mi.id,
+      description: mi.description,
+      make: mi.make,
+      model: mi.model,
+      serialNumber: mi.serialNumber,
+      calibrationDueDate: mi.calibrationDueDate,
+    })),
+  }
+
+  // Serialize signatures
+  const signatures = certificate.signatures.map((s) => ({
+    id: s.id,
+    signerType: s.signerType,
+    signerName: s.signerName,
+    signedAt: s.signedAt?.toISOString() || null,
+  }))
+
+  // Get company name from customerAccount (preferred) or fallback to legacy companyName field
+  const customerCompanyName = customer.customerAccount?.companyName || customer.companyName || ''
+
   const customerData = {
-    id: data.customer.id,
-    name: data.customer.name,
-    email: data.customer.email,
-    companyName: data.customer.companyName,
+    id: customer.id,
+    name: customer.name,
+    email: customer.email,
+    companyName: customerCompanyName,
+  }
+
+  const headerData = {
+    certificateNumber: certificate.certificateNumber,
+    status: certificate.status,
+    statusLabel: statusConfig.label,
+    statusClassName: statusConfig.className,
+    customerName: certificate.customerName || '-',
+    currentRevision: certificate.currentRevision,
+    dateOfCalibration: certificate.dateOfCalibration?.toISOString() || null,
   }
 
   return (
-    <CustomerReviewClient
+    <TokenReviewClient
       token={token}
       certificate={certificateData}
       customer={customerData}
-      expiresAt={data.expiresAt.toISOString()}
-      revisionHistory={revisionHistory}
+      signatures={signatures}
+      chatThreadId={chatThread?.id || null}
+      headerData={headerData}
+      expiresAt={expiresAt?.toISOString() || null}
+      sentAt={sentAt?.toISOString() || null}
     />
   )
 }

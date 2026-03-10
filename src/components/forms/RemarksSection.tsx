@@ -7,7 +7,7 @@ import { FormSection } from './FormSection'
 import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
-const CALIBRATION_STATUS_OPTIONS = [
+export const CALIBRATION_STATUS_OPTIONS = [
   { id: 'satisfied', label: 'Satisfied - Results within accuracy limits' },
   { id: 'dissatisfied', label: 'Dissatisfied - Results NOT within accuracy limits' },
   { id: 'not_working', label: 'Not Working - Device non-functional' },
@@ -21,7 +21,11 @@ const STICKER_OPTIONS = [
   { value: 'no', label: 'No', colorClass: 'sticker-label-no' },
 ] as const
 
-export function RemarksSection() {
+interface RemarksSectionProps {
+  feedbackSlot?: React.ReactNode
+}
+
+export function RemarksSection({ feedbackSlot }: RemarksSectionProps = {}) {
   const { formData, setFormField, toggleCalibrationStatus } = useCertificateStore()
 
   // Calculate out of limit count from all parameters
@@ -56,6 +60,7 @@ export function RemarksSection() {
       id="remarks"
       sectionNumber="Section 06"
       title="Remarks & Status"
+      feedbackSlot={feedbackSlot}
     >
       <div className="space-y-8">
         {/* System Recommendation */}

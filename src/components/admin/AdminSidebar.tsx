@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -8,13 +9,13 @@ import {
   LayoutDashboard,
   Users,
   Building2,
-  UserCheck,
+  Bell,
   Wrench,
   FileText,
   Settings,
   LogOut,
+  ChevronLeft,
   ChevronRight,
-  ArrowRightLeft,
   ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -22,50 +23,80 @@ import { cn } from '@/lib/utils'
 interface AdminSidebarProps {
   userName: string
   userEmail: string
-  pendingRegistrations?: number
+  pendingRequests?: number
   instrumentAlerts?: number
   pendingAuthorizations?: number
-  isHodWithAdmin?: boolean
+  adminType?: 'MASTER' | 'WORKER' | null
 }
+
+const STORAGE_KEY = 'admin-sidebar-collapsed'
 
 export function AdminSidebar({
   userName,
   userEmail,
-  pendingRegistrations = 0,
+  pendingRequests = 0,
   instrumentAlerts = 0,
   pendingAuthorizations = 0,
-  isHodWithAdmin = false,
+  adminType,
 }: AdminSidebarProps) {
   const pathname = usePathname()
+  const isMaster = adminType === 'MASTER'
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
+  // Load state from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved === 'true') setIsCollapsed(true)
+  }, [])
+
+  // Toggle and persist
+  const toggleCollapsed = useCallback(() => {
+    setIsCollapsed((prev) => {
+      const next = !prev
+      localStorage.setItem(STORAGE_KEY, String(next))
+      // Dispatch custom event for layout wrapper to sync
+      window.dispatchEvent(new CustomEvent('sidebar-toggle'))
+      return next
+    })
+  }, [])
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U'
+    const parts = name.split(' ')
+    return parts.length >= 2
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : name.substring(0, 2).toUpperCase()
+  }
+
+  // Navigation items - some are Master Admin only
   const navigation = [
-    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, badge: 0 },
-    { name: 'Staff Users', href: '/admin/users', icon: Users, badge: 0 },
-    { name: 'Customer Accounts', href: '/admin/customers', icon: Building2, badge: 0 },
+    { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, badge: 0, masterOnly: false },
+    { name: 'Staff Users', href: '/admin/users', icon: Users, badge: 0, masterOnly: false },
+    { name: 'Customer Accounts', href: '/admin/customers', icon: Building2, badge: 0, masterOnly: true },
     {
-      name: 'Registrations',
-      href: '/admin/registrations',
-      icon: UserCheck,
-      badge: pendingRegistrations,
-      badgeColor: 'bg-red-500',
+      name: 'Requests',
+      href: '/admin/customers/requests',
+      icon: Bell,
+      badge: pendingRequests,
+      masterOnly: true,
     },
-    { name: 'Certificates', href: '/admin/certificates', icon: FileText, badge: 0 },
+    { name: 'Certificates', href: '/admin/certificates', icon: FileText, badge: 0, masterOnly: false },
     {
       name: 'Authorization',
       href: '/admin/authorization',
       icon: ShieldCheck,
       badge: pendingAuthorizations,
-      badgeColor: 'bg-blue-500',
+      masterOnly: false,
     },
     {
       name: 'Master Instruments',
       href: '/admin/instruments',
       icon: Wrench,
       badge: instrumentAlerts,
-      badgeColor: 'bg-amber-500',
+      masterOnly: false,
     },
-    { name: 'Settings', href: '/admin/settings', icon: Settings, badge: 0 },
-  ]
+    { name: 'Settings', href: '/admin/settings', icon: Settings, badge: 0, masterOnly: true },
+  ].filter(item => !item.masterOnly || isMaster)
 
   const isActive = (href: string) => {
     if (href === '/admin') {
@@ -75,89 +106,128 @@ export function AdminSidebar({
   }
 
   return (
-    <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 flex flex-col">
-      {/* Logo Section */}
-      <div className="p-6 border-b border-gray-200">
-        <Link href="/admin" className="flex items-center gap-3">
+    <aside
+      className={cn(
+        'fixed inset-y-0 left-0 flex flex-col bg-slate-800 transition-all duration-200 z-50',
+        isCollapsed ? 'w-16' : 'w-56'
+      )}
+    >
+      {/* Header - Logo */}
+      <div className={cn(
+        'flex items-center pt-4 pb-2 px-2',
+        isCollapsed ? 'justify-center' : 'px-4'
+      )}>
+        <Link href="/admin" className="flex items-center gap-2">
           <Image
             src="/hta-logo.jpg"
             alt="HTA Logo"
-            width={40}
-            height={40}
-            className="rounded"
+            width={isCollapsed ? 36 : 40}
+            height={isCollapsed ? 18 : 20}
+            className="object-contain transition-all duration-200"
           />
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">HTA Admin</h1>
-            <p className="text-xs text-gray-500">Calibration System</p>
-          </div>
+          {!isCollapsed && (
+            <span className="text-lg font-semibold text-white">HTA Admin</span>
+          )}
         </Link>
       </div>
 
-      {/* Role Switcher - Only for HoD with Admin access */}
-      {isHodWithAdmin && (
-        <div className="px-4 py-3 border-b border-gray-200">
-          <Link
-            href="/hod/dashboard"
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+      {/* Admin Type Badge */}
+      {adminType && !isCollapsed && (
+        <div className="px-4 py-2">
+          <span
+            className={cn(
+              'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
+              isMaster ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-600 text-slate-300'
+            )}
           >
-            <ArrowRightLeft className="h-4 w-4" />
-            Switch to Manager View
-          </Link>
+            {isMaster ? 'Master Admin' : 'Worker Admin'}
+          </span>
         </div>
       )}
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-2 space-y-4 overflow-y-auto">
+        {/* Collapse Toggle */}
+        <button
+          onClick={toggleCollapsed}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-slate-300 hover:bg-slate-700 hover:text-white w-full',
+            isCollapsed && 'justify-center px-0'
+          )}
+        >
+          <span className="relative">
+            {isCollapsed ? <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" strokeWidth={1.5} /> : <ChevronLeft className="h-5 w-5 shrink-0 text-slate-400" strokeWidth={1.5} />}
+          </span>
+          {!isCollapsed && <span className="text-sm">Collapse</span>}
+        </button>
+
+        {/* Nav Items */}
         {navigation.map((item) => {
           const active = isActive(item.href)
+          const Icon = item.icon
+
           return (
             <Link
               key={item.name}
               href={item.href}
+              title={isCollapsed ? item.name : undefined}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors relative',
                 active
-                  ? 'bg-green-50 text-green-700 border border-green-200'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-slate-700 text-white font-medium'
+                  : 'text-slate-300 hover:bg-slate-700 hover:text-white',
+                isCollapsed && 'justify-center px-0'
               )}
             >
-              <item.icon className={cn('h-5 w-5', active ? 'text-green-600' : 'text-gray-400')} />
-              <span className="flex-1">{item.name}</span>
-              {item.badge > 0 && (
-                <span
-                  className={cn(
-                    'px-2 py-0.5 text-xs font-semibold text-white rounded-full',
-                    item.badgeColor || 'bg-gray-500'
-                  )}
-                >
-                  {item.badge}
-                </span>
-              )}
-              {active && <ChevronRight className="h-4 w-4 text-green-600" />}
+              <span className="relative">
+                <Icon className={cn('h-5 w-5 shrink-0', active ? 'text-white' : 'text-slate-400')} strokeWidth={1.5} />
+                {item.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+              </span>
+              {!isCollapsed && <span className="text-sm truncate">{item.name}</span>}
             </Link>
           )
         })}
       </nav>
 
       {/* User Section */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-            <span className="text-green-700 font-semibold text-sm">
-              {userName.charAt(0).toUpperCase()}
-            </span>
+      <div className="p-2 space-y-1">
+        {/* User Info */}
+        <div
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg',
+            isCollapsed && 'justify-center px-0'
+          )}
+          title={isCollapsed ? userName : undefined}
+        >
+          <div className="size-8 rounded-full bg-white text-slate-800 flex items-center justify-center font-bold text-xs shrink-0">
+            {getInitials(userName)}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
-            <p className="text-xs text-gray-500 truncate">{userEmail}</p>
-          </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{userName}</p>
+              <p className="text-xs text-slate-400 truncate">{userEmail}</p>
+            </div>
+          )}
         </div>
+
+        {/* Sign Out */}
         <button
           onClick={() => signOut({ callbackUrl: '/login' })}
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          title={isCollapsed ? 'Sign out' : undefined}
+          className={cn(
+            'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-slate-300 hover:bg-slate-700 hover:text-white transition-colors',
+            isCollapsed && 'justify-center px-0'
+          )}
         >
-          <LogOut className="h-4 w-4" />
-          Sign Out
+          <span className="relative">
+            <LogOut className="h-5 w-5 text-slate-400" strokeWidth={1.5} />
+          </span>
+          {!isCollapsed && <span className="text-sm">Sign out</span>}
         </button>
       </div>
     </aside>

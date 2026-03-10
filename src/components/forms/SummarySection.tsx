@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { FlaskConical, Factory, Calendar, AlertTriangle, CheckCircle2, Loader2, FileText } from 'lucide-react'
+import { FlaskConical, Factory, Calendar, AlertTriangle, CheckCircle2, Loader2, FileText, UserCheck } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FormSection } from './FormSection'
+import { ReviewerSelect } from './ReviewerSelect'
 import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
@@ -14,9 +15,11 @@ const TENURE_OPTIONS = [3, 6, 9, 12] as const
 interface SummarySectionProps {
   isNewCertificate?: boolean
   certificateId?: string
+  reviewerName?: string | null
+  feedbackSlot?: React.ReactNode
 }
 
-export function SummarySection({ isNewCertificate = true, certificateId }: SummarySectionProps) {
+export function SummarySection({ isNewCertificate = true, certificateId, reviewerName, feedbackSlot }: SummarySectionProps) {
   const { formData, setFormField } = useCertificateStore()
   const [isCheckingNumber, setIsCheckingNumber] = useState(false)
   const [numberExists, setNumberExists] = useState<boolean | null>(null)
@@ -82,123 +85,191 @@ export function SummarySection({ isNewCertificate = true, certificateId }: Summa
       id="summary"
       sectionNumber="Section 01"
       title="Summary Information"
+      feedbackSlot={feedbackSlot}
     >
       <div className="space-y-8">
-        {/* Certificate Number - Only for new certificates (V1) */}
-        {isNewCertificate && (
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              Certificate Number <span className="text-red-500">*</span>
-            </Label>
-            <div className="relative">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                <FileText className="size-5" />
+        {isNewCertificate ? (
+          <>
+            {/* Certificate Number - Editable */}
+            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+              <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                Certificate Number <span className="text-red-500">*</span>
+              </Label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                  <FileText className="size-5" />
+                </div>
+                <Input
+                  type="text"
+                  value={formData.certificateNumber}
+                  onChange={(e) => setFormField('certificateNumber', e.target.value)}
+                  placeholder="e.g., HTA/12345/24/01"
+                  className={cn(
+                    "w-full rounded-xl border-slate-200 h-12 pl-12 pr-12 focus:ring-primary focus:border-primary font-semibold",
+                    numberExists === true && "border-amber-500 focus:border-amber-500 focus:ring-amber-500",
+                    numberExists === false && formData.certificateNumber.length >= 3 && "border-green-500 focus:border-green-500 focus:ring-green-500"
+                  )}
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  {isCheckingNumber && (
+                    <Loader2 className="size-5 text-slate-400 animate-spin" />
+                  )}
+                  {!isCheckingNumber && numberExists === true && (
+                    <AlertTriangle className="size-5 text-amber-500" />
+                  )}
+                  {!isCheckingNumber && numberExists === false && formData.certificateNumber.length >= 3 && (
+                    <CheckCircle2 className="size-5 text-green-500" />
+                  )}
+                </div>
               </div>
-              <Input
-                type="text"
-                value={formData.certificateNumber}
-                onChange={(e) => setFormField('certificateNumber', e.target.value)}
-                placeholder="e.g., HTA/12345/24/01"
-                className={cn(
-                  "w-full rounded-xl border-slate-200 h-12 pl-12 pr-12 focus:ring-primary focus:border-primary font-semibold",
-                  numberExists === true && "border-amber-500 focus:border-amber-500 focus:ring-amber-500",
-                  numberExists === false && formData.certificateNumber.length >= 3 && "border-green-500 focus:border-green-500 focus:ring-green-500"
-                )}
+              {numberExists === true && (
+                <div className="mt-2 flex items-center gap-2 text-amber-600">
+                  <AlertTriangle className="size-4" />
+                  <span className="text-xs font-semibold">
+                    This certificate number already exists. Please use a different number.
+                  </span>
+                </div>
+              )}
+              {numberExists === false && formData.certificateNumber.length >= 3 && (
+                <p className="mt-2 text-xs text-green-600 font-semibold">
+                  Certificate number is available
+                </p>
+              )}
+              <p className="mt-2 text-[10px] text-slate-400">
+                Format: HTA/XXXXX/YY/ZZ (e.g., HTA/12345/24/01)
+              </p>
+            </div>
+
+            {/* Reviewer Selection - Editable */}
+            <div className="bg-purple-50/50 rounded-2xl p-6 border border-purple-100 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <UserCheck className="size-5 text-purple-600" />
+                </div>
+                <div>
+                  <Label className="block text-xs font-bold text-purple-700 uppercase tracking-wider">
+                    Assign Reviewer <span className="text-red-500">*</span>
+                  </Label>
+                  <p className="text-[10px] text-purple-500 mt-0.5">
+                    Select an engineer or admin to review this certificate
+                  </p>
+                </div>
+              </div>
+              <ReviewerSelect
+                value={formData.reviewerId}
+                onChange={(reviewerId) => setFormField('reviewerId', reviewerId)}
+                className="w-full"
               />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2">
-                {isCheckingNumber && (
-                  <Loader2 className="size-5 text-slate-400 animate-spin" />
-                )}
-                {!isCheckingNumber && numberExists === true && (
-                  <AlertTriangle className="size-5 text-amber-500" />
-                )}
-                {!isCheckingNumber && numberExists === false && formData.certificateNumber.length >= 3 && (
-                  <CheckCircle2 className="size-5 text-green-500" />
-                )}
+            </div>
+
+            {/* Calibrated At - Editable */}
+            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+              <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+                Calibrated At <span className="text-red-500">*</span>
+              </Label>
+              <div className="flex flex-wrap gap-4">
+                <label className="relative flex-1 min-w-[200px] cursor-pointer">
+                  <input
+                    type="radio"
+                    name="calibratedAt"
+                    value="LAB"
+                    checked={formData.calibratedAt === 'LAB'}
+                    onChange={() => setFormField('calibratedAt', 'LAB')}
+                    className="peer sr-only"
+                  />
+                  <div className={cn(
+                    "p-4 rounded-xl border-2 bg-white transition-all text-center",
+                    formData.calibratedAt === 'LAB'
+                      ? "border-primary bg-primary/5"
+                      : "border-slate-100"
+                  )}>
+                    <FlaskConical className={cn(
+                      "size-6 mx-auto mb-2",
+                      formData.calibratedAt === 'LAB' ? "text-primary" : "text-slate-400"
+                    )} />
+                    <span className={cn(
+                      "font-bold",
+                      formData.calibratedAt === 'LAB' ? "text-primary" : "text-slate-700"
+                    )}>
+                      In-House Laboratory
+                    </span>
+                  </div>
+                </label>
+
+                <label className="relative flex-1 min-w-[200px] cursor-pointer">
+                  <input
+                    type="radio"
+                    name="calibratedAt"
+                    value="SITE"
+                    checked={formData.calibratedAt === 'SITE'}
+                    onChange={() => setFormField('calibratedAt', 'SITE')}
+                    className="peer sr-only"
+                  />
+                  <div className={cn(
+                    "p-4 rounded-xl border-2 bg-white transition-all text-center",
+                    formData.calibratedAt === 'SITE'
+                      ? "border-primary bg-primary/5"
+                      : "border-slate-100"
+                  )}>
+                    <Factory className={cn(
+                      "size-6 mx-auto mb-2",
+                      formData.calibratedAt === 'SITE' ? "text-primary" : "text-slate-400"
+                    )} />
+                    <span className={cn(
+                      "font-bold",
+                      formData.calibratedAt === 'SITE' ? "text-primary" : "text-slate-700"
+                    )}>
+                      On-Site Location
+                    </span>
+                  </div>
+                </label>
               </div>
             </div>
-            {numberExists === true && (
-              <div className="mt-2 flex items-center gap-2 text-amber-600">
-                <AlertTriangle className="size-4" />
-                <span className="text-xs font-semibold">
-                  This certificate number already exists. Please use a different number.
+          </>
+        ) : (
+          <>
+            {/* Locked Certificate Info - Compact Card */}
+            <div className="bg-slate-100 rounded-2xl p-5 border border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Certificate Details</h3>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full text-[10px] font-medium">
+                  <CheckCircle2 className="size-3" />
+                  Locked
                 </span>
               </div>
-            )}
-            {numberExists === false && formData.certificateNumber.length >= 3 && (
-              <p className="mt-2 text-xs text-green-600 font-semibold">
-                Certificate number is available
-              </p>
-            )}
-            <p className="mt-2 text-[10px] text-slate-400">
-              Format: HTA/XXXXX/YY/ZZ (e.g., HTA/12345/24/01)
-            </p>
-          </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
+                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">Certificate No.</p>
+                  <p className="font-bold text-slate-900 text-sm">{formData.certificateNumber}</p>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
+                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">Calibrated At</p>
+                  <div className="flex items-center gap-1.5">
+                    {formData.calibratedAt === 'LAB' ? (
+                      <FlaskConical className="size-3.5 text-primary" />
+                    ) : (
+                      <Factory className="size-3.5 text-primary" />
+                    )}
+                    <p className="font-bold text-slate-900 text-sm">
+                      {formData.calibratedAt === 'LAB' ? 'Lab' : 'On-Site'}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-slate-200">
+                  <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider mb-1">Cal. Date</p>
+                  <p className="font-bold text-slate-900 text-sm">{formatDate(formData.dateOfCalibration)}</p>
+                </div>
+                <div className="bg-white rounded-xl p-3 border border-purple-200">
+                  <p className="text-[10px] font-medium text-purple-500 uppercase tracking-wider mb-1">Reviewer</p>
+                  <div className="flex items-center gap-1.5">
+                    <UserCheck className="size-3.5 text-purple-600" />
+                    <p className="font-bold text-slate-900 text-sm truncate">{reviewerName || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
         )}
-
-        {/* Calibrated At */}
-        <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
-          <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
-            Calibrated At <span className="text-red-500">*</span>
-          </Label>
-          <div className="flex flex-wrap gap-4">
-            <label className="relative flex-1 min-w-[200px] cursor-pointer">
-              <input
-                type="radio"
-                name="calibratedAt"
-                value="LAB"
-                checked={formData.calibratedAt === 'LAB'}
-                onChange={() => setFormField('calibratedAt', 'LAB')}
-                className="peer sr-only"
-              />
-              <div className={cn(
-                "p-4 rounded-xl border-2 bg-white transition-all text-center",
-                formData.calibratedAt === 'LAB'
-                  ? "border-primary bg-primary/5"
-                  : "border-slate-100"
-              )}>
-                <FlaskConical className={cn(
-                  "size-6 mx-auto mb-2",
-                  formData.calibratedAt === 'LAB' ? "text-primary" : "text-slate-400"
-                )} />
-                <span className={cn(
-                  "font-bold",
-                  formData.calibratedAt === 'LAB' ? "text-primary" : "text-slate-700"
-                )}>
-                  In-House Laboratory
-                </span>
-              </div>
-            </label>
-
-            <label className="relative flex-1 min-w-[200px] cursor-pointer">
-              <input
-                type="radio"
-                name="calibratedAt"
-                value="SITE"
-                checked={formData.calibratedAt === 'SITE'}
-                onChange={() => setFormField('calibratedAt', 'SITE')}
-                className="peer sr-only"
-              />
-              <div className={cn(
-                "p-4 rounded-xl border-2 bg-white transition-all text-center",
-                formData.calibratedAt === 'SITE'
-                  ? "border-primary bg-primary/5"
-                  : "border-slate-100"
-              )}>
-                <Factory className={cn(
-                  "size-6 mx-auto mb-2",
-                  formData.calibratedAt === 'SITE' ? "text-primary" : "text-slate-400"
-                )} />
-                <span className={cn(
-                  "font-bold",
-                  formData.calibratedAt === 'SITE' ? "text-primary" : "text-slate-700"
-                )}>
-                  On-Site Location
-                </span>
-              </div>
-            </label>
-          </div>
-        </div>
 
         {/* SRF Details */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -228,19 +299,21 @@ export function SummarySection({ isNewCertificate = true, certificateId }: Summa
         </div>
 
         {/* Date and Tenure Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Date of Calibration */}
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
-            <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              Date of Calibration <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              type="date"
-              value={formData.dateOfCalibration}
-              onChange={(e) => setFormField('dateOfCalibration', e.target.value)}
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary"
-            />
-          </div>
+        <div className={cn("grid gap-8", isNewCertificate ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
+          {/* Date of Calibration - Only editable for DRAFT */}
+          {isNewCertificate && (
+            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+              <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                Date of Calibration <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={formData.dateOfCalibration}
+                onChange={(e) => setFormField('dateOfCalibration', e.target.value)}
+                className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary"
+              />
+            </div>
+          )}
 
           {/* Calibration Tenure */}
           <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">

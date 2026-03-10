@@ -191,176 +191,181 @@ export default function RegistrationsPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Customer Registrations</h1>
-          <p className="text-gray-600 mt-1">
-            Review and process customer registration requests
-          </p>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-gray-400" />
-              Registrations
-            </CardTitle>
-            <div className="flex items-center gap-4">
-              <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="APPROVED">Approved</SelectItem>
-                  <SelectItem value="REJECTED">Rejected</SelectItem>
-                  <SelectItem value="ALL">All</SelectItem>
-                </SelectContent>
-              </Select>
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Customer Registrations</h1>
+              <p className="text-slate-600 mt-1">
+                Review and process customer registration requests
+              </p>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-            </div>
-          ) : registrations.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No registrations found
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead>Reviewed By</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {registrations.map((reg) => (
-                    <TableRow key={reg.id}>
-                      <TableCell className="font-medium">{reg.name}</TableCell>
-                      <TableCell className="text-gray-500">{reg.email}</TableCell>
-                      <TableCell>
-                        {reg.customerAccount ? (
-                          <Link
-                            href={`/admin/customers/${reg.customerAccount.id}`}
-                            className="flex items-center gap-1 text-blue-600 hover:underline"
-                          >
-                            <Building2 className="h-3 w-3" />
-                            {reg.customerAccount.companyName}
-                          </Link>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{getStatusBadge(reg.status)}</TableCell>
-                      <TableCell className="text-gray-500">
-                        {new Date(reg.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-gray-500">
-                        {reg.reviewedBy ? (
-                          <span>
-                            {reg.reviewedBy.name}
-                            <br />
-                            <span className="text-xs">
-                              {reg.reviewedAt
-                                ? new Date(reg.reviewedAt).toLocaleDateString()
-                                : ''}
-                            </span>
-                          </span>
-                        ) : (
-                          '-'
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {reg.status === 'PENDING' ? (
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              className="bg-green-600 hover:bg-green-700"
-                              onClick={() => handleApprove(reg.id)}
-                              disabled={processing === reg.id}
-                            >
-                              {processing === reg.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <CheckCircle className="h-4 w-4 mr-1" />
-                                  Approve
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 border-red-200 hover:bg-red-50"
-                              onClick={() => openRejectDialog(reg.id)}
-                              disabled={processing === reg.id}
-                            >
-                              <XCircle className="h-4 w-4 mr-1" />
-                              Reject
-                            </Button>
-                          </div>
-                        ) : reg.status === 'REJECTED' && reg.rejectionReason ? (
-                          <span
-                            className="text-xs text-gray-500 cursor-help"
-                            title={reg.rejectionReason}
-                          >
-                            Reason: {reg.rejectionReason.substring(0, 30)}
-                            {reg.rejectionReason.length > 30 ? '...' : ''}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
 
-              {/* Pagination */}
-              {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 border-t mt-4">
-                  <p className="text-sm text-gray-500">
-                    Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
-                    {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
-                    {pagination.total} registrations
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fetchRegistrations(pagination.page - 1)}
-                      disabled={pagination.page === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fetchRegistrations(pagination.page + 1)}
-                      disabled={pagination.page === pagination.totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="h-5 w-5 text-slate-400" />
+                  Registrations
+                </CardTitle>
+                <div className="flex items-center gap-4">
+                  <Select value={statusFilter} onValueChange={handleStatusChange}>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="Filter by status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="PENDING">Pending</SelectItem>
+                      <SelectItem value="APPROVED">Approved</SelectItem>
+                      <SelectItem value="REJECTED">Rejected</SelectItem>
+                      <SelectItem value="ALL">All</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                </div>
+              ) : registrations.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  No registrations found
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Submitted</TableHead>
+                        <TableHead>Reviewed By</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {registrations.map((reg) => (
+                        <TableRow key={reg.id}>
+                          <TableCell className="font-medium">{reg.name}</TableCell>
+                          <TableCell className="text-slate-500">{reg.email}</TableCell>
+                          <TableCell>
+                            {reg.customerAccount ? (
+                              <Link
+                                href={`/admin/customers/${reg.customerAccount.id}`}
+                                className="flex items-center gap-1 text-blue-600 hover:underline"
+                              >
+                                <Building2 className="h-3 w-3" />
+                                {reg.customerAccount.companyName}
+                              </Link>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>{getStatusBadge(reg.status)}</TableCell>
+                          <TableCell className="text-slate-500">
+                            {new Date(reg.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-slate-500">
+                            {reg.reviewedBy ? (
+                              <span>
+                                {reg.reviewedBy.name}
+                                <br />
+                                <span className="text-xs">
+                                  {reg.reviewedAt
+                                    ? new Date(reg.reviewedAt).toLocaleDateString()
+                                    : ''}
+                                </span>
+                              </span>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {reg.status === 'PENDING' ? (
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                  onClick={() => handleApprove(reg.id)}
+                                  disabled={processing === reg.id}
+                                >
+                                  {processing === reg.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="h-4 w-4 mr-1" />
+                                      Approve
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 border-red-200 hover:bg-red-50"
+                                  onClick={() => openRejectDialog(reg.id)}
+                                  disabled={processing === reg.id}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : reg.status === 'REJECTED' && reg.rejectionReason ? (
+                              <span
+                                className="text-xs text-slate-500 cursor-help"
+                                title={reg.rejectionReason}
+                              >
+                                Reason: {reg.rejectionReason.substring(0, 30)}
+                                {reg.rejectionReason.length > 30 ? '...' : ''}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+
+                  {/* Pagination */}
+                  {pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between pt-4 border-t mt-4">
+                      <p className="text-sm text-slate-500">
+                        Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
+                        {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                        {pagination.total} registrations
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchRegistrations(pagination.page - 1)}
+                          disabled={pagination.page === 1}
+                        >
+                          Previous
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchRegistrations(pagination.page + 1)}
+                          disabled={pagination.page === pagination.totalPages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Reject Dialog */}
       <AlertDialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>

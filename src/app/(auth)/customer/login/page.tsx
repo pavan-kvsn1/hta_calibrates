@@ -112,16 +112,11 @@ function CustomerLoginForm() {
         </Button>
       </form>
 
-      {/* Registration Link */}
+      {/* Help Text */}
       <div className="mt-6 text-center border-t pt-6">
         <p className="text-sm text-gray-600">
-          Don&apos;t have an account?{' '}
-          <a
-            href="/customer/register"
-            className="text-green-600 hover:text-green-700 font-medium"
-          >
-            Register here
-          </a>
+          Don&apos;t have an account? Contact your company administrator
+          or reach out to HTA to set up your account.
         </p>
       </div>
 

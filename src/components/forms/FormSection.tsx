@@ -12,6 +12,8 @@ interface FormSectionProps {
   className?: string
   headerClassName?: string
   isDark?: boolean
+  /** Optional feedback element to render inside the section, below the header */
+  feedbackSlot?: React.ReactNode
 }
 
 export function FormSection({
@@ -22,6 +24,7 @@ export function FormSection({
   className,
   headerClassName,
   isDark = false,
+  feedbackSlot,
 }: FormSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
@@ -66,9 +69,17 @@ export function FormSection({
         </button>
 
         {isExpanded && (
-          <div className="p-8">
-            {children}
-          </div>
+          <>
+            {/* Feedback slot - renders inside the section, below header */}
+            {feedbackSlot && (
+              <div className="px-8 pt-4">
+                {feedbackSlot}
+              </div>
+            )}
+            <div className="p-8 pt-4">
+              {children}
+            </div>
+          </>
         )}
       </div>
     </section>

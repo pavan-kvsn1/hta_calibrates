@@ -5,17 +5,34 @@ import { formatDistanceToNow } from 'date-fns'
 
 // Icons for notification types
 const notificationIcons: Record<string, string> = {
+  // Assignee notifications
   REVISION_REQUESTED: '📝',
   CERTIFICATE_APPROVED: '✅',
   SENT_TO_CUSTOMER: '📤',
   CERTIFICATE_FINALIZED: '🎉',
+  // Reviewer notifications
   SUBMITTED_FOR_REVIEW: '📋',
   ENGINEER_RESPONDED: '💬',
   CUSTOMER_REVISION_REQUEST: '🔄',
   CUSTOMER_APPROVED: '👍',
+  // Customer notifications
   CERTIFICATE_READY: '📩',
-  HOD_REPLIED: '💬',
+  REVIEWER_REPLIED: '💬',
+  // Chat notifications
+  NEW_CHAT_MESSAGE: '💬',
+  // Registration notifications
+  REGISTRATION_SUBMITTED: '📝',
+  REGISTRATION_APPROVED: '✅',
+  REGISTRATION_REJECTED: '❌',
 }
+
+// Notification types that are sent to reviewers (not assignees)
+const REVIEWER_NOTIFICATION_TYPES = [
+  'SUBMITTED_FOR_REVIEW',
+  'ENGINEER_RESPONDED',
+  'CUSTOMER_REVISION_REQUEST',
+  'CUSTOMER_APPROVED',
+]
 
 // Navigation paths for notification types
 const getNavigationPath = (type: string, certificateId: string | null, userRole: string): string | null => {
@@ -23,32 +40,26 @@ const getNavigationPath = (type: string, certificateId: string | null, userRole:
 
   // Customer notifications
   if (userRole === 'CUSTOMER') {
-    return `/customer/review/cert/${certificateId}`
+    return `/customer/certificates/${certificateId}`
   }
 
-  // HoD notifications
-  if (userRole === 'HOD') {
-    switch (type) {
-      case 'SUBMITTED_FOR_REVIEW':
-      case 'ENGINEER_RESPONDED':
-      case 'CUSTOMER_REVISION_REQUEST':
-      case 'CUSTOMER_APPROVED':
-        return `/hod/review/${certificateId}`
-      default:
-        return `/certificates/${certificateId}`
+  // Admin notifications - go to admin review page
+  if (userRole === 'ADMIN') {
+    return `/admin/certificates/${certificateId}`
+  }
+
+  // Engineer notifications - determine if assignee or reviewer based on notification type
+  if (userRole === 'ENGINEER') {
+    // Reviewer notifications go to reviewer page
+    if (REVIEWER_NOTIFICATION_TYPES.includes(type)) {
+      return `/dashboard/reviewer/${certificateId}`
     }
+    // Assignee notifications go to edit page
+    return `/dashboard/certificates/${certificateId}/edit`
   }
 
-  // Engineer notifications
-  switch (type) {
-    case 'REVISION_REQUESTED':
-    case 'CERTIFICATE_APPROVED':
-    case 'SENT_TO_CUSTOMER':
-    case 'CERTIFICATE_FINALIZED':
-      return `/certificates/${certificateId}`
-    default:
-      return `/certificates/${certificateId}`
-  }
+  // Default fallback
+  return `/dashboard/certificates/${certificateId}/edit`
 }
 
 interface NotificationItemProps {

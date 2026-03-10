@@ -49,7 +49,11 @@ const CONCLUSION_LABELS: Record<string, string> = {
   'uuc_with_adjust': 'UUC with adjust (very rare) applicable only @ site',
 }
 
-export function ConclusionSection() {
+interface ConclusionSectionProps {
+  feedbackSlot?: React.ReactNode
+}
+
+export function ConclusionSection({ feedbackSlot }: ConclusionSectionProps = {}) {
   const { formData, setFormField } = useCertificateStore()
   const [showAdditionalInput, setShowAdditionalInput] = useState(false)
 
@@ -93,6 +97,7 @@ export function ConclusionSection() {
       id="conclusion"
       sectionNumber="Section 07"
       title="Conclusion Statements"
+      feedbackSlot={feedbackSlot}
     >
       <div className="space-y-6">
         {/* Dropdown to add statements */}

@@ -1,17 +1,19 @@
 import { redirect } from 'next/navigation'
-import { auth, canAccessAdmin } from '@/lib/auth'
+import { auth, canAccessAdmin, isMasterAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
+import { AdminLayoutWrapper } from '@/components/admin/AdminLayoutWrapper'
 
-async function getSidebarBadges() {
+async function getSidebarBadges(isMaster: boolean) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
   const thirtyDaysFromNow = new Date(today)
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
 
-  const [pendingRegistrations, expiredInstruments, expiringInstruments, pendingAuthorizations] = await Promise.all([
-    prisma.customerRegistration.count({ where: { status: 'PENDING' } }),
+  // Worker admins don't need request count (can't access that page)
+  const [pendingRequests, expiredInstruments, expiringInstruments, pendingAuthorizations] = await Promise.all([
+    isMaster ? prisma.customerRequest.count({ where: { status: 'PENDING' } }) : Promise.resolve(0),
     prisma.masterInstrument.count({
       where: {
         isActive: true,
@@ -28,7 +30,7 @@ async function getSidebarBadges() {
   ])
 
   return {
-    pendingRegistrations,
+    pendingRequests,
     instrumentAlerts: expiredInstruments + expiringInstruments,
     pendingAuthorizations,
   }
@@ -46,34 +48,36 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
-  // Check if user can access admin (ADMIN role OR HoD with isAdmin flag)
+  // Check if user can access admin (ADMIN role OR HoD with isAdmin flag for legacy)
   if (!canAccessAdmin(session.user)) {
     redirect('/dashboard')
   }
 
-  const badges = await getSidebarBadges()
+  // Determine admin type
+  const isMaster = isMasterAdmin(session.user)
+  const adminType = session.user.adminType as 'MASTER' | 'WORKER' | null
 
-  // Check if this is an HoD with admin access (to show "Switch to Manager" link)
+  const badges = await getSidebarBadges(isMaster)
+
+  // Legacy: Check if this is an HoD with admin access (to show "Switch to Engineer" link)
   const isHodWithAdmin = session.user.role === 'HOD' && session.user.isAdmin === true
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="flex">
-        {/* Sidebar */}
-        <AdminSidebar
-          userName={session.user.name}
-          userEmail={session.user.email}
-          pendingRegistrations={badges.pendingRegistrations}
-          instrumentAlerts={badges.instrumentAlerts}
-          pendingAuthorizations={badges.pendingAuthorizations}
-          isHodWithAdmin={isHodWithAdmin}
-        />
+    <div className="min-h-screen bg-slate-100">
+      {/* Sidebar */}
+      <AdminSidebar
+        userName={session.user.name}
+        userEmail={session.user.email}
+        pendingRequests={badges.pendingRequests}
+        instrumentAlerts={badges.instrumentAlerts}
+        pendingAuthorizations={badges.pendingAuthorizations}
+        adminType={adminType}
+      />
 
-        {/* Main Content */}
-        <main className="flex-1 ml-64">
-          {children}
-        </main>
-      </div>
+      {/* Main Content - margin adjusts based on sidebar state */}
+      <AdminLayoutWrapper showEngineerSwitch={isHodWithAdmin}>
+        {children}
+      </AdminLayoutWrapper>
     </div>
   )
 }

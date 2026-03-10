@@ -602,7 +602,11 @@ function MasterInstrumentCard({
   )
 }
 
-export function MasterInstrumentSection() {
+interface MasterInstrumentSectionProps {
+  feedbackSlot?: React.ReactNode
+}
+
+export function MasterInstrumentSection({ feedbackSlot }: MasterInstrumentSectionProps = {}) {
   const { formData, addMasterInstrument, removeMasterInstrument, setMasterInstrument, setParameter } =
     useCertificateStore()
   const { isLoaded, loadInstruments, getStats } = useMasterInstrumentStore()
@@ -621,6 +625,7 @@ export function MasterInstrumentSection() {
       id="master-inst"
       sectionNumber="Section 03"
       title="Master Instrument Details"
+      feedbackSlot={feedbackSlot}
     >
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

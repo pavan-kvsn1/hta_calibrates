@@ -20,8 +20,8 @@ const TypedSignature = forwardRef<TypedSignatureHandle, TypedSignatureProps>(
   function TypedSignature(
     {
       name,
-      width = 400,
-      height = 150,
+      width = 400*.8,
+      height = 150*.8,
       onSignatureReady,
       className,
     },

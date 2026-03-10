@@ -2,9 +2,10 @@ import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  Users,
   Building2,
   UserCheck,
+  Users,
+  UserPlus,
   Wrench,
   FileText,
   Clock,
@@ -12,8 +13,8 @@ import {
   AlertCircle,
   CheckCircle,
   ArrowRight,
-  Plus,
-  Upload,
+  ShieldCheck,
+  TrendingUp,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -27,45 +28,49 @@ async function getAdminStats() {
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
+  const fortyEightHoursAgo = new Date()
+  fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48)
+
+  const twentyFourHoursAgo = new Date()
+  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
+
   const [
-    // Overview stats
-    staffByRole,
+    // Overview stats (matching wireframe: Engineers, Customers, Certificates, Instruments)
+    totalEngineers,
     totalCustomerAccounts,
-    activeCertificates,
+    totalCertificates,
     totalInstruments,
 
     // Attention items
-    pendingRegistrations,
+    pendingRequests,
     expiredInstruments,
     expiringInstruments,
     staleCertificates,
+    overdueCertificates,
+
+    // TAT metrics - certificates in active workflow states
+    activeCertificatesForTAT,
 
     // Recent activity data
     recentCertificateEvents,
-    recentRegistrations,
+    recentRequests,
   ] = await Promise.all([
-    // Staff users grouped by role
-    prisma.user.groupBy({
-      by: ['role'],
-      where: { isActive: true },
-      _count: true,
+    // Total engineers (staff users with ENGINEER role)
+    prisma.user.count({
+      where: { role: 'ENGINEER', isActive: true },
     }),
 
     // Customer accounts
     prisma.customerAccount.count({ where: { isActive: true } }),
 
-    // Active certificates (not in terminal state)
-    prisma.certificate.count({
-      where: {
-        status: { notIn: ['APPROVED', 'REJECTED'] },
-      },
-    }),
+    // Total certificates
+    prisma.certificate.count(),
 
     // Total active instruments
     prisma.masterInstrument.count({ where: { isActive: true } }),
 
-    // Pending registrations
-    prisma.customerRegistration.count({ where: { status: 'PENDING' } }),
+    // Pending customer requests (user additions, POC changes)
+    prisma.customerRequest.count({ where: { status: 'PENDING' } }),
 
     // Expired instruments
     prisma.masterInstrument.count({
@@ -88,6 +93,29 @@ async function getAdminStats() {
       where: {
         status: { in: ['REVISION_REQUIRED', 'CUSTOMER_REVISION_REQUIRED'] },
         updatedAt: { lt: sevenDaysAgo },
+      },
+    }),
+
+    // Overdue certificates (TAT > 48h, still in active workflow)
+    prisma.certificate.count({
+      where: {
+        status: {
+          in: ['PENDING_REVIEW', 'PENDING_HOD_REVIEW', 'PENDING_CUSTOMER_APPROVAL'],
+        },
+        updatedAt: { lt: fortyEightHoursAgo },
+      },
+    }),
+
+    // Active certificates for TAT calculation
+    prisma.certificate.findMany({
+      where: {
+        status: {
+          notIn: ['DRAFT', 'APPROVED', 'REJECTED'],
+        },
+      },
+      select: {
+        updatedAt: true,
+        status: true,
       },
     }),
 
@@ -117,46 +145,77 @@ async function getAdminStats() {
       },
     }),
 
-    // Recent registrations
-    prisma.customerRegistration.findMany({
+    // Recent customer requests
+    prisma.customerRequest.findMany({
       orderBy: { createdAt: 'desc' },
       take: 10,
       select: {
         id: true,
-        email: true,
+        type: true,
         status: true,
+        data: true,
         createdAt: true,
+        customerAccount: {
+          select: { companyName: true },
+        },
       },
     }),
   ])
 
-  // Calculate total staff
-  const totalStaff = staffByRole.reduce((sum, group) => sum + group._count, 0)
-  const staffBreakdown = staffByRole.reduce(
-    (acc, group) => {
-      acc[group.role] = group._count
-      return acc
-    },
-    {} as Record<string, number>
-  )
+  // Calculate TAT metrics
+  const now = new Date()
+  let totalTATHours = 0
+  let onTrackCount = 0
+  let warningCount = 0
+  let overdueCount = 0
+
+  activeCertificatesForTAT.forEach((cert) => {
+    const hoursElapsed = Math.floor(
+      (now.getTime() - cert.updatedAt.getTime()) / (1000 * 60 * 60)
+    )
+    totalTATHours += hoursElapsed
+
+    if (hoursElapsed <= 24) {
+      onTrackCount++
+    } else if (hoursElapsed <= 48) {
+      warningCount++
+    } else {
+      overdueCount++
+    }
+  })
+
+  const totalActive = activeCertificatesForTAT.length
+  const averageTAT = totalActive > 0 ? Math.round(totalTATHours / totalActive) : 0
+  const onTrackPercent = totalActive > 0 ? Math.round((onTrackCount / totalActive) * 100) : 100
+  const warningPercent = totalActive > 0 ? Math.round((warningCount / totalActive) * 100) : 0
+  const overduePercent = totalActive > 0 ? Math.round((overdueCount / totalActive) * 100) : 0
 
   return {
     // Overview stats
-    totalStaff,
-    staffBreakdown,
+    totalEngineers,
     totalCustomerAccounts,
-    activeCertificates,
+    totalCertificates,
     totalInstruments,
 
     // Attention items
-    pendingRegistrations,
+    pendingRequests,
     expiredInstruments,
     expiringInstruments,
     staleCertificates,
+    overdueCertificates,
+
+    // TAT metrics
+    tatMetrics: {
+      averageTAT,
+      onTrackPercent,
+      warningPercent,
+      overduePercent,
+      totalActive,
+    },
 
     // Recent activity
     recentCertificateEvents,
-    recentRegistrations,
+    recentRequests,
   }
 }
 
@@ -202,7 +261,7 @@ function formatRelativeTime(date: Date) {
 }
 
 function groupByDate(
-  events: Array<{ createdAt: Date; description: string; type: 'event' | 'registration' }>
+  events: Array<{ createdAt: Date; description: string; type: 'event' | 'request' }>
 ) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -242,35 +301,41 @@ export default async function AdminDashboard() {
       description: formatEventDescription(e),
       type: 'event' as const,
     })),
-    ...stats.recentRegistrations.map((r) => ({
-      createdAt: r.createdAt,
-      description:
-        r.status === 'PENDING'
-          ? `New registration: ${r.email}`
-          : r.status === 'APPROVED'
-            ? `Registration approved: ${r.email}`
-            : `Registration rejected: ${r.email}`,
-      type: 'registration' as const,
-    })),
+    ...stats.recentRequests.map((r) => {
+      const data = r.data as { name?: string; email?: string }
+      const label = r.type === 'USER_ADDITION'
+        ? `User addition: ${data.name || data.email || 'Unknown'}`
+        : 'POC change request'
+      return {
+        createdAt: r.createdAt,
+        description:
+          r.status === 'PENDING'
+            ? `New ${label} (${r.customerAccount.companyName})`
+            : r.status === 'APPROVED'
+              ? `Approved: ${label}`
+              : `Rejected: ${label}`,
+        type: 'request' as const,
+      }
+    }),
   ]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, 15)
 
   const groupedActivity = groupByDate(allActivity)
 
-  // Overview stat cards
+  // Overview stat cards (matching wireframe: Engineers, Customers, Certificates, Instruments)
   const overviewCards = [
     {
-      title: 'Staff Users',
-      value: stats.totalStaff,
-      subtitle: `${stats.staffBreakdown['ENGINEER'] || 0} Engineers, ${stats.staffBreakdown['HOD'] || 0} HoD`,
+      title: 'Engineers',
+      value: stats.totalEngineers,
+      subtitle: 'Active staff',
       icon: Users,
       href: '/admin/users',
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
-      title: 'Customer Accounts',
+      title: 'Customers',
       value: stats.totalCustomerAccounts,
       subtitle: 'Active accounts',
       icon: Building2,
@@ -279,16 +344,16 @@ export default async function AdminDashboard() {
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Active Certificates',
-      value: stats.activeCertificates,
-      subtitle: 'In progress',
+      title: 'Certificates',
+      value: stats.totalCertificates,
+      subtitle: 'Total created',
       icon: FileText,
       href: '/admin/certificates',
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
     },
     {
-      title: 'Master Instruments',
+      title: 'Instruments',
       value: stats.totalInstruments,
       subtitle: 'In database',
       icon: Wrench,
@@ -298,231 +363,232 @@ export default async function AdminDashboard() {
     },
   ]
 
-  // Attention items
+  // Attention items (matching wireframe)
   const attentionItems = [
     {
-      count: stats.pendingRegistrations,
-      label: 'customer registrations pending approval',
-      href: '/admin/registrations',
-      action: 'Review registrations',
+      count: stats.pendingRequests,
+      label: 'Pending customer requests',
+      href: '/admin/customers/requests',
+      action: 'Review',
       severity: 'critical' as const,
-      show: stats.pendingRegistrations > 0,
+      show: stats.pendingRequests > 0,
     },
     {
       count: stats.expiredInstruments,
-      label: 'instruments have expired calibration',
+      label: 'Instruments with expired calibration',
       href: '/admin/instruments?status=expired',
-      action: 'View expired instruments',
+      action: 'View',
       severity: 'critical' as const,
       show: stats.expiredInstruments > 0,
     },
     {
       count: stats.expiringInstruments,
-      label: 'instruments expiring within 30 days',
+      label: 'Instruments expiring within 30 days',
       href: '/admin/instruments?status=expiring',
-      action: 'View expiring instruments',
+      action: 'View',
       severity: 'warning' as const,
       show: stats.expiringInstruments > 0,
     },
     {
+      count: stats.overdueCertificates,
+      label: 'Certificates overdue (TAT > 48h)',
+      href: '/admin/certificates?status=overdue',
+      action: 'View',
+      severity: 'critical' as const,
+      show: stats.overdueCertificates > 0,
+    },
+    {
       count: stats.staleCertificates,
-      label: 'certificates in revision for > 7 days',
+      label: 'Certificates in revision > 7 days',
       href: '/admin/certificates?status=REVISION_REQUIRED',
-      action: 'View stale certificates',
+      action: 'View',
       severity: 'warning' as const,
       show: stats.staleCertificates > 0,
     },
   ].filter((item) => item.show)
 
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-gray-500 mt-1">System overview and management</p>
-      </div>
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+            <p className="text-slate-500 mt-1">System overview and management</p>
+          </div>
 
-      {/* Overview Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {overviewCards.map((stat) => (
-          <Link key={stat.title} href={stat.href}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                    <p className="text-xs text-gray-400 mt-1">{stat.subtitle}</p>
-                  </div>
-                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                    <stat.icon className={`h-6 w-6 ${stat.color}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      {/* Attention Items */}
-      {attentionItems.length > 0 && (
-        <Card className="mb-8 border-l-4 border-l-amber-400">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Attention Required
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {attentionItems.map((item, idx) => (
-              <Link
-                key={idx}
-                href={item.href}
-                className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                  item.severity === 'critical'
-                    ? 'border-red-200 bg-red-50 hover:bg-red-100'
-                    : 'border-amber-200 bg-amber-50 hover:bg-amber-100'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {item.severity === 'critical' ? (
-                    <AlertCircle className="h-5 w-5 text-red-500" />
-                  ) : (
-                    <Clock className="h-5 w-5 text-amber-500" />
-                  )}
-                  <span
-                    className={
-                      item.severity === 'critical' ? 'text-red-800' : 'text-amber-800'
-                    }
-                  >
-                    <strong>{item.count}</strong> {item.label}
-                  </span>
-                </div>
-                <span
-                  className={`text-sm flex items-center gap-1 ${
-                    item.severity === 'critical' ? 'text-red-600' : 'text-amber-600'
-                  }`}
-                >
-                  {item.action}
-                  <ArrowRight className="h-4 w-4" />
-                </span>
+          {/* Overview Stats Grid - Compact */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+            {overviewCards.map((stat) => (
+              <Link key={stat.title} href={stat.href}>
+                <Card className="hover:shadow-md transition-shadow cursor-pointer">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                        <stat.icon className={`h-5 w-5 ${stat.color}`} />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                        <p className="text-xs text-slate-500">{stat.title}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </Link>
             ))}
-          </CardContent>
-        </Card>
-      )}
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-3">
-            <Link
-              href="/admin/users/new"
-              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors text-center"
-            >
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <Plus className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900 text-sm">Create Staff User</p>
-                <p className="text-xs text-gray-500">Add engineer or HoD</p>
-              </div>
-            </Link>
-
-            <Link
-              href="/admin/customers/new"
-              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors text-center"
-            >
-              <div className="p-3 bg-green-50 rounded-lg">
-                <Building2 className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900 text-sm">Create Customer</p>
-                <p className="text-xs text-gray-500">New company account</p>
-              </div>
-            </Link>
-
-            {stats.pendingRegistrations > 0 && (
-              <Link
-                href="/admin/registrations"
-                className="flex flex-col items-center gap-2 p-4 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 transition-colors text-center"
-              >
-                <div className="p-3 bg-orange-100 rounded-lg relative">
-                  <UserCheck className="h-5 w-5 text-orange-600" />
-                  <Badge className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs px-1.5 py-0.5">
-                    {stats.pendingRegistrations}
-                  </Badge>
+          {/* TAT Metrics */}
+          <Card className="mb-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider">TAT Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap items-center gap-8 mb-3">
+                <div>
+                  <span className="text-slate-600">Average TAT: </span>
+                  <span className="font-bold text-slate-900">{stats.tatMetrics.averageTAT}h</span>
                 </div>
                 <div>
-                  <p className="font-medium text-orange-900 text-sm">Review Registrations</p>
-                  <p className="text-xs text-orange-700">Pending approval</p>
+                  <span className="text-slate-600">On Track: </span>
+                  <span className="font-bold text-green-600">{stats.tatMetrics.onTrackPercent}%</span>
                 </div>
-              </Link>
-            )}
+                <div>
+                  <span className="text-slate-600">Overdue: </span>
+                  <span className="font-bold text-red-600">{stats.tatMetrics.overduePercent}%</span>
+                </div>
+              </div>
+              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                <div
+                  className="bg-green-500 h-full"
+                  style={{ width: `${stats.tatMetrics.onTrackPercent}%` }}
+                />
+                <div
+                  className="bg-amber-500 h-full"
+                  style={{ width: `${stats.tatMetrics.warningPercent}%` }}
+                />
+                <div
+                  className="bg-red-500 h-full"
+                  style={{ width: `${stats.tatMetrics.overduePercent}%` }}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-            <Link
-              href="/admin/instruments"
-              className="flex flex-col items-center gap-2 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-colors text-center"
-            >
-              <div className="p-3 bg-purple-50 rounded-lg">
-                <Upload className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900 text-sm">Manage Instruments</p>
-                <p className="text-xs text-gray-500">Import or update</p>
-              </div>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5 text-gray-400" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {groupedActivity.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p className="text-sm">No recent activity</p>
-              </div>
-            ) : (
-              <div className="space-y-4 max-h-80 overflow-y-auto">
-                {groupedActivity.map((group) => (
-                  <div key={group.label}>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                      {group.label}
-                    </p>
-                    <div className="space-y-2">
-                      {group.items.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-start gap-2 text-sm py-1.5 border-b border-gray-100 last:border-0"
-                        >
-                          {item.type === 'registration' ? (
-                            <UserCheck className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
-                          ) : (
-                            <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          )}
-                          <span className="text-gray-700 flex-1">{item.description}</span>
-                          <span className="text-xs text-gray-400 flex-shrink-0">
-                            {formatRelativeTime(item.createdAt)}
+          {/* Attention Required - Wireframe style */}
+          {attentionItems.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Attention Required
+              </h3>
+              <Card>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-slate-100">
+                    {attentionItems.map((item, idx) => (
+                      <Link
+                        key={idx}
+                        href={item.href}
+                        className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`h-2.5 w-2.5 rounded-full ${
+                            item.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'
+                          }`} />
+                          <span className="text-sm text-slate-700">
+                            <strong>{item.count}</strong> {item.label}
                           </span>
                         </div>
-                      ))}
-                    </div>
+                        <span className={`text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1 transition-colors ${
+                          item.severity === 'critical'
+                            ? 'bg-red-100 text-red-700 group-hover:bg-red-200'
+                            : 'bg-amber-100 text-amber-700 group-hover:bg-amber-200'
+                        }`}>
+                          {item.action}
+                          <ArrowRight className="h-3 w-3" />
+                        </span>
+                      </Link>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          <div className="mb-6">
+            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Quick Actions</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Link
+                href="/admin/users/new"
+                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-blue-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-blue-300 shadow-sm"
+              >
+                <UserPlus className="h-4 w-4 text-blue-600" />
+                New User
+              </Link>
+              <Link
+                href="/admin/customers/new"
+                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-green-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-green-300 shadow-sm"
+              >
+                <Building2 className="h-4 w-4 text-green-600" />
+                Customer
+              </Link>
+              <Link
+                href="/admin/authorization"
+                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-amber-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-amber-300 shadow-sm"
+              >
+                <ShieldCheck className="h-4 w-4 text-amber-600" />
+                Authorize
+              </Link>
+              <Link
+                href="/admin/instruments"
+                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-purple-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-purple-300 shadow-sm"
+              >
+                <Wrench className="h-4 w-4 text-purple-600" />
+                Instruments
+              </Link>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {groupedActivity.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <FileText className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+                  <p className="text-sm">No recent activity</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {groupedActivity.map((group) => (
+                    <div key={group.label}>
+                      <p className="text-sm font-medium text-slate-900 mb-2">
+                        {group.label}
+                      </p>
+                      <div className="space-y-1.5">
+                        {group.items.map((item, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-sm py-1"
+                          >
+                            <span className="text-slate-600">• {item.description}</span>
+                            <span className="text-slate-400 text-xs ml-4 flex-shrink-0">
+                              {formatRelativeTime(item.createdAt)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   )

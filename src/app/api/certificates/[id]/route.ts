@@ -32,6 +32,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
         createdBy: {
           select: { id: true, name: true, email: true },
         },
+        reviewer: {
+          select: { id: true, name: true, email: true },
+        },
         feedbacks: {
           orderBy: { createdAt: 'desc' },
           include: {
@@ -41,7 +44,6 @@ export async function GET(request: NextRequest, context: RouteContext) {
           },
         },
         events: {
-          where: { eventType: 'HOD_DATE_OVERRIDE' },
           orderBy: { createdAt: 'desc' },
           include: {
             user: {
@@ -57,9 +59,12 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // Check if user has access
-    if (certificate.createdById !== session.user.id &&
-        session.user.role !== 'HOD' &&
-        session.user.role !== 'ADMIN') {
+    const isCreator = certificate.createdById === session.user.id
+    const isReviewer = certificate.reviewerId === session.user.id
+    const isHoD = session.user.role === 'HOD'
+    const isAdmin = session.user.role === 'ADMIN'
+
+    if (!isCreator && !isReviewer && !isHoD && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

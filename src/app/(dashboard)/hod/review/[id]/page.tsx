@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
+import { isNewWorkflowEnabled } from '@/lib/feature-flags'
 import { prisma } from '@/lib/prisma'
 import { Header } from '@/components/layout/Header'
 import { StatusBadge } from '@/components/dashboard/StatusBadge'
@@ -345,8 +346,16 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }
   REJECTED: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' },
 }
 
+// DEPRECATED: This page is deprecated in favor of /dashboard/reviewer/[id]
+// When NEW_WORKFLOW feature flag is enabled, redirect to the new reviewer page
 export default async function HoDReviewPage({ params }: Props) {
   const { id } = await params
+
+  // If new workflow is enabled, redirect to reviewer page
+  if (isNewWorkflowEnabled()) {
+    redirect(`/dashboard/reviewer/${id}`)
+  }
+
   const session = await auth()
 
   if (!session?.user) {

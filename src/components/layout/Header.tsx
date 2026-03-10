@@ -5,7 +5,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Clock, LogOut, Settings } from 'lucide-react'
 import { useCertificateStore } from '@/lib/stores/certificate-store'
-import { NotificationBell } from '@/components/notifications'
 
 interface HeaderProps {
   title?: string
@@ -66,7 +65,7 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
   }
 
   return (
-    <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-6 py-2.5 sticky top-0 z-[60] shadow-sm">
+    <header className="flex items-center justify-between whitespace-nowrap border-b border-slate-200 bg-white px-6 h-16 sticky top-0 z-[60] shadow-sm">
       <div className="flex items-center gap-4">
         {/* Logo */}
         <Link href={getDashboardLink(session?.user?.role || 'ENGINEER')}>
@@ -107,9 +106,6 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
             <span className="hidden sm:inline">Admin Panel</span>
           </Link>
         )}
-
-        {/* Notifications */}
-        <NotificationBell userRole={session?.user?.role || 'ENGINEER'} />
 
         {/* User info and logout */}
         <div className="flex items-center gap-2 pl-3 border-l border-slate-200">

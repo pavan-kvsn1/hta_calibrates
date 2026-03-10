@@ -1,7 +1,5 @@
-export { Sidebar, type ViewType } from './Sidebar'
 export { PendingReviewTable, type PendingCertificate } from './PendingReviewTable'
 export { AwaitingResponseTable, type AwaitingCertificate } from './AwaitingResponseTable'
 export { CompletedTable, type CompletedCertificate } from './CompletedTable'
 export { AuthorizedTable, type AuthorizedCertificate } from './AuthorizedTable'
-export { TraceabilityTable, type MasterInstrumentItem } from './TraceabilityTable'
 export { DashboardClient } from './DashboardClient'

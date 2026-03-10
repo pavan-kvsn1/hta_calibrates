@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Routes that don't require authentication
-const publicRoutes = ['/', '/login', '/customer/login', '/customer/register', '/api/auth', '/api/customer/register', '/certificates/new']
+const publicRoutes = ['/', '/login', '/customer/login', '/customer/register', '/api/auth', '/api/customer/register']
 
 // Token-based customer review routes (no login required, token validates access)
 const tokenBasedRoutes = ['/customer/review/']
@@ -49,9 +49,9 @@ export const config = {
   matcher: [
     // Match dashboard routes that need protection
     '/dashboard/:path*',
-    '/hod/:path*',
+    '/hod/:path*',        // Legacy: will be migrated to /review
+    '/review/:path*',     // NEW: Reviewer dashboard and review pages
     '/customer/:path*',
     '/admin/:path*',
-    '/certificates/:path*',
   ],
 }

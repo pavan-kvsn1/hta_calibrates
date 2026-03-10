@@ -15,9 +15,10 @@ model User {
   email         String   @unique
   name          String
   passwordHash  String?  // Nullable for Google-only users
-  role          String   @default("ENGINEER") // ENGINEER, HOD, ADMIN
-  isAdmin       Boolean  @default(false)      // HoD users can have admin access
-  assignedHodId String?
+  role          String   @default("ENGINEER") // ENGINEER, ADMIN (HOD removed - peer review model)
+  isAdmin       Boolean  @default(false)      // Legacy: kept for migration
+  adminType     String?  // "MASTER" | "WORKER" (null for non-admins)
+  assignedHodId String?  // DEPRECATED: kept for migration, use reviewerId on Certificate
   assignedHod   User?    @relation("EngineerToHod", fields: [assignedHodId], references: [id])
   engineers     User[]   @relation("EngineerToHod")
   signatureUrl  String?
@@ -33,6 +34,7 @@ model User {
   // Certificate relations
   createdCertificates  Certificate[] @relation("CertificateCreator")
   modifiedCertificates Certificate[] @relation("CertificateModifier")
+  reviewedCertificates Certificate[] @relation("CertificateReviewer") // NEW: Certificates assigned for review
 
   // Event/Revision relations
   events               CertificateEvent[]    @relation("EventActor")
@@ -50,29 +52,45 @@ model User {
   notifications        Notification[]
 
   // Admin relations
-  reviewedRegistrations  CustomerRegistration[] @relation("RegistrationReviewer")
-  managedCustomerAccounts CustomerAccount[]     @relation("HodToCustomerAccount")
-  modifiedInstruments    MasterInstrument[]     @relation("InstrumentModifier")
+  reviewedRegistrations   CustomerRegistration[] @relation("RegistrationReviewer")
+  reviewedRequests        CustomerRequest[]      @relation("RequestReviewer")  // NEW: Customer requests reviewed by this admin
+  managedCustomerAccounts CustomerAccount[]      @relation("HodToCustomerAccount")
+  modifiedInstruments     MasterInstrument[]     @relation("InstrumentModifier")
+
+  // Chat relations
+  chatMessages         ChatMessage[]
+  uploadedUUCImages    UUCImage[]
 }
 
 model CustomerUser {
   id                 String   @id @default(uuid())
   email              String   @unique
   name               String
-  passwordHash       String
+  passwordHash       String?  // Nullable until activated (POC workflow)
   companyName        String?  // Deprecated: use customerAccount.companyName (kept for migration)
   customerAccountId  String?  // Will become required after data migration
-  isActive           Boolean  @default(true)
+  isActive           Boolean  @default(false) // Changed: false until activated (POC workflow)
   createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  // POC workflow fields
+  isPoc              Boolean   @default(false)  // Is this user the Primary Point of Contact?
+  activatedAt        DateTime?                   // When the user activated their account
+  activationToken    String?   @unique          // Token for account activation
+  activationExpiry   DateTime?                   // When the activation token expires
 
   // Relations
-  customerAccount CustomerAccount? @relation(fields: [customerAccountId], references: [id])
-  signatures      Signature[]
-  approvalTokens  ApprovalToken[]
-  notifications   Notification[]
-  events          CertificateEvent[]
+  customerAccount    CustomerAccount?  @relation("CustomerUsers", fields: [customerAccountId], references: [id])
+  pocForAccount      CustomerAccount?  @relation("PrimaryPOC")  // Account where this user is POC
+  signatures         Signature[]
+  approvalTokens     ApprovalToken[]
+  notifications      Notification[]
+  events             CertificateEvent[]
+  chatMessages       ChatMessage[]
+  requestedRequests  CustomerRequest[] @relation("RequestedBy")  // Requests initiated by this user
 
   @@index([customerAccountId])
+  @@index([activationToken])
 }
 
 // ====================
@@ -90,10 +108,15 @@ model CustomerAccount {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Primary POC (Point of Contact)
+  primaryPocId  String?  @unique
+  primaryPoc    CustomerUser? @relation("PrimaryPOC", fields: [primaryPocId], references: [id])
+
   // Relations
   assignedHod   User?                   @relation("HodToCustomerAccount", fields: [assignedHodId], references: [id])
-  users         CustomerUser[]
-  registrations CustomerRegistration[]
+  users         CustomerUser[]          @relation("CustomerUsers")
+  registrations CustomerRegistration[]  // Keep for migration, will be removed later
+  requests      CustomerRequest[]       // NEW: POC-initiated requests
 
   @@index([companyName])
   @@index([assignedHodId])
@@ -141,6 +164,55 @@ model CustomerRegistration {
 
   @@index([status])
   @@index([customerAccountId])
+}
+
+// ====================
+// CUSTOMER REQUESTS (POC-initiated)
+// ====================
+
+// Request types
+enum CustomerRequestType {
+  USER_ADDITION  // POC requesting to add a new user
+  POC_CHANGE     // POC requesting to transfer POC role to another user
+}
+
+// Request status
+enum CustomerRequestStatus {
+  PENDING   // Awaiting admin review
+  APPROVED  // Request approved
+  REJECTED  // Request denied
+}
+
+model CustomerRequest {
+  id                String                @id @default(uuid())
+  type              CustomerRequestType
+  status            CustomerRequestStatus @default(PENDING)
+
+  // Customer account this request belongs to
+  customerAccountId String
+  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id])
+
+  // Who initiated the request (nullable for admin-initiated additions - Decision #5)
+  requestedById     String?
+  requestedBy       CustomerUser? @relation("RequestedBy", fields: [requestedById], references: [id])
+
+  // Request data (JSON for flexibility)
+  // USER_ADDITION: { name: string, email: string }
+  // POC_CHANGE: { newPocUserId: string, reason: string }
+  data              String  // JSON stored as string for SQLite
+
+  // Review info (who approved/rejected and when)
+  reviewedById      String?
+  reviewedBy        User?    @relation("RequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt        DateTime?
+  rejectionReason   String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([customerAccountId])
+  @@index([status])
+  @@index([type])
 }
 
 // ====================
@@ -198,8 +270,15 @@ model MasterInstrument {
 model Certificate {
   id                String   @id @default(uuid())
   certificateNumber String   @unique
-  status            String   @default("DRAFT") // DRAFT, PENDING_HOD_REVIEW, REVISION_REQUIRED, PENDING_CUSTOMER_APPROVAL, CUSTOMER_REVISION_REQUIRED, PENDING_ADMIN_AUTHORIZATION, AUTHORIZED, APPROVED, REJECTED
+  status            String   @default("DRAFT") // DRAFT, PENDING_REVIEW, REVISION_REQUIRED, PENDING_CUSTOMER_APPROVAL, CUSTOMER_REVISION_REQUIRED, PENDING_ADMIN_AUTHORIZATION, AUTHORIZED, APPROVED, REJECTED
   currentRevision   Int      @default(1)
+
+  // NEW: Reviewer assignment (peer review model)
+  reviewerId        String?  // Engineer assigned to review this certificate
+  reviewer          User?    @relation("CertificateReviewer", fields: [reviewerId], references: [id])
+
+  // NEW: TAT (Turn Around Time) tracking
+  customerApprovedAt DateTime?  // When customer approved - used for TAT calculation
 
   // Section 1: Summary
   calibratedAt       String?  // LAB, SITE
@@ -271,8 +350,15 @@ model Certificate {
   // Notifications
   notifications  Notification[]
 
+  // NEW: Chat system
+  chatThreads    ChatThread[]
+
+  // NEW: UUC reading images
+  uucImages      UUCImage[]
+
   @@index([status])
   @@index([createdById])
+  @@index([reviewerId])  // NEW: Index for reviewer queries
 }
 
 // ====================
@@ -605,4 +691,121 @@ model SigningEvidence {
   @@unique([certificateId, sequenceNumber])
   @@index([certificateId])
   @@index([certificateId, revision])
+}
+
+// ====================
+// CHAT SYSTEM
+// ====================
+
+model ChatThread {
+  id            String   @id @default(uuid())
+  certificateId String
+  threadType    String   // "ASSIGNEE_REVIEWER" | "REVIEWER_CUSTOMER"
+  createdAt     DateTime @default(now())
+
+  // Relations
+  certificate   Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+
+  @@unique([certificateId, threadType])
+  @@index([certificateId])
+}
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  threadId     String
+  senderId     String?  // User ID (staff: engineer, admin)
+  customerId   String?  // CustomerUser ID (for customer messages)
+  senderType   String   // "ASSIGNEE" | "REVIEWER" | "CUSTOMER" | "ADMIN"
+  content      String
+  createdAt    DateTime @default(now())
+  readAt       DateTime?
+
+  // Relations
+  thread       ChatThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender       User?            @relation(fields: [senderId], references: [id])
+  customer     CustomerUser?    @relation(fields: [customerId], references: [id])
+  attachments  ChatAttachment[]
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
+  @@index([customerId])
+}
+
+model ChatAttachment {
+  id          String   @id @default(uuid())
+  messageId   String
+  fileName    String
+  fileSize    Int
+  mimeType    String
+  storagePath String   // Path in storage (local or cloud)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+// ====================
+// UUC READING IMAGES
+// ====================
+
+model UUCImage {
+  id            String   @id @default(uuid())
+  certificateId String
+  fileName      String
+  fileSize      Int
+  mimeType      String   // "image/jpeg" | "image/png" | "image/heic"
+  storagePath   String   // Path in storage (local or cloud)
+  caption       String?  // Optional description
+  sortOrder     Int      @default(0)
+  uploadedById  String
+  createdAt     DateTime @default(now())
+
+  // Relations
+  certificate   Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  uploadedBy    User        @relation(fields: [uploadedById], references: [id])
+
+  @@index([certificateId, sortOrder])
+}
+
+// ====================
+// JOB QUEUE (Database-backed queue for local/MVP)
+// ====================
+
+model JobQueue {
+  id           String    @id @default(uuid())
+  type         String    // Job type: "chat:message:deliver", "notification:send", "email:send", etc.
+  payload      String    // JSON payload
+  status       String    @default("pending") // pending, processing, completed, failed, cancelled
+  priority     Int       @default(0)         // Higher = processed first
+  attempts     Int       @default(0)
+  maxRetries   Int       @default(3)
+  error        String?   // Error message if failed
+  scheduledFor DateTime  @default(now())     // When to process (for delayed jobs)
+  createdAt    DateTime  @default(now())
+  processedAt  DateTime?
+
+  @@index([status, scheduledFor, priority])
+  @@index([type])
+}
+
+// ====================
+// REALTIME EVENTS (Polling-based realtime for local/MVP)
+// ====================
+
+model RealtimeEvent {
+  id          String   @id @default(uuid())
+  userId      String?  // Recipient user ID (staff)
+  customerId  String?  // Recipient customer ID
+  channel     String   // Channel name: "user:{id}", "certificate:{id}", "thread:{id}"
+  type        String   // Event type: "chat:message", "certificate:status", "notification"
+  data        String   // JSON event data
+  delivered   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, delivered, createdAt])
+  @@index([customerId, delivered, createdAt])
+  @@index([channel, createdAt])
 }

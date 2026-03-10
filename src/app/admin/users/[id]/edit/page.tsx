@@ -183,281 +183,294 @@ export default function EditUserPage({
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="p-3 h-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+          <div className="p-6 flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+          </div>
+        </div>
       </div>
     )
   }
 
   if (!user) {
     return (
-      <div className="p-8">
-        <p className="text-red-600">User not found</p>
+      <div className="p-3 h-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+          <div className="p-6">
+            <p className="text-red-600">User not found</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 max-w-4xl">
-      {/* Back Link */}
-      <Link
-        href="/admin/users"
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
-      >
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to Users
-      </Link>
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full">
+          {/* Back Link */}
+          <Link
+            href="/admin/users"
+            className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-6"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back to Users
+          </Link>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Form */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Edit Staff User</CardTitle>
-              {user.isActive ? (
-                <Button
-                  variant="outline"
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                  onClick={() => setShowDeactivateDialog(true)}
-                >
-                  Deactivate User
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  className="text-green-600 border-green-200 hover:bg-green-50"
-                  onClick={() => setShowReactivateDialog(true)}
-                >
-                  Reactivate User
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {error && (
-                  <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
-                    {error}
-                  </div>
-                )}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100%-3rem)]">
+              {/* Main Form */}
+              <div className="lg:col-span-2">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Edit Staff User</CardTitle>
+                    {user.isActive ? (
+                      <Button
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        onClick={() => setShowDeactivateDialog(true)}
+                      >
+                        Deactivate User
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="text-green-600 border-green-200 hover:bg-green-50"
+                        onClick={() => setShowReactivateDialog(true)}
+                      >
+                        Reactivate User
+                      </Button>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      {error && (
+                        <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+                          {error}
+                        </div>
+                      )}
 
-                {/* Status Badge */}
-                {!user.isActive && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p className="text-sm text-amber-800">
-                      This user is currently deactivated and cannot log in.
-                    </p>
-                  </div>
-                )}
+                      {/* Status Badge */}
+                      {!user.isActive && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <p className="text-sm text-amber-800">
+                            This user is currently deactivated and cannot log in.
+                          </p>
+                        </div>
+                      )}
 
-                {/* Email (read-only) */}
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={user.email}
-                    disabled
-                    className="bg-gray-50"
-                  />
-                  <p className="text-xs text-gray-500">Email cannot be changed</p>
-                </div>
-
-                {/* Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    required
-                  />
-                </div>
-
-                {/* Role */}
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        role: value,
-                        assignedHodId: value !== 'ENGINEER' ? '' : prev.assignedHodId,
-                        isAdmin: value === 'HOD' ? prev.isAdmin : false,
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ENGINEER">Engineer</SelectItem>
-                      <SelectItem value="HOD">Head of Department (HoD)</SelectItem>
-                      <SelectItem value="ADMIN">Administrator</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {user.role === 'HOD' && user.engineers.length > 0 && formData.role !== 'HOD' && (
-                    <p className="text-sm text-amber-600">
-                      This HoD has {user.engineers.length} assigned engineers. Reassign them before
-                      changing role.
-                    </p>
-                  )}
-                </div>
-
-                {/* HoD Assignment (for Engineers) */}
-                {formData.role === 'ENGINEER' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="assignedHodId">Assign to HoD</Label>
-                    <Select
-                      value={formData.assignedHodId}
-                      onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, assignedHodId: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select HoD..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {hods.map((hod) => (
-                          <SelectItem key={hod.id} value={hod.id}>
-                            {hod.name}{' '}
-                            <span className="text-gray-500">
-                              ({hod.engineerCount} engineers)
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
-                {/* Admin Access (for HoD) */}
-                {formData.role === 'HOD' && (
-                  <div className="space-y-2">
-                    <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                      <input
-                        type="checkbox"
-                        id="isAdmin"
-                        checked={formData.isAdmin}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, isAdmin: e.target.checked }))
-                        }
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div>
-                        <Label htmlFor="isAdmin" className="font-medium text-blue-900">
-                          Grant Admin Access
-                        </Label>
-                        <p className="text-sm text-blue-700 mt-1">
-                          Allows this HoD to access admin features like user management,
-                          customer accounts, and system settings.
-                        </p>
+                      {/* Email (read-only) */}
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email Address</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={user.email}
+                          disabled
+                          className="bg-slate-50"
+                        />
+                        <p className="text-xs text-slate-500">Email cannot be changed</p>
                       </div>
+
+                      {/* Name */}
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Full Name</Label>
+                        <Input
+                          id="name"
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, name: e.target.value }))
+                          }
+                          required
+                        />
+                      </div>
+
+                      {/* Role */}
+                      <div className="space-y-2">
+                        <Label htmlFor="role">Role</Label>
+                        <Select
+                          value={formData.role}
+                          onValueChange={(value) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              role: value,
+                              assignedHodId: value !== 'ENGINEER' ? '' : prev.assignedHodId,
+                              isAdmin: value === 'HOD' ? prev.isAdmin : false,
+                            }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ENGINEER">Engineer</SelectItem>
+                            <SelectItem value="HOD">Head of Department (HoD)</SelectItem>
+                            <SelectItem value="ADMIN">Administrator</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {user.role === 'HOD' && user.engineers.length > 0 && formData.role !== 'HOD' && (
+                          <p className="text-sm text-amber-600">
+                            This HoD has {user.engineers.length} assigned engineers. Reassign them before
+                            changing role.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* HoD Assignment (for Engineers) */}
+                      {formData.role === 'ENGINEER' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="assignedHodId">Assign to HoD</Label>
+                          <Select
+                            value={formData.assignedHodId}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({ ...prev, assignedHodId: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select HoD..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {hods.map((hod) => (
+                                <SelectItem key={hod.id} value={hod.id}>
+                                  {hod.name}{' '}
+                                  <span className="text-slate-500">
+                                    ({hod.engineerCount} engineers)
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Admin Access (for HoD) */}
+                      {formData.role === 'HOD' && (
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <input
+                              type="checkbox"
+                              id="isAdmin"
+                              checked={formData.isAdmin}
+                              onChange={(e) =>
+                                setFormData((prev) => ({ ...prev, isAdmin: e.target.checked }))
+                              }
+                              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div>
+                              <Label htmlFor="isAdmin" className="font-medium text-blue-900">
+                                Grant Admin Access
+                              </Label>
+                              <p className="text-sm text-blue-700 mt-1">
+                                Allows this HoD to access admin features like user management,
+                                customer accounts, and system settings.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-3 pt-4">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => router.push('/admin/users')}
+                          disabled={saving}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={saving}
+                        >
+                          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                          Save Changes
+                        </Button>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sidebar Info */}
+              <div className="space-y-6">
+                {/* User Info Card */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">User Info</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Status</span>
+                      <Badge
+                        className={cn(
+                          user.isActive
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-slate-100 text-slate-500'
+                        )}
+                      >
+                        {user.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
                     </div>
-                  </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Auth</span>
+                      <span>{user.authProvider}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Created</span>
+                      <span>{new Date(user.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Stats Card */}
+                {stats && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-slate-400" />
+                        Certificates
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Total Created</span>
+                        <span className="font-medium">{stats.total}</span>
+                      </div>
+                      {Object.entries(stats.byStatus).map(([status, count]) => (
+                        <div key={status} className="flex justify-between text-xs">
+                          <span className="text-slate-400">{status}</span>
+                          <span>{count}</span>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => router.push('/admin/users')}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="bg-green-600 hover:bg-green-700"
-                    disabled={saving}
-                  >
-                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    Save Changes
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Sidebar Info */}
-        <div className="space-y-6">
-          {/* User Info Card */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">User Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Status</span>
-                <Badge
-                  className={cn(
-                    user.isActive
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-500'
-                  )}
-                >
-                  {user.isActive ? 'Active' : 'Inactive'}
-                </Badge>
+                {/* Managed Engineers (for HoDs) */}
+                {user.role === 'HOD' && user.engineers.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Users className="h-4 w-4 text-slate-400" />
+                        Managed Engineers ({user.engineers.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {user.engineers.map((eng) => (
+                        <div key={eng.id} className="text-sm">
+                          <p className="font-medium">{eng.name}</p>
+                          <p className="text-xs text-slate-500">{eng.email}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Auth</span>
-                <span>{user.authProvider}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Created</span>
-                <span>{new Date(user.createdAt).toLocaleDateString()}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stats Card */}
-          {stats && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-gray-400" />
-                  Certificates
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Total Created</span>
-                  <span className="font-medium">{stats.total}</span>
-                </div>
-                {Object.entries(stats.byStatus).map(([status, count]) => (
-                  <div key={status} className="flex justify-between text-xs">
-                    <span className="text-gray-400">{status}</span>
-                    <span>{count}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Managed Engineers (for HoDs) */}
-          {user.role === 'HOD' && user.engineers.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4 text-gray-400" />
-                  Managed Engineers ({user.engineers.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {user.engineers.map((eng) => (
-                  <div key={eng.id} className="text-sm">
-                    <p className="font-medium">{eng.name}</p>
-                    <p className="text-xs text-gray-500">{eng.email}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+            </div>
         </div>
       </div>
 

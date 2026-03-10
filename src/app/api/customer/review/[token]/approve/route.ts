@@ -165,11 +165,12 @@ export async function POST(
       }
     }
 
-    // Notify HoD and engineer about customer approval (fire and forget)
+    // Notify reviewer and assignee about customer approval (fire and forget)
     notifyOnCustomerApproval({
       certificateId: tokenRecord.certificateId,
       certificateNumber: tokenRecord.certificate.certificateNumber,
-      engineerId: tokenRecord.certificate.createdById,
+      assigneeId: tokenRecord.certificate.createdById,
+      reviewerId: tokenRecord.certificate.reviewerId,
     }).catch((err) => console.error('Failed to send notification:', err))
 
     // Generate signed PDF (best-effort — don't fail the approval)
@@ -355,11 +356,12 @@ async function handleSessionBasedApproval(
     }
   }
 
-  // Notify HoD and engineer about customer approval (fire and forget)
+  // Notify reviewer and assignee about customer approval (fire and forget)
   notifyOnCustomerApproval({
     certificateId: certificate.id,
     certificateNumber: certificate.certificateNumber,
-    engineerId: certificate.createdById,
+    assigneeId: certificate.createdById,
+    reviewerId: certificate.reviewerId,
   }).catch((err) => console.error('Failed to send notification:', err))
 
   // Generate signed PDF (best-effort — don't fail the approval)

@@ -154,7 +154,7 @@ export async function POST(
     notifyOnSentToCustomer({
       certificateId: certificate.id,
       certificateNumber: certificate.certificateNumber,
-      engineerId: certificate.createdById,
+      assigneeId: certificate.createdById,
       customerId: result.customerId,
     }).catch((err) => console.error('Failed to send notification:', err))
 

@@ -115,8 +115,8 @@ export function UserListClient() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Staff Users</h1>
-          <p className="text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-slate-900">Staff Users</h1>
+          <p className="text-slate-500 mt-1">
             Manage engineers, HoDs, and admin accounts
           </p>
         </div>
@@ -131,7 +131,7 @@ export function UserListClient() {
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
             placeholder="Search by name or email..."
             value={search}
@@ -166,11 +166,11 @@ export function UserListClient() {
       <div className="bg-white rounded-lg border shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
           </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+          <div className="text-center py-12 text-slate-500">
+            <Users className="h-12 w-12 mx-auto mb-3 text-slate-300" />
             <p>No users found</p>
           </div>
         ) : (
@@ -192,18 +192,18 @@ export function UserListClient() {
                 return (
                   <TableRow
                     key={user.id}
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-slate-50"
                     onClick={() => router.push(`/admin/users/${user.id}/edit`)}
                   >
                     <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell className="text-gray-500">{user.email}</TableCell>
+                    <TableCell className="text-slate-500">{user.email}</TableCell>
                     <TableCell>
                       <Badge className={cn('font-normal', roleColors[user.role])}>
                         <RoleIcon className="h-3 w-3 mr-1" />
                         {user.role}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-gray-500">
+                    <TableCell className="text-slate-500">
                       {user.assignedHod?.name || '-'}
                     </TableCell>
                     <TableCell>
@@ -212,13 +212,13 @@ export function UserListClient() {
                           'inline-flex items-center px-2 py-0.5 rounded text-xs font-medium',
                           user.authProvider === 'GOOGLE'
                             ? 'bg-red-50 text-red-700'
-                            : 'bg-gray-100 text-gray-700'
+                            : 'bg-slate-100 text-slate-700'
                         )}
                       >
                         {user.authProvider === 'GOOGLE' ? 'G' : 'P'}
                       </span>
                     </TableCell>
-                    <TableCell className="text-gray-500">
+                    <TableCell className="text-slate-500">
                       {user.certificateCount}
                     </TableCell>
                     <TableCell>
@@ -227,7 +227,7 @@ export function UserListClient() {
                         className={cn(
                           user.isActive
                             ? 'bg-green-100 text-green-800 hover:bg-green-100'
-                            : 'bg-gray-100 text-gray-500'
+                            : 'bg-slate-100 text-slate-500'
                         )}
                       >
                         {user.isActive ? 'Active' : 'Inactive'}
@@ -243,7 +243,7 @@ export function UserListClient() {
         {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-slate-500">
               Showing {(pagination.page - 1) * pagination.limit + 1} to{' '}
               {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
               {pagination.total} users
@@ -271,7 +271,7 @@ export function UserListClient() {
       </div>
 
       {/* Legend */}
-      <div className="mt-4 flex gap-4 text-xs text-gray-500">
+      <div className="mt-4 flex gap-4 text-xs text-slate-500">
         <span>
           <span className="inline-flex items-center px-2 py-0.5 rounded bg-red-50 text-red-700 font-medium mr-1">
             G
@@ -279,7 +279,7 @@ export function UserListClient() {
           = Google auth
         </span>
         <span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-medium mr-1">
+          <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-medium mr-1">
             P
           </span>
           = Password auth

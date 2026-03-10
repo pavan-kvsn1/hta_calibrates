@@ -1,9 +1,22 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
+import { isNewWorkflowEnabled } from '@/lib/feature-flags'
 import { prisma } from '@/lib/prisma'
 import { Header } from '@/components/layout/Header'
 import { CertificateTable, CertificateListItem } from '@/components/dashboard/CertificateTable'
 import { Clock, CheckCircle, XCircle, FileText, MessageSquare } from 'lucide-react'
+
+// DEPRECATED: This page is deprecated in favor of /dashboard/reviewer
+// When NEW_WORKFLOW feature flag is enabled, redirect to the new reviewer dashboard
+export default async function HoDDashboardPage() {
+  // If new workflow is enabled, redirect to reviewer dashboard
+  if (isNewWorkflowEnabled()) {
+    redirect('/dashboard/reviewer')
+  }
+
+  // Otherwise, use legacy HoD dashboard
+  return <LegacyHoDDashboard />
+}
 
 async function getTeamCertificates(hodId: string): Promise<CertificateListItem[]> {
   // Get certificates from engineers assigned to this HoD (excluding drafts)
@@ -77,7 +90,7 @@ async function getStats(hodId: string) {
   return { pendingReview, approved, revision, customerRevision, total }
 }
 
-export default async function HoDDashboard() {
+async function LegacyHoDDashboard() {
   const session = await auth()
 
   if (!session?.user) {

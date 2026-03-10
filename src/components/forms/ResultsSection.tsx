@@ -764,11 +764,15 @@ function ResultsTable({
   )
 }
 
-export function ResultsSection() {
+interface ResultsSectionProps {
+  feedbackSlot?: React.ReactNode
+}
+
+export function ResultsSection({ feedbackSlot }: ResultsSectionProps = {}) {
   const { formData, setResult, setPointCount, setParameter } = useCertificateStore()
 
   return (
-    <FormSection id="results" sectionNumber="Section 05" title="Calibration Results">
+    <FormSection id="results" sectionNumber="Section 05" title="Calibration Results" feedbackSlot={feedbackSlot}>
       <div className="space-y-10">
         {formData.parameters.map((parameter, parameterIndex) => (
           <ResultsTable

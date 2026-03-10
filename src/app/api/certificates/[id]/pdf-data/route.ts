@@ -14,11 +14,6 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only HOD and ADMIN can access this endpoint
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const { id } = await params
 
     const certificate = await prisma.certificate.findUnique({
@@ -36,11 +31,24 @@ export async function GET(
         createdBy: {
           select: { id: true, name: true, email: true },
         },
+        reviewer: {
+          select: { id: true },
+        },
       },
     })
 
     if (!certificate) {
       return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
+    }
+
+    // Check access - allow creator, reviewer, HOD, or ADMIN
+    const isCreator = certificate.createdBy.id === session.user.id
+    const isReviewer = certificate.reviewer?.id === session.user.id
+    const isHoD = session.user.role === 'HOD'
+    const isAdmin = session.user.role === 'ADMIN'
+
+    if (!isCreator && !isReviewer && !isHoD && !isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // Fetch signature records for this certificate

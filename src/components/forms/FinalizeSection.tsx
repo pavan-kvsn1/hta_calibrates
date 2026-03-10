@@ -16,15 +16,19 @@ import {
   ChevronUp,
   MessageSquare,
   User,
-  PenLine
+  Users
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { FormSection } from './FormSection'
+import { ReviewerSelect } from './ReviewerSelect'
 import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 import { PDFPreviewSection } from '@/components/pdf'
 import { SignatureModal } from '@/components/signatures'
 import type { SignatureData } from '@/types/signatures'
+
+// Feature flag check (client-side)
+const USE_NEW_WORKFLOW = process.env.NEXT_PUBLIC_FEATURE_NEW_WORKFLOW === 'true'
 
 interface ValidationItem {
   id: string
@@ -47,17 +51,23 @@ interface Feedback {
 
 interface FinalizeSectionProps {
   feedbacks?: Feedback[]
+  reviewerName?: string | null
 }
 
-export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
+export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectionProps) {
   const router = useRouter()
   const { data: session } = useSession()
-  const { formData, isSaving, certificateId, saveDraft, setEngineerNotes } = useCertificateStore()
+  const { formData, isSaving, certificateId, saveDraft, setEngineerNotes, setFormField, clearSectionResponses } = useCertificateStore()
   const [showPDFPreview, setShowPDFPreview] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [isFeedbackRefExpanded, setIsFeedbackRefExpanded] = useState(false)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
+  const [reviewerError, setReviewerError] = useState<string | null>(null)
+
+  // Use store's reviewerId for reviewer selection
+  const selectedReviewerId = formData.reviewerId
+  const setSelectedReviewerId = (reviewerId: string | null) => setFormField('reviewerId', reviewerId)
 
   // Get only the latest revision request feedback (feedbacks are ordered by createdAt desc from API)
   const latestRevisionFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
@@ -226,6 +236,13 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
       return
     }
 
+    // Check reviewer selection for new workflow (skip if reviewer already assigned)
+    if (USE_NEW_WORKFLOW && !reviewerName && !selectedReviewerId) {
+      setReviewerError('Please select a reviewer before submitting')
+      return
+    }
+    setReviewerError(null)
+
     setSubmitError(null)
     setShowSignatureModal(true)
   }
@@ -247,15 +264,18 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
         throw new Error('Certificate ID not found. Please save the certificate first.')
       }
 
-      // Submit for review with signature data and client evidence
+      // Submit for review with signature data, client evidence, and section responses
       const response = await fetch(`/api/certificates/${certId}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           engineerNotes: formData.engineerNotes || null,
+          sectionResponses: formData.sectionResponses || {},
           signatureData: signatureData.signatureImage,
           signerName: signatureData.signerName,
           clientEvidence: signatureData.clientEvidence,
+          // Include reviewer for new workflow
+          reviewerId: USE_NEW_WORKFLOW ? selectedReviewerId : undefined,
         })
       })
 
@@ -268,9 +288,11 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
         throw new Error(data.error || 'Failed to submit certificate')
       }
 
-      // Success - close modal and redirect to dashboard
+      // Success - clear section responses and redirect to dashboard
+      clearSectionResponses()
       setShowSignatureModal(false)
-      alert('Certificate submitted successfully for HoD review!')
+      const reviewLabel = USE_NEW_WORKFLOW ? 'peer' : 'HoD'
+      alert(`Certificate submitted successfully for ${reviewLabel} review!`)
       router.push('/dashboard')
     } catch (error) {
       console.error('Submit error:', error)
@@ -352,27 +374,48 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
           </div>
         )}
 
-        {/* Engineer Response Notes - Only when revision required */}
-        {isRevisionRequired && (
-          <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-6">
+
+        {/* Reviewer Selection - New Workflow Only */}
+        {USE_NEW_WORKFLOW && (
+          <div className="rounded-2xl border-2 border-purple-200 bg-purple-50/50 p-6">
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-blue-100">
-                <PenLine className="size-5 text-blue-700" />
+              <div className="p-2 rounded-lg bg-purple-100">
+                <Users className="size-5 text-purple-700" />
               </div>
               <div>
-                <h3 className="font-bold text-blue-900 text-[14px]">Response Notes for HoD</h3>
-                <p className="text-sm text-blue-700 text-[13px]">Summarize the changes you made to address the feedback</p>
+                <h3 className="font-bold text-purple-900 text-[14px]">
+                  {reviewerName ? 'Assigned Reviewer' : 'Select Reviewer'}
+                </h3>
+                <p className="text-sm text-purple-700 text-[13px]">
+                  {reviewerName
+                    ? 'This certificate will be reviewed by the assigned peer'
+                    : 'Choose a peer engineer to review this certificate'
+                  }
+                </p>
               </div>
             </div>
-            <textarea
-              value={formData.engineerNotes || ''}
-              onChange={(e) => setEngineerNotes(e.target.value)}
-              placeholder="Example:&#10;- Rechecked temperature readings in points 3-5&#10;- Updated values to match master instrument logs&#10;- Verified calibration records dated 1 Feb 2026"
-              className="w-full h-30 px-4 py-2 rounded-xl border border-blue-200 bg-white text-slate-700 text-[13px] placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            />
-            <p className="text-xs text-blue-600 mt-2 font-medium text-[12px]">
-              This note will be visible to the HoD when reviewing your resubmission.
-            </p>
+            {reviewerName ? (
+              <div className="flex items-center gap-3 p-4 bg-white rounded-xl border border-purple-200">
+                <div className="p-2 bg-purple-100 rounded-full">
+                  <User className="size-5 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-slate-900 text-[14px]">{reviewerName}</p>
+                  <p className="text-xs text-slate-500">Peer Reviewer</p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                  Assigned
+                </span>
+              </div>
+            ) : (
+              <ReviewerSelect
+                value={selectedReviewerId}
+                onChange={setSelectedReviewerId}
+                disabled={isSubmitting}
+                error={reviewerError || undefined}
+              />
+            )}
           </div>
         )}
 
@@ -491,17 +534,16 @@ export function FinalizeSection({ feedbacks = [] }: FinalizeSectionProps) {
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={!requiredItemsValid || isSaving || isSubmitting || hasCriticalErrors}
+            disabled={!requiredItemsValid || isSaving || isSubmitting || hasCriticalErrors || (USE_NEW_WORKFLOW && !reviewerName && !selectedReviewerId)}
             className="flex-[2] py-6 px-6 rounded-2xl bg-primary text-white font-bold shadow-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSubmitting ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
-            {isSubmitting ? 'Submitting...' : isRevisionRequired ? 'Resubmit for Review' : 'Submit for Internal Approval'}
+            {isSubmitting ? 'Submitting...' : isRevisionRequired ? 'Resubmit for Review' : 'Submit for Peer Review'}
           </Button>
         </div>
 
         <p className="text-center text-[11px] text-slate-400 font-medium">
-          By submitting, this certificate will be sent to the Head of Department for internal
-          approval.
+          By submitting, this certificate will be sent to your selected peer for review.
         </p>
 
         {/* Signature Modal */}

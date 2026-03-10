@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Header } from '@/components/layout/Header'
 import { CertificateTable, CertificateListItem } from '@/components/dashboard/CertificateTable'
 import { Button } from '@/components/ui/button'
 import { Plus, FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react'
@@ -11,6 +10,11 @@ async function getCertificates(userId: string): Promise<CertificateListItem[]> {
   const certificates = await prisma.certificate.findMany({
     where: {
       createdById: userId,
+    },
+    include: {
+      reviewer: {
+        select: { id: true, name: true },
+      },
     },
     orderBy: { updatedAt: 'desc' },
   })
@@ -24,6 +28,7 @@ async function getCertificates(userId: string): Promise<CertificateListItem[]> {
     dateOfCalibration: cert.dateOfCalibration?.toISOString() || '',
     currentVersion: cert.currentRevision,
     createdAt: cert.createdAt.toISOString(),
+    reviewerName: cert.reviewer?.name || undefined,
   }))
 }
 
@@ -35,7 +40,8 @@ async function getStats(userId: string) {
     prisma.certificate.count({
       where: {
         createdById: userId,
-        status: { in: ['PENDING_HOD_REVIEW', 'PENDING_CUSTOMER_APPROVAL'] },
+        // Include both old and new workflow statuses
+        status: { in: ['PENDING_HOD_REVIEW', 'PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'] },
       },
     }),
     prisma.certificate.count({
@@ -75,12 +81,13 @@ export default async function EngineerDashboard() {
   ])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header title="Engineer Dashboard" showAutoSave={false} />
+    <div className="h-full overflow-auto">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Page Title */}
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">My Certificates</h1>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-lg border p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gray-100 rounded-lg">
@@ -130,20 +137,19 @@ export default async function EngineerDashboard() {
           </div>
         </div>
 
-        {/* Action Button */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">My Certificates</h2>
-          <Link href="/certificates/new">
-            <Button className="bg-blue-600 hover:bg-blue-700">
-              <Plus className="h-4 w-4 mr-2" />
-              New Certificate
-            </Button>
-          </Link>
-        </div>
+      {/* Action Button */}
+      <div className="flex justify-end mb-6">
+        <Link href="/dashboard/certificates/new">
+          <Button className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="h-4 w-4 mr-2" />
+            New Certificate
+          </Button>
+        </Link>
+      </div>
 
-        {/* Certificate Table */}
-        <CertificateTable certificates={certificates} userRole="ENGINEER" />
-      </main>
+      {/* Certificate Table */}
+      <CertificateTable certificates={certificates} userRole="ENGINEER" />
+    </div>
     </div>
   )
 }

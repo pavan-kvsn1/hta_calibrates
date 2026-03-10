@@ -88,20 +88,24 @@ export default function NewInstrumentPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full">
+          <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
           href="/admin/instruments"
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Add New Instrument</h1>
-          <p className="text-sm text-gray-600 mt-1">Create a new master instrument record</p>
+          <h1 className="text-2xl font-bold text-slate-900">Add New Instrument</h1>
+          <p className="text-sm text-slate-600 mt-1">Create a new master instrument record</p>
         </div>
       </div>
 
@@ -117,10 +121,10 @@ export default function NewInstrumentPage() {
         <div className="p-6 space-y-6">
           {/* Basic Information */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
                   Category <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -129,7 +133,7 @@ export default function NewInstrumentPage() {
                   value={formData.category}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select category</option>
                   {CATEGORIES.map(cat => (
@@ -139,7 +143,7 @@ export default function NewInstrumentPage() {
               </div>
 
               <div>
-                <label htmlFor="assetNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="assetNumber" className="block text-sm font-medium text-slate-700 mb-1">
                   Asset Number <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -149,13 +153,13 @@ export default function NewInstrumentPage() {
                   value={formData.assetNumber}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., HTA-001"
                 />
               </div>
 
               <div className="md:col-span-2">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
                   Description <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -165,7 +169,7 @@ export default function NewInstrumentPage() {
                   value={formData.description}
                   onChange={handleChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., Digital Multimeter"
                 />
               </div>
@@ -174,10 +178,10 @@ export default function NewInstrumentPage() {
 
           {/* Equipment Details */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Equipment Details</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Equipment Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label htmlFor="make" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="make" className="block text-sm font-medium text-slate-700 mb-1">
                   Make
                 </label>
                 <input
@@ -186,13 +190,13 @@ export default function NewInstrumentPage() {
                   name="make"
                   value={formData.make}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., Fluke"
                 />
               </div>
 
               <div>
-                <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="model" className="block text-sm font-medium text-slate-700 mb-1">
                   Model
                 </label>
                 <input
@@ -201,13 +205,13 @@ export default function NewInstrumentPage() {
                   name="model"
                   value={formData.model}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., 87V"
                 />
               </div>
 
               <div>
-                <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="serialNumber" className="block text-sm font-medium text-slate-700 mb-1">
                   Serial Number
                 </label>
                 <input
@@ -216,7 +220,7 @@ export default function NewInstrumentPage() {
                   name="serialNumber"
                   value={formData.serialNumber}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., SN123456"
                 />
               </div>
@@ -225,10 +229,10 @@ export default function NewInstrumentPage() {
 
           {/* Calibration Information */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Calibration Information</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Calibration Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="usage" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="usage" className="block text-sm font-medium text-slate-700 mb-1">
                   Usage
                 </label>
                 <input
@@ -237,13 +241,13 @@ export default function NewInstrumentPage() {
                   name="usage"
                   value={formData.usage}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., Reference Standard"
                 />
               </div>
 
               <div>
-                <label htmlFor="calibratedAtLocation" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="calibratedAtLocation" className="block text-sm font-medium text-slate-700 mb-1">
                   Calibrated At
                 </label>
                 <input
@@ -252,13 +256,13 @@ export default function NewInstrumentPage() {
                   name="calibratedAtLocation"
                   value={formData.calibratedAtLocation}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., NABL Lab"
                 />
               </div>
 
               <div>
-                <label htmlFor="reportNo" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="reportNo" className="block text-sm font-medium text-slate-700 mb-1">
                   Report Number
                 </label>
                 <input
@@ -267,13 +271,13 @@ export default function NewInstrumentPage() {
                   name="reportNo"
                   value={formData.reportNo}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="e.g., CAL-2024-001"
                 />
               </div>
 
               <div>
-                <label htmlFor="calibrationDueDate" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="calibrationDueDate" className="block text-sm font-medium text-slate-700 mb-1">
                   Calibration Due Date
                 </label>
                 <input
@@ -282,7 +286,7 @@ export default function NewInstrumentPage() {
                   name="calibrationDueDate"
                   value={formData.calibrationDueDate}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
@@ -290,7 +294,7 @@ export default function NewInstrumentPage() {
 
           {/* Remarks */}
           <div>
-            <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="remarks" className="block text-sm font-medium text-slate-700 mb-1">
               Remarks
             </label>
             <textarea
@@ -299,17 +303,17 @@ export default function NewInstrumentPage() {
               value={formData.remarks}
               onChange={handleChange}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Any additional notes..."
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 rounded-b-lg">
+        <div className="px-6 py-4 bg-slate-50 border-t flex justify-end gap-3 rounded-b-lg">
           <Link
             href="/admin/instruments"
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
           >
             Cancel
           </Link>
@@ -322,6 +326,9 @@ export default function NewInstrumentPage() {
           </button>
         </div>
       </form>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

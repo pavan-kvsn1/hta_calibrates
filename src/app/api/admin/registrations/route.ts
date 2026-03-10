@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth, canAccessAdmin } from '@/lib/auth'
+import { auth, isMasterAdmin } from '@/lib/auth'
 
-// GET /api/admin/registrations - List customer registrations
+// GET /api/admin/registrations - List customer registrations (Master Admin only)
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
-    if (!canAccessAdmin(session?.user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Master Admin only for registration management
+    if (!isMasterAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden - Master Admin access required' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)

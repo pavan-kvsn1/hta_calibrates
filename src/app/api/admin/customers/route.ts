@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth, canAccessAdmin } from '@/lib/auth'
+import { auth, isMasterAdmin } from '@/lib/auth'
 
-// GET /api/admin/customers - List customer accounts
+// GET /api/admin/customers - List customer accounts (Master Admin only)
 export async function GET(request: NextRequest) {
   try {
     const session = await auth()
-    if (!canAccessAdmin(session?.user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Master Admin only for customer management
+    if (!isMasterAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden - Master Admin access required' }, { status: 403 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -36,10 +37,13 @@ export async function GET(request: NextRequest) {
           assignedHod: {
             select: { id: true, name: true, email: true },
           },
+          primaryPoc: {
+            select: { id: true, name: true, email: true, isActive: true },
+          },
           _count: {
             select: {
               users: true,
-              registrations: { where: { status: 'PENDING' } },
+              requests: { where: { status: 'PENDING' } },
             },
           },
         },
@@ -73,8 +77,9 @@ export async function GET(request: NextRequest) {
         contactPhone: acc.contactPhone,
         isActive: acc.isActive,
         assignedHod: acc.assignedHod,
+        primaryPoc: acc.primaryPoc,
         userCount: acc._count.users,
-        pendingRegistrations: acc._count.registrations,
+        pendingRequests: acc._count.requests,
         certificateCount: certCountMap[acc.id] || 0,
         createdAt: acc.createdAt.toISOString(),
       })),
@@ -94,16 +99,17 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/admin/customers - Create customer account
+// POST /api/admin/customers - Create customer account with POC
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
-    if (!canAccessAdmin(session?.user)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    // Master Admin only for customer management
+    if (!isMasterAdmin(session?.user)) {
+      return NextResponse.json({ error: 'Forbidden - Master Admin access required' }, { status: 403 })
     }
 
     const body = await request.json()
-    const { companyName, address, contactEmail, contactPhone, assignedHodId } = body
+    const { companyName, address, contactEmail, contactPhone, assignedHodId, pocName, pocEmail } = body
 
     // Validation
     if (!companyName?.trim()) {
@@ -113,14 +119,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!pocName?.trim()) {
+      return NextResponse.json(
+        { error: 'POC name is required' },
+        { status: 400 }
+      )
+    }
+
+    if (!pocEmail?.trim()) {
+      return NextResponse.json(
+        { error: 'POC email is required' },
+        { status: 400 }
+      )
+    }
+
     // Check unique company name
-    const existing = await prisma.customerAccount.findUnique({
+    const existingAccount = await prisma.customerAccount.findUnique({
       where: { companyName: companyName.trim() },
     })
 
-    if (existing) {
+    if (existingAccount) {
       return NextResponse.json(
         { error: 'A customer account with this name already exists' },
+        { status: 400 }
+      )
+    }
+
+    // Check unique POC email
+    const existingUser = await prisma.customerUser.findUnique({
+      where: { email: pocEmail.trim().toLowerCase() },
+    })
+
+    if (existingUser) {
+      return NextResponse.json(
+        { error: 'A user with this email already exists' },
         { status: 400 }
       )
     }
@@ -139,29 +171,66 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const account = await prisma.customerAccount.create({
-      data: {
-        companyName: companyName.trim(),
-        address: address?.trim() || null,
-        contactEmail: contactEmail?.trim() || null,
-        contactPhone: contactPhone?.trim() || null,
-        assignedHodId: assignedHodId || null,
-        isActive: true,
-      },
-      include: {
-        assignedHod: {
-          select: { id: true, name: true },
+    // Generate activation token
+    const activationToken = crypto.randomUUID()
+    const activationExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+    // Create account and POC user in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Create the customer account (without primaryPocId initially)
+      const account = await tx.customerAccount.create({
+        data: {
+          companyName: companyName.trim(),
+          address: address?.trim() || null,
+          contactEmail: contactEmail?.trim() || null,
+          contactPhone: contactPhone?.trim() || null,
+          assignedHodId: assignedHodId || null,
+          isActive: true,
         },
-      },
+      })
+
+      // 2. Create the POC user
+      const pocUser = await tx.customerUser.create({
+        data: {
+          email: pocEmail.trim().toLowerCase(),
+          name: pocName.trim(),
+          customerAccountId: account.id,
+          isPoc: true,
+          isActive: false, // Pending activation
+          activationToken,
+          activationExpiry,
+        },
+      })
+
+      // 3. Update account with primary POC reference
+      const updatedAccount = await tx.customerAccount.update({
+        where: { id: account.id },
+        data: { primaryPocId: pocUser.id },
+        include: {
+          assignedHod: {
+            select: { id: true, name: true },
+          },
+          primaryPoc: {
+            select: { id: true, name: true, email: true, isActive: true },
+          },
+        },
+      })
+
+      return { account: updatedAccount, pocUser }
     })
+
+    // TODO: Send activation email to POC (Phase 5)
+    // await sendAccountCreatedEmail(pocEmail, pocName, companyName, activationToken)
 
     return NextResponse.json({
       success: true,
       account: {
-        id: account.id,
-        companyName: account.companyName,
-        assignedHod: account.assignedHod,
+        id: result.account.id,
+        companyName: result.account.companyName,
+        assignedHod: result.account.assignedHod,
+        primaryPoc: result.account.primaryPoc,
       },
+      message: 'Customer account created. Activation email will be sent to the POC.',
     })
   } catch (error) {
     console.error('Error creating customer account:', error)

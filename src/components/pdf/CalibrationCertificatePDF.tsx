@@ -702,6 +702,11 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
     p.results.some(r => r.isOutOfLimit === true)
   )
 
+  // Determine document title based on authorization status
+  // Only show "Calibration Certificate" when fully authorized
+  const isAuthorized = data.status === 'AUTHORIZED'
+  const documentTitle = isAuthorized ? 'Calibration Certificate' : 'Data Calibration Sheet: Review'
+
   return (
     <Document>
       <Page size="A4" style={styles.page} wrap>
@@ -730,7 +735,7 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
         {/* SECTION B: DOCUMENT TITLE (fixed - repeats on each page) */}
         {/* ================================================================ */}
         <View style={styles.titleSection} fixed>
-          <Text style={styles.title}>Calibration Certificate</Text>
+          <Text style={styles.title}>{documentTitle}</Text>
         </View>
 
         {/* Page number - absolutely positioned (fixed - repeats on each page) */}

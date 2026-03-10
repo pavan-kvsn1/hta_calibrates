@@ -1,0 +1,553 @@
+'use client'
+
+import { useState } from 'react'
+import {
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  User,
+  Shield,
+  Building2,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { getConclusionText } from '@/components/pdf/pdf-utils'
+import { CALIBRATION_STATUS_OPTIONS } from '@/components/forms/RemarksSection'
+import type { CertificateData, Signature } from './TokenReviewClient'
+
+interface TokenReviewContentProps {
+  certificate: CertificateData
+  signatures: Signature[]
+}
+
+export function TokenReviewContent({
+  certificate,
+  signatures,
+}: TokenReviewContentProps) {
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    signatures: true,
+    section1: true,
+    section2: true,
+    section3: true,
+    section4: true,
+    section5: true,
+    section6: true,
+    section7: true,
+  })
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return '-'
+    return new Date(dateStr).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  }
+
+  // Check if any results are out of limit
+  const hasOutOfLimitResults = certificate.parameters.some((p) =>
+    p.results.some((r) => r.isOutOfLimit)
+  )
+
+  // Get signature by type
+  const getSignature = (type: string) => signatures.find(s => s.signerType === type)
+  const assigneeSignature = getSignature('ASSIGNEE')
+  const reviewerSignature = getSignature('REVIEWER')
+  const customerSignature = getSignature('CUSTOMER')
+
+  return (
+    <div className="space-y-4">
+      {/* Out of Limit Warning */}
+      {hasOutOfLimitResults && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="font-medium text-red-800">Out of Limit Results</h4>
+            <p className="text-sm text-red-700 mt-1">
+              This certificate contains one or more results that are outside the
+              acceptable limits. Please review carefully.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Signature Status Section */}
+      <CollapsibleSection
+        title="Signature Status"
+        isExpanded={expandedSections.signatures}
+        onToggle={() => toggleSection('signatures')}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <SignatureStatusCard
+            title="Engineer"
+            icon={User}
+            signature={assigneeSignature}
+          />
+          <SignatureStatusCard
+            title="Reviewer"
+            icon={Shield}
+            signature={reviewerSignature}
+          />
+          <SignatureStatusCard
+            title="Customer"
+            icon={Building2}
+            signature={customerSignature}
+            isYours
+          />
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 1: Summary */}
+      <CollapsibleSection
+        title="Section 1: Summary"
+        isExpanded={expandedSections.section1}
+        onToggle={() => toggleSection('section1')}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <InfoField label="SRF Number" value={certificate.srfNumber} />
+          <InfoField label="SRF Date" value={formatDate(certificate.srfDate)} />
+          <InfoField
+            label="Calibrated At"
+            value={certificate.calibratedAt === 'LAB' ? 'Laboratory' : 'Site'}
+          />
+          <InfoField
+            label="Date of Calibration"
+            value={formatDate(certificate.dateOfCalibration)}
+          />
+          <InfoField
+            label="Calibration Due Date"
+            value={
+              certificate.dueDateNotApplicable
+                ? 'Not Applicable'
+                : formatDate(certificate.calibrationDueDate)
+            }
+          />
+          <div className="md:col-span-2 lg:col-span-3 border-t pt-4 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InfoField label="Customer Name" value={certificate.customerName} />
+              <InfoField label="Customer Address" value={certificate.customerAddress} />
+            </div>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 2: UUC Details */}
+      <CollapsibleSection
+        title="Section 2: UUC Details"
+        isExpanded={expandedSections.section2}
+        onToggle={() => toggleSection('section2')}
+      >
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <InfoField label="Description" value={certificate.uucDescription} />
+            </div>
+            <InfoField label="Make" value={certificate.uucMake} />
+            <InfoField label="Model" value={certificate.uucModel} />
+            <InfoField label="Serial Number" value={certificate.uucSerialNumber} />
+            <InfoField label="Location/Tag" value={certificate.uucLocationName} />
+          </div>
+
+          {/* Parameter Specifications */}
+          {certificate.parameters.length > 0 && (
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">Parameter Specifications</h4>
+              <div className="space-y-4">
+                {certificate.parameters.map((param) => {
+                  const parsedBins = param.bins ? (typeof param.bins === 'string' ? JSON.parse(param.bins) : param.bins) : []
+                  const hasBins = param.requiresBinning && parsedBins.length > 0
+
+                  return (
+                    <div key={param.id} className="border rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-4 py-2 border-b flex items-center justify-between">
+                        <span className="font-semibold text-gray-900 text-xs">
+                          {param.parameterName}
+                          {param.parameterUnit && (
+                            <span className="text-gray-500 font-normal ml-1">({param.parameterUnit})</span>
+                          )}
+                        </span>
+                        {param.sopReference && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                            SOP: {param.sopReference}
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
+                          {(param.rangeMin !== null || param.rangeMax !== null) && (
+                            <div>
+                              <span className="text-xs font-medium text-gray-500 block">Range</span>
+                              <span className="text-gray-900 text-xs">
+                                {param.rangeMin || '0'} to {param.rangeMax || '∞'} {param.rangeUnit || param.parameterUnit || ''}
+                              </span>
+                            </div>
+                          )}
+                          {param.accuracyValue && (
+                            <div>
+                              <span className="text-xs font-medium text-gray-500 block">Accuracy</span>
+                              <span className="text-gray-900">
+                                ±{param.accuracyValue} {param.accuracyUnit || ''}{' '}
+                                {param.accuracyType !== 'ABSOLUTE' && (
+                                  <span className="text-gray-500">({param.accuracyType})</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+                          {param.leastCountValue && (
+                            <div>
+                              <span className="text-xs font-medium text-gray-500 block">Resolution</span>
+                              <span className="text-gray-900">
+                                {param.leastCountValue} {param.leastCountUnit || param.parameterUnit || ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {hasBins && (
+                          <div className="mt-4 pt-4 border-t">
+                            <span className="text-xs font-semibold text-gray-500 block mb-2">Range-wise Specifications</span>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Range</th>
+                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Least Count</th>
+                                    <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-500">Accuracy</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                  {parsedBins.map((bin: { id?: string; binMin: string; binMax: string; leastCount: string; accuracy: string }, i: number) => (
+                                    <tr key={bin.id || i}>
+                                      <td className="px-3 py-1.5 text-gray-900 text-xs">
+                                        {bin.binMin} to {bin.binMax} {param.parameterUnit || ''}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-gray-700 text-xs">
+                                        {bin.leastCount} {param.parameterUnit || ''}
+                                      </td>
+                                      <td className="px-3 py-1.5 text-gray-700 text-xs">
+                                        ±{bin.accuracy}{' '}
+                                        {param.accuracyType === 'ABSOLUTE'
+                                          ? param.parameterUnit || ''
+                                          : param.accuracyType === 'PERCENT_READING'
+                                            ? '% of reading'
+                                            : '% of scale'}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 3: Master Instruments */}
+      <CollapsibleSection
+        title="Section 3: Master Instruments"
+        isExpanded={expandedSections.section3}
+        onToggle={() => toggleSection('section3')}
+      >
+        {certificate.masterInstruments.length === 0 ? (
+          <p className="text-gray-500 text-sm">No master instruments listed.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Make</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Model</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Serial No.</th>
+                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Cal. Due Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {certificate.masterInstruments.map((mi) => (
+                  <tr key={mi.id}>
+                    <td className="px-4 py-2 text-gray-900 text-xs">{mi.description}</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.make || '-'}</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.model || '-'}</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.serialNumber || '-'}</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.calibrationDueDate || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* Section 4: Environmental Conditions */}
+      <CollapsibleSection
+        title="Section 4: Environmental Conditions"
+        isExpanded={expandedSections.section4}
+        onToggle={() => toggleSection('section4')}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InfoField
+            label="Ambient Temperature"
+            value={certificate.ambientTemperature ? `${certificate.ambientTemperature} °C` : '-'}
+          />
+          <InfoField
+            label="Relative Humidity"
+            value={certificate.relativeHumidity ? `${certificate.relativeHumidity} %RH` : '-'}
+          />
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 5: Calibration Results */}
+      <CollapsibleSection
+        title="Section 5: Calibration Results"
+        isExpanded={expandedSections.section5}
+        onToggle={() => toggleSection('section5')}
+        badge={
+          hasOutOfLimitResults ? (
+            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">Out of Limit</span>
+          ) : undefined
+        }
+      >
+        {certificate.parameters.length === 0 ? (
+          <p className="text-gray-500 text-sm">No results recorded.</p>
+        ) : (
+          <div className="space-y-6">
+            {certificate.parameters.map((param) => (
+              <div key={param.id} className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 border-b">
+                  <span className="font-medium text-gray-900 text-sm">
+                    {param.parameterName}
+                    {param.parameterUnit && (
+                      <span className="text-gray-500 font-normal ml-1 text-sm">({param.parameterUnit})</span>
+                    )}
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Point</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Standard Reading</th>
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">UUC Reading</th>
+                        {param.showAfterAdjustment && (
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">After Adjustment</th>
+                        )}
+                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Error</th>
+                        <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {param.results.map((result) => (
+                        <tr key={result.id} className={cn(result.isOutOfLimit && 'bg-red-50')}>
+                          <td className="px-4 py-2 text-gray-900 text-xs">{result.pointNumber}</td>
+                          <td className="px-4 py-2 text-gray-700 text-xs">{result.standardReading || '-'}</td>
+                          <td className="px-4 py-2 text-gray-700 text-xs">{result.beforeAdjustment || '-'}</td>
+                          {param.showAfterAdjustment && (
+                            <td className="px-4 py-2 text-gray-700 text-xs">{result.afterAdjustment || '-'}</td>
+                          )}
+                          <td className="px-4 py-2 text-gray-700 text-xs">{result.errorObserved ?? '-'}</td>
+                          <td className="px-4 py-2 text-center">
+                            {result.isOutOfLimit ? (
+                              <span className="inline-flex items-center gap-1 text-red-600">
+                                <AlertCircle className="h-3 w-3" />
+                                <span className="text-xs">Out of Limit</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-green-600">
+                                <CheckCircle className="h-3 w-3" />
+                                <span className="text-xs">OK</span>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CollapsibleSection>
+
+      {/* Section 6: Remarks */}
+      <CollapsibleSection
+        title="Section 6: Remarks"
+        isExpanded={expandedSections.section6}
+        onToggle={() => toggleSection('section6')}
+      >
+        <div className="space-y-4">
+          {certificate.calibrationStatus.length > 0 ? (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Calibration Status</h4>
+              <div className="flex flex-wrap gap-2">
+                {certificate.calibrationStatus.map((statusId, i) => {
+                  const option = CALIBRATION_STATUS_OPTIONS.find(o => o.id === statusId)
+                  return (
+                    <span key={i} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                      {option?.label || statusId}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm">No remarks added.</p>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Section 7: Conclusion */}
+      <CollapsibleSection
+        title="Section 7: Conclusion"
+        isExpanded={expandedSections.section7}
+        onToggle={() => toggleSection('section7')}
+      >
+        <div className="space-y-4">
+          {certificate.conclusionStatements.length > 0 && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Conclusion Statements</h4>
+              <ul className="list-disc list-inside space-y-2 text-gray-700">
+                {certificate.conclusionStatements.map((statementKey, i) => (
+                  <li key={i} className="text-xs">{getConclusionText(statementKey)}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {certificate.additionalConclusionStatement && (
+            <div>
+              <h4 className="text-xs font-semibold text-gray-700 mb-2">Additional Statement</h4>
+              <p className="text-xs text-gray-700 bg-gray-50 p-3 rounded-lg">
+                {certificate.additionalConclusionStatement}
+              </p>
+            </div>
+          )}
+
+          {certificate.conclusionStatements.length === 0 && !certificate.additionalConclusionStatement && (
+            <p className="text-gray-500 text-xs">No conclusion statements added.</p>
+          )}
+        </div>
+      </CollapsibleSection>
+    </div>
+  )
+}
+
+// Helper Components
+function CollapsibleSection({
+  title,
+  isExpanded,
+  onToggle,
+  children,
+  badge,
+}: {
+  title: string
+  isExpanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+  badge?: React.ReactNode
+}) {
+  return (
+    <div className="bg-white rounded-lg border overflow-hidden">
+      <button
+        onClick={onToggle}
+        className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-gray-700 text-sm">{title}</span>
+          {badge}
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="h-5 w-5 text-gray-400" />
+        ) : (
+          <ChevronDown className="h-5 w-5 text-gray-400" />
+        )}
+      </button>
+      {isExpanded && <div className="p-4">{children}</div>}
+    </div>
+  )
+}
+
+function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold text-gray-500 tracking-wider">{label}</dt>
+      <dd className="mt-1 text-xs text-gray-900">{value || '-'}</dd>
+    </div>
+  )
+}
+
+function SignatureStatusCard({
+  title,
+  icon: Icon,
+  signature,
+  isYours,
+}: {
+  title: string
+  icon: React.ComponentType<{ className?: string }>
+  signature?: { signerName: string; signedAt: string | null }
+  isYours?: boolean
+}) {
+  const isSigned = !!signature
+
+  return (
+    <div className={cn(
+      'rounded-lg border p-4',
+      isSigned ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'
+    )}>
+      <div className="flex items-start gap-3">
+        <div className={cn(
+          'size-10 rounded-full flex items-center justify-center flex-shrink-0',
+          isSigned ? 'bg-green-100' : 'bg-slate-200'
+        )}>
+          {isSigned ? (
+            <CheckCircle className="h-5 w-5 text-green-600" />
+          ) : (
+            <Clock className="h-5 w-5 text-slate-400" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className={cn('text-sm font-medium', isSigned ? 'text-green-800' : 'text-slate-700')}>
+              {title}
+            </p>
+            {isYours && (
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">You</span>
+            )}
+          </div>
+          {isSigned ? (
+            <>
+              <p className="text-xs text-green-700 truncate">{signature.signerName}</p>
+              {signature.signedAt && (
+                <p className="text-[10px] text-green-600 mt-1">
+                  {new Date(signature.signedAt).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-slate-500">
+              {isYours ? 'Awaiting your signature' : 'Pending'}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

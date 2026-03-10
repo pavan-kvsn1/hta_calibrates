@@ -55,7 +55,11 @@ const DEFAULT_REQUIREMENTS = {
   rhDisplay: '30 to 75',
 }
 
-export function EnvironmentalSection() {
+interface EnvironmentalSectionProps {
+  feedbackSlot?: React.ReactNode
+}
+
+export function EnvironmentalSection({ feedbackSlot }: EnvironmentalSectionProps = {}) {
   const { formData, setFormField } = useCertificateStore()
 
   // Get unique categories from selected master instruments
@@ -157,6 +161,7 @@ export function EnvironmentalSection() {
       id="environment"
       sectionNumber="Section 04"
       title="Environmental Conditions"
+      feedbackSlot={feedbackSlot}
     >
       <div className="space-y-6">
         {/* Category-based requirements info */}

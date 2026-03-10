@@ -88,7 +88,7 @@ function getStatusBadge(status: string) {
     UNDER_RECAL: 'Under Recal',
   }
   return (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-gray-100 text-gray-700'}`}>
+    <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[status] || 'bg-slate-100 text-slate-700'}`}>
       {labels[status] || status}
     </span>
   )
@@ -292,41 +292,52 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="p-3 h-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+          <div className="p-6 flex items-center justify-center h-full">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
       </div>
     )
   }
 
   if (!instrument) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/admin/instruments"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900">Instrument Not Found</h1>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          {error || 'The requested instrument could not be found.'}
+      <div className="p-3 h-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+          <div className="p-6 space-y-6">
+            <div className="flex items-center gap-4">
+              <Link
+                href="/admin/instruments"
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </Link>
+              <h1 className="text-2xl font-bold text-slate-900">Instrument Not Found</h1>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+              {error || 'The requested instrument could not be found.'}
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-3 h-full">
+      {/* Master Bounding Box */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="p-6 overflow-auto h-full space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link
             href="/admin/instruments"
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -334,15 +345,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{instrument.description}</h1>
+              <h1 className="text-2xl font-bold text-slate-900">{instrument.description}</h1>
               {getStatusBadge(instrument.status)}
               {!instrument.isActive && (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
+                <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">
                   Inactive
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-600 mt-1 ">
+            <p className="text-sm text-slate-600 mt-1 ">
               Asset: {instrument.assetNumber} | Category: {instrument.category}
             </p>
           </div>
@@ -377,15 +388,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Deactivate Instrument?</h3>
-            <p className="text-gray-600 mb-4">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Deactivate Instrument?</h3>
+            <p className="text-slate-600 mb-4">
               This will mark the instrument as inactive. It will no longer appear in the active
               instruments list but can be restored later.
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -406,10 +417,10 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
         <div className="p-6 space-y-6">
           {/* Basic Information */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
                   Category <span className="text-red-500">*</span>
                 </label>
                 {isEditing ? (
@@ -419,7 +430,7 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     value={formData.category}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select category</option>
                     {CATEGORIES.map(cat => (
@@ -427,12 +438,12 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     ))}
                   </select>
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.category}</p>
+                  <p className="text-slate-900 py-2">{formData.category}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="assetNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="assetNumber" className="block text-sm font-medium text-slate-700 mb-1">
                   Asset Number <span className="text-red-500">*</span>
                 </label>
                 {isEditing ? (
@@ -443,15 +454,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     value={formData.assetNumber}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.assetNumber}</p>
+                  <p className="text-slate-900 py-2">{formData.assetNumber}</p>
                 )}
               </div>
 
               <div className="md:col-span-2">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
                   Description <span className="text-red-500">*</span>
                 </label>
                 {isEditing ? (
@@ -462,10 +473,10 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     value={formData.description}
                     onChange={handleChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.description}</p>
+                  <p className="text-slate-900 py-2">{formData.description}</p>
                 )}
               </div>
             </div>
@@ -473,10 +484,10 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
 
           {/* Equipment Details */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Equipment Details</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Equipment Details</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label htmlFor="make" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="make" className="block text-sm font-medium text-slate-700 mb-1">
                   Make
                 </label>
                 {isEditing ? (
@@ -486,15 +497,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="make"
                     value={formData.make}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.make || '-'}</p>
+                  <p className="text-slate-900 py-2">{formData.make || '-'}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="model" className="block text-sm font-medium text-slate-700 mb-1">
                   Model
                 </label>
                 {isEditing ? (
@@ -504,15 +515,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="model"
                     value={formData.model}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.model || '-'}</p>
+                  <p className="text-slate-900 py-2">{formData.model || '-'}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="serialNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="serialNumber" className="block text-sm font-medium text-slate-700 mb-1">
                   Serial Number
                 </label>
                 {isEditing ? (
@@ -522,10 +533,10 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="serialNumber"
                     value={formData.serialNumber}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.serialNumber || '-'}</p>
+                  <p className="text-slate-900 py-2">{formData.serialNumber || '-'}</p>
                 )}
               </div>
             </div>
@@ -533,10 +544,10 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
 
           {/* Calibration Information */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Calibration Information</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Calibration Information</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="usage" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="usage" className="block text-sm font-medium text-slate-700 mb-1">
                   Usage
                 </label>
                 {isEditing ? (
@@ -546,15 +557,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="usage"
                     value={formData.usage}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.usage || '-'}</p>
+                  <p className="text-slate-900 py-2">{formData.usage || '-'}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="calibratedAtLocation" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="calibratedAtLocation" className="block text-sm font-medium text-slate-700 mb-1">
                   Calibrated At
                 </label>
                 {isEditing ? (
@@ -564,15 +575,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="calibratedAtLocation"
                     value={formData.calibratedAtLocation}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.calibratedAtLocation || '-'}</p>
+                  <p className="text-slate-900 py-2">{formData.calibratedAtLocation || '-'}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="reportNo" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="reportNo" className="block text-sm font-medium text-slate-700 mb-1">
                   Report Number
                 </label>
                 {isEditing ? (
@@ -582,15 +593,15 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="reportNo"
                     value={formData.reportNo}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">{formData.reportNo || '-'}</p>
+                  <p className="text-slate-900 py-2">{formData.reportNo || '-'}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="calibrationDueDate" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="calibrationDueDate" className="block text-sm font-medium text-slate-700 mb-1">
                   Calibration Due Date
                 </label>
                 {isEditing ? (
@@ -600,10 +611,10 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                     name="calibrationDueDate"
                     value={formData.calibrationDueDate}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 ) : (
-                  <p className="text-gray-900 py-2">
+                  <p className="text-slate-900 py-2">
                     {formData.calibrationDueDate
                       ? new Date(formData.calibrationDueDate).toLocaleDateString()
                       : '-'}
@@ -616,9 +627,9 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
           {/* Status */}
           {isEditing && (
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Status</h2>
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Status</h2>
               <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="status" className="block text-sm font-medium text-slate-700 mb-1">
                   Instrument Status
                 </label>
                 <select
@@ -626,13 +637,13 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="w-full max-w-xs px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full max-w-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {STATUS_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   &quot;Active&quot; status is computed from calibration due date (Valid, Expiring, Expired)
                 </p>
               </div>
@@ -641,7 +652,7 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
 
           {/* Remarks */}
           <div>
-            <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="remarks" className="block text-sm font-medium text-slate-700 mb-1">
               Remarks
             </label>
             {isEditing ? (
@@ -651,43 +662,43 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                 value={formData.remarks}
                 onChange={handleChange}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             ) : (
-              <p className="text-gray-900 py-2">{formData.remarks || '-'}</p>
+              <p className="text-slate-900 py-2">{formData.remarks || '-'}</p>
             )}
           </div>
 
           {/* Metadata (view only) */}
           {!isEditing && (
             <div className="pt-4 border-t">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Record Information</h2>
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Record Information</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-500">Version:</span>{' '}
-                  <span className="text-gray-900">v{instrument.version}</span>
+                  <span className="text-slate-500">Version:</span>{' '}
+                  <span className="text-slate-900">v{instrument.version}</span>
                 </div>
                 <div>
-                  <span className="text-gray-500">Last Updated:</span>{' '}
-                  <span className="text-gray-900">
+                  <span className="text-slate-500">Last Updated:</span>{' '}
+                  <span className="text-slate-900">
                     {new Date(instrument.createdAt).toLocaleString()}
                   </span>
                 </div>
                 {instrument.createdBy && (
                   <div>
-                    <span className="text-gray-500">Modified By:</span>{' '}
-                    <span className="text-gray-900">{instrument.createdBy.name}</span>
+                    <span className="text-slate-500">Modified By:</span>{' '}
+                    <span className="text-slate-900">{instrument.createdBy.name}</span>
                   </div>
                 )}
                 {instrument.changeReason && (
                   <div>
-                    <span className="text-gray-500">Change Reason:</span>{' '}
-                    <span className="text-gray-900">{instrument.changeReason}</span>
+                    <span className="text-slate-500">Change Reason:</span>{' '}
+                    <span className="text-slate-900">{instrument.changeReason}</span>
                   </div>
                 )}
                 {instrument.daysUntilExpiry !== 999 && (
                   <div>
-                    <span className="text-gray-500">Days Until Expiry:</span>{' '}
+                    <span className="text-slate-500">Days Until Expiry:</span>{' '}
                     <span className={`font-medium ${
                       instrument.daysUntilExpiry < 0 ? 'text-red-600' :
                       instrument.daysUntilExpiry <= 30 ? 'text-yellow-600' : 'text-green-600'
@@ -705,7 +716,7 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
           {/* Range Data */}
           <div className="pt-4 border-t">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Range Data</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Range Data</h2>
               {isEditing && (
                 <button
                   type="button"
@@ -721,12 +732,12 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
               /* Edit Mode */
               <div className="space-y-4">
                 {formData.rangeData.length === 0 ? (
-                  <p className="text-gray-500 text-sm">No range data. Click &quot;Add Range&quot; to add parameters.</p>
+                  <p className="text-slate-500 text-sm">No range data. Click &quot;Add Range&quot; to add parameters.</p>
                 ) : (
                   formData.rangeData.map((range, idx) => (
-                    <div key={idx} className="p-4 bg-gray-50 rounded-lg border space-y-3">
+                    <div key={idx} className="p-4 bg-slate-50 rounded-lg border space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Range {idx + 1}</span>
+                        <span className="text-sm font-medium text-slate-700">Range {idx + 1}</span>
                         <button
                           type="button"
                           onClick={() => removeRangeItem(idx)}
@@ -737,63 +748,63 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Parameter</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Parameter</label>
                           <input
                             type="text"
                             value={range.parameter || ''}
                             onChange={(e) => updateRangeItem(idx, 'parameter', e.target.value)}
                             placeholder="e.g., Temperature"
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Min</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Min</label>
                           <input
                             type="text"
                             value={range.min || ''}
                             onChange={(e) => updateRangeItem(idx, 'min', e.target.value)}
                             placeholder="e.g., 0"
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Max</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Max</label>
                           <input
                             type="text"
                             value={range.max || ''}
                             onChange={(e) => updateRangeItem(idx, 'max', e.target.value)}
                             placeholder="e.g., 100"
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Unit</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Unit</label>
                           <input
                             type="text"
                             value={range.unit || ''}
                             onChange={(e) => updateRangeItem(idx, 'unit', e.target.value)}
                             placeholder="e.g., °C"
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Uncertainty</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Uncertainty</label>
                           <input
                             type="text"
                             value={range.uncertainty || ''}
                             onChange={(e) => updateRangeItem(idx, 'uncertainty', e.target.value)}
                             placeholder="e.g., ±0.5"
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Reference Doc</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Reference Doc</label>
                           <input
                             type="text"
                             value={range.referencedoc || ''}
                             onChange={(e) => updateRangeItem(idx, 'referencedoc', e.target.value)}
                             placeholder="e.g., ISO 12345"
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
                       </div>
@@ -805,48 +816,48 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
               /* View Mode */
               instrument.rangeData && instrument.rangeData.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                  <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-50">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
                           Parameter
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
                           Min
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
                           Max
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
                           Unit
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
                           Uncertainty
                         </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
                           Reference
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white divide-y divide-slate-200">
                       {instrument.rangeData.map((range, idx) => (
                         <tr key={idx}>
-                          <td className="px-4 py-2 text-sm text-gray-900">
+                          <td className="px-4 py-2 text-sm text-slate-900">
                             {range.parameter || '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-900">
+                          <td className="px-4 py-2 text-sm text-slate-900">
                             {range.min || '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-900">
+                          <td className="px-4 py-2 text-sm text-slate-900">
                             {range.max || '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-900">
+                          <td className="px-4 py-2 text-sm text-slate-900">
                             {range.unit || '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-900">
+                          <td className="px-4 py-2 text-sm text-slate-900">
                             {range.uncertainty || '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-900">
+                          <td className="px-4 py-2 text-sm text-slate-900">
                             {range.referencedoc || '-'}
                           </td>
                         </tr>
@@ -855,7 +866,7 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                   </table>
                 </div>
               ) : (
-                <p className="text-gray-500 text-sm">No range data available.</p>
+                <p className="text-slate-500 text-sm">No range data available.</p>
               )
             )}
           </div>
@@ -873,20 +884,20 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
                 value={formData.changeReason}
                 onChange={handleChange}
                 placeholder="e.g., Updated calibration data, Corrected range values"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1">This will be recorded in the version history.</p>
+              <p className="text-xs text-slate-500 mt-1">This will be recorded in the version history.</p>
             </div>
           )}
         </div>
 
         {/* Actions */}
         {isEditing && (
-          <div className="px-6 py-4 bg-gray-50 border-t flex justify-end gap-3 rounded-b-lg">
+          <div className="px-6 py-4 bg-slate-50 border-t flex justify-end gap-3 rounded-b-lg">
             <button
               type="button"
               onClick={handleCancel}
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
@@ -900,6 +911,8 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
           </div>
         )}
       </form>
+        </div>
+      </div>
     </div>
   )
 }

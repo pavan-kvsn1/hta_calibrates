@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
-import { notifyCustomerOnHoDReply } from '@/lib/services/notifications'
+import { notifyCustomerOnReviewerReply } from '@/lib/services/notifications'
 
 export async function POST(
   request: NextRequest,
@@ -218,9 +218,9 @@ export async function POST(
       }
     })
 
-    // Notify customer about HoD's reply (fire and forget)
+    // Notify customer about reviewer's reply (fire and forget)
     if (result.customerId) {
-      notifyCustomerOnHoDReply({
+      notifyCustomerOnReviewerReply({
         certificateId: certificate.id,
         certificateNumber: certificate.certificateNumber,
         customerId: result.customerId,

@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
-import { CustomerHeader } from '@/components/layout/CustomerHeader'
 import { DashboardClient } from './components/DashboardClient'
 
 export default async function CustomerDashboard() {
@@ -10,10 +9,5 @@ export default async function CustomerDashboard() {
     redirect('/customer/login')
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <CustomerHeader title="Dashboard" />
-      <DashboardClient />
-    </div>
-  )
+  return <DashboardClient />
 }

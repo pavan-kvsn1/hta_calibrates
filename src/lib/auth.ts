@@ -40,6 +40,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           role: user.role,
           isAdmin: user.isAdmin,
+          adminType: user.adminType as 'MASTER' | 'WORKER' | null,
         }
       },
     }),
@@ -66,6 +67,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
+        // If no password hash, account not yet activated
+        if (!customer.passwordHash) {
+          return null
+        }
+
         const isPasswordValid = await bcrypt.compare(
           credentials.password as string,
           customer.passwordHash
@@ -78,6 +84,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Get company name and account ID from customerAccount if available
         const companyName = customer.customerAccount?.companyName || customer.companyName || undefined
         const customerAccountId = customer.customerAccountId || undefined
+        // Check if user is the primary POC
+        const isPrimaryPoc = customer.customerAccount?.primaryPocId === customer.id
 
         return {
           id: customer.id,
@@ -86,6 +94,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: 'CUSTOMER',
           companyName,
           customerAccountId,
+          isPrimaryPoc,
         }
       },
     }),
@@ -98,11 +107,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if ('isAdmin' in user) {
           token.isAdmin = user.isAdmin
         }
+        if ('adminType' in user) {
+          token.adminType = user.adminType
+        }
         if ('companyName' in user) {
           token.companyName = user.companyName
         }
         if ('customerAccountId' in user) {
           token.customerAccountId = user.customerAccountId
+        }
+        if ('isPrimaryPoc' in user) {
+          token.isPrimaryPoc = user.isPrimaryPoc
         }
       }
       return token
@@ -114,11 +129,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (token.isAdmin !== undefined) {
           session.user.isAdmin = token.isAdmin as boolean
         }
+        if (token.adminType !== undefined) {
+          session.user.adminType = token.adminType as 'MASTER' | 'WORKER' | null
+        }
         if (token.companyName) {
           session.user.companyName = token.companyName as string
         }
         if (token.customerAccountId) {
           session.user.customerAccountId = token.customerAccountId as string
+        }
+        if (token.isPrimaryPoc !== undefined) {
+          session.user.isPrimaryPoc = token.isPrimaryPoc as boolean
         }
       }
       return session
@@ -161,14 +182,94 @@ export function hasRole(user: { role: string } | null, allowedRoles: string[]): 
 }
 
 // Check if user can access admin features
-// Returns true if user is ADMIN role OR is HoD with isAdmin flag
+// Returns true if user is ADMIN role OR is HoD with isAdmin flag (legacy)
 export function canAccessAdmin(user: { role: string; isAdmin?: boolean } | null | undefined): boolean {
   if (!user) return false
   return user.role === 'ADMIN' || (user.role === 'HOD' && user.isAdmin === true)
 }
 
-// Check if user can access HoD features
+// Check if user can access HoD features (DEPRECATED: use canReviewCertificate instead)
 export function canAccessHod(user: { role: string } | null | undefined): boolean {
   if (!user) return false
   return user.role === 'HOD' || user.role === 'ADMIN'
+}
+
+// ====================
+// NEW: Admin Tier Helpers
+// ====================
+
+// Check if user is a Master Admin
+export function isMasterAdmin(user: { role: string; adminType?: string | null } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'ADMIN' && user.adminType === 'MASTER'
+}
+
+// Check if user is a Worker Admin
+export function isWorkerAdmin(user: { role: string; adminType?: string | null } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'ADMIN' && user.adminType === 'WORKER'
+}
+
+// Check if user is any type of Admin
+export function isAdmin(user: { role: string } | null | undefined): boolean {
+  if (!user) return false
+  return user.role === 'ADMIN'
+}
+
+// ====================
+// NEW: Reviewer Permission Helpers
+// ====================
+
+// Check if user can review a specific certificate
+export function canReviewCertificate(
+  user: { id: string; role: string } | null | undefined,
+  certificate: { reviewerId?: string | null }
+): boolean {
+  if (!user) return false
+  // Admins can review any certificate
+  if (user.role === 'ADMIN') return true
+  // Engineers can review certificates assigned to them
+  return certificate.reviewerId === user.id
+}
+
+// Check if user is the assignee (creator) of a certificate
+export function isAssignee(
+  user: { id: string } | null | undefined,
+  certificate: { createdById: string }
+): boolean {
+  if (!user) return false
+  return user.id === certificate.createdById
+}
+
+// Check if user is the reviewer of a certificate
+export function isReviewer(
+  user: { id: string } | null | undefined,
+  certificate: { reviewerId?: string | null }
+): boolean {
+  if (!user) return false
+  return certificate.reviewerId === user.id
+}
+
+// Check if user can access a chat thread
+export function canAccessChatThread(
+  user: { id: string; role: string } | null | undefined,
+  certificate: { createdById: string; reviewerId?: string | null },
+  threadType: 'ASSIGNEE_REVIEWER' | 'REVIEWER_CUSTOMER'
+): boolean {
+  if (!user) return false
+
+  // Admins can access all threads
+  if (user.role === 'ADMIN') return true
+
+  if (threadType === 'ASSIGNEE_REVIEWER') {
+    // Assignee or Reviewer can access
+    return user.id === certificate.createdById || user.id === certificate.reviewerId
+  }
+
+  if (threadType === 'REVIEWER_CUSTOMER') {
+    // Only Reviewer can access (customer access handled separately)
+    return user.id === certificate.reviewerId
+  }
+
+  return false
 }

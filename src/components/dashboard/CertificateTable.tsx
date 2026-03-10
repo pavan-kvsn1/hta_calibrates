@@ -24,6 +24,7 @@ export interface CertificateListItem {
   currentVersion: number
   createdAt: string
   createdBy?: string // Engineer name (for HoD view)
+  reviewerName?: string // Reviewer name (for new workflow)
 }
 
 interface CertificateTableProps {
@@ -35,6 +36,7 @@ interface CertificateTableProps {
 const statusFilters = [
   { value: 'all', label: 'All Status' },
   { value: 'DRAFT', label: 'Draft' },
+  { value: 'PENDING_REVIEW', label: 'Pending Peer Review' },
   { value: 'PENDING_HOD_REVIEW', label: 'Pending HoD Review' },
   { value: 'REVISION_REQUIRED', label: 'Revision Required' },
   { value: 'PENDING_CUSTOMER_APPROVAL', label: 'Pending Customer' },
@@ -261,9 +263,18 @@ export function CertificateTable({
                           {userRole === 'ENGINEER' &&
                             (cert.status === 'DRAFT' ||
                               cert.status === 'REVISION_REQUIRED') && (
-                              <Link href={`/certificates/${cert.id}/edit`}>
+                              <Link href={`/dashboard/certificates/${cert.id}/edit`}>
                                 <Button variant="ghost" size="sm" title="Edit">
                                   <Edit className="h-4 w-4" />
+                                </Button>
+                              </Link>
+                            )}
+                          {userRole === 'ENGINEER' &&
+                            cert.status !== 'DRAFT' &&
+                            cert.status !== 'REVISION_REQUIRED' && (
+                              <Link href={`/dashboard/certificates/${cert.id}/view`}>
+                                <Button variant="ghost" size="sm" title="View Certificate">
+                                  <Eye className="h-4 w-4" />
                                 </Button>
                               </Link>
                             )}
