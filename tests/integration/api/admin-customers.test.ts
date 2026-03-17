@@ -189,60 +189,76 @@ describe('Admin Customers API Integration', () => {
     })
   })
 
-  describe('Customer Registration Requests', () => {
-    it('should create a registration request', async () => {
-      const request = await prisma.registrationRequest.create({
+  describe('Customer Requests', () => {
+    it('should create a user addition request', async () => {
+      const account = await createCustomerAccount(prisma)
+      const poc = await createCustomerUser(prisma, account.id, { name: 'POC User' })
+
+      const request = await prisma.customerRequest.create({
         data: {
-          email: 'newcustomer@company.com',
-          name: 'New Customer',
-          companyName: 'New Company Inc',
-          companyAddress: '456 New St',
-          phone: '+1234567890',
+          type: 'USER_ADDITION',
           status: 'PENDING',
+          customerAccountId: account.id,
+          requestedById: poc.id,
+          data: JSON.stringify({
+            email: 'newmember@company.com',
+            name: 'New Team Member',
+          }),
         },
       })
 
       expect(request).toBeDefined()
       expect(request.status).toBe('PENDING')
+      expect(request.type).toBe('USER_ADDITION')
     })
 
-    it('should list pending registration requests', async () => {
-      await prisma.registrationRequest.create({
+    it('should list pending customer requests', async () => {
+      const account = await createCustomerAccount(prisma)
+      const poc = await createCustomerUser(prisma, account.id, { name: 'POC User' })
+
+      await prisma.customerRequest.create({
         data: {
-          email: 'req1@company.com',
-          name: 'Request 1',
-          companyName: 'Company 1',
+          type: 'USER_ADDITION',
           status: 'PENDING',
+          customerAccountId: account.id,
+          requestedById: poc.id,
+          data: JSON.stringify({ email: 'member1@company.com', name: 'Member 1' }),
         },
       })
 
-      await prisma.registrationRequest.create({
+      await prisma.customerRequest.create({
         data: {
-          email: 'req2@company.com',
-          name: 'Request 2',
-          companyName: 'Company 2',
+          type: 'USER_ADDITION',
           status: 'APPROVED',
+          customerAccountId: account.id,
+          requestedById: poc.id,
+          reviewedAt: new Date(),
+          data: JSON.stringify({ email: 'member2@company.com', name: 'Member 2' }),
         },
       })
 
-      const pending = await prisma.registrationRequest.findMany({
+      const pending = await prisma.customerRequest.findMany({
         where: { status: 'PENDING' },
       })
 
       expect(pending).toHaveLength(1)
     })
 
-    it('should approve registration request', async () => {
-      const request = await prisma.registrationRequest.create({
+    it('should approve customer request', async () => {
+      const account = await createCustomerAccount(prisma)
+      const poc = await createCustomerUser(prisma, account.id, { name: 'POC User' })
+
+      const request = await prisma.customerRequest.create({
         data: {
-          email: 'approve@company.com',
-          name: 'To Approve',
-          companyName: 'Approve Co',
+          type: 'USER_ADDITION',
           status: 'PENDING',
+          customerAccountId: account.id,
+          requestedById: poc.id,
+          data: JSON.stringify({ email: 'approve@company.com', name: 'To Approve' }),
         },
       })
 
-      const approved = await prisma.registrationRequest.update({
+      const approved = await prisma.customerRequest.update({
         where: { id: request.id },
         data: {
           status: 'APPROVED',
@@ -254,115 +270,21 @@ describe('Admin Customers API Integration', () => {
       expect(approved.reviewedAt).toBeDefined()
     })
 
-    it('should reject registration request with reason', async () => {
-      const request = await prisma.registrationRequest.create({
-        data: {
-          email: 'reject@company.com',
-          name: 'To Reject',
-          companyName: 'Reject Co',
-          status: 'PENDING',
-        },
-      })
-
-      const rejected = await prisma.registrationRequest.update({
-        where: { id: request.id },
-        data: {
-          status: 'REJECTED',
-          reviewedAt: new Date(),
-          rejectionReason: 'Invalid company details',
-        },
-      })
-
-      expect(rejected.status).toBe('REJECTED')
-      expect(rejected.rejectionReason).toBe('Invalid company details')
-    })
-  })
-
-  describe('Team Access Requests', () => {
-    it('should create team access request', async () => {
+    it('should reject customer request', async () => {
       const account = await createCustomerAccount(prisma)
+      const poc = await createCustomerUser(prisma, account.id, { name: 'POC User' })
 
-      const request = await prisma.teamAccessRequest.create({
+      const request = await prisma.customerRequest.create({
         data: {
-          email: 'newmember@company.com',
-          name: 'New Team Member',
-          customerAccountId: account.id,
+          type: 'USER_ADDITION',
           status: 'PENDING',
-        },
-      })
-
-      expect(request).toBeDefined()
-      expect(request.status).toBe('PENDING')
-      expect(request.customerAccountId).toBe(account.id)
-    })
-
-    it('should list pending team access requests', async () => {
-      const account = await createCustomerAccount(prisma)
-
-      await prisma.teamAccessRequest.create({
-        data: {
-          email: 'member1@company.com',
-          name: 'Member 1',
           customerAccountId: account.id,
-          status: 'PENDING',
+          requestedById: poc.id,
+          data: JSON.stringify({ email: 'reject@company.com', name: 'To Reject' }),
         },
       })
 
-      await prisma.teamAccessRequest.create({
-        data: {
-          email: 'member2@company.com',
-          name: 'Member 2',
-          customerAccountId: account.id,
-          status: 'PENDING',
-        },
-      })
-
-      const pending = await prisma.teamAccessRequest.findMany({
-        where: {
-          customerAccountId: account.id,
-          status: 'PENDING',
-        },
-      })
-
-      expect(pending).toHaveLength(2)
-    })
-
-    it('should approve team access request', async () => {
-      const account = await createCustomerAccount(prisma)
-
-      const request = await prisma.teamAccessRequest.create({
-        data: {
-          email: 'approved@company.com',
-          name: 'Approved Member',
-          customerAccountId: account.id,
-          status: 'PENDING',
-        },
-      })
-
-      const approved = await prisma.teamAccessRequest.update({
-        where: { id: request.id },
-        data: {
-          status: 'APPROVED',
-          reviewedAt: new Date(),
-        },
-      })
-
-      expect(approved.status).toBe('APPROVED')
-    })
-
-    it('should reject team access request', async () => {
-      const account = await createCustomerAccount(prisma)
-
-      const request = await prisma.teamAccessRequest.create({
-        data: {
-          email: 'rejected@company.com',
-          name: 'Rejected Member',
-          customerAccountId: account.id,
-          status: 'PENDING',
-        },
-      })
-
-      const rejected = await prisma.teamAccessRequest.update({
+      const rejected = await prisma.customerRequest.update({
         where: { id: request.id },
         data: {
           status: 'REJECTED',

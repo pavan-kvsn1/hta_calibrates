@@ -238,12 +238,12 @@ E2E tests simulate real user interactions through the browser.
 │  2. Creates new certificate                                                     │
 │  3. Fills calibration data                                                      │
 │  4. Previews PDF                                                                │
-│  5. Submits for HoD review                                                      │
+│  5. Submits for reviewer                                                        │
 │  6. Verifies status change                                                      │
 │                                                                                 │
-│  Journey 2: HoD Review & Approval                                               │
-│  ═════════════════════════════════                                              │
-│  1. HoD logs in                                                                 │
+│  Journey 2: Reviewer Approval                                                   │
+│  ═════════════════════════════                                                  │
+│  1. Reviewer logs in                                                                 │
 │  2. Views pending certificates                                                  │
 │  3. Opens certificate for review                                                │
 │  4. Approves and signs                                                          │
@@ -262,8 +262,8 @@ E2E tests simulate real user interactions through the browser.
 │  Journey 4: Revision Workflow                                                   │
 │  ═════════════════════════════                                                  │
 │  1. Customer requests revision                                                  │
-│  2. HoD receives notification                                                   │
-│  3. HoD responds/fixes                                                          │
+│  2. Reviewer receives notification                                              │
+│  3. Reviewer responds/fixes                                                          │
 │  4. Customer receives updated certificate                                       │
 │  5. Customer approves                                                           │
 │                                                                                 │
@@ -311,7 +311,7 @@ E2E tests simulate real user interactions through the browser.
 │  └─────────────────────────────────────────────────────────────────────────┘   │
 │                                                                                 │
 │  TEST DATA SEEDING:                                                             │
-│  • Pre-populated test users (Engineer, HoD, Customer)                           │
+│  • Pre-populated test users (Engineer, Admin, Customer)                         │
 │  • Sample certificates in various states                                        │
 │  • Deterministic data for assertions                                            │
 │                                                                                 │
@@ -435,7 +435,7 @@ Evaluations go beyond traditional tests to assess quality, performance, and busi
 │  │   ├── e2e/                        # End-to-end tests                         │
 │  │   │   ├── journeys/                                                          │
 │  │   │   │   ├── engineer-flow.spec.ts                                          │
-│  │   │   │   ├── hod-flow.spec.ts                                               │
+│  │   │   │   ├── reviewer-flow.spec.ts                                          │
 │  │   │   │   ├── customer-flow.spec.ts                                          │
 │  │   │   │   └── revision-flow.spec.ts                                          │
 │  │   │   ├── pages/                                                             │
@@ -515,7 +515,7 @@ This section documents the actual implementation of the testing strategy as of M
 │  • 01-engineer-flow.spec.ts              - Engineer login and dashboard         │
 │  • 02-engineer-creates-certificate.spec.ts - Certificate creation flow          │
 │  • 03-engineer-submits-reviewer-feedback.spec.ts - Submission workflow          │
-│  • 04-hod-flow.spec.ts                   - Reviewer approval workflow           │
+│  • 04-reviewer-flow.spec.ts              - Reviewer approval workflow           │
 │  • 05-unlock-request-workflow.spec.ts    - Section unlock requests              │
 │  • 06-revision-flow.spec.ts              - Revision request handling            │
 │  • 07-customer-flow.spec.ts              - Customer access flow                 │

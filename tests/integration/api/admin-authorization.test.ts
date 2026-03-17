@@ -118,14 +118,23 @@ describe('Admin Authorization API Integration', () => {
         where: { id: cert.id },
         data: {
           status: 'AUTHORIZED',
-          authorizedAt: new Date(),
-          authorizedById: admin.id,
+        },
+      })
+
+      // Create authorization event to track who authorized it
+      await prisma.certificateEvent.create({
+        data: {
+          certificateId: cert.id,
+          sequenceNumber: 1,
+          revision: 1,
+          eventType: 'ADMIN_AUTHORIZED',
+          eventData: JSON.stringify({ authorizedBy: admin.id }),
+          userId: admin.id,
+          userRole: 'ADMIN',
         },
       })
 
       expect(authorized.status).toBe('AUTHORIZED')
-      expect(authorized.authorizedAt).toBeDefined()
-      expect(authorized.authorizedById).toBe(admin.id)
     })
 
     it('should reject authorization and revert to previous status', async () => {
@@ -249,6 +258,7 @@ describe('Admin Authorization API Integration', () => {
           signerType: 'ASSIGNEE',
           signerName: engineer.name || 'Engineer',
           signerEmail: engineer.email,
+          signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
           signedAt: new Date(),
         },
       })
@@ -259,6 +269,7 @@ describe('Admin Authorization API Integration', () => {
           signerType: 'REVIEWER',
           signerName: admin.name || 'Admin',
           signerEmail: admin.email,
+          signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
           signedAt: new Date(),
         },
       })

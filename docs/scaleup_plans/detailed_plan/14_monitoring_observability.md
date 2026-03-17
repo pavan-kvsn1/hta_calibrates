@@ -395,7 +395,7 @@ This document outlines the comprehensive monitoring, logging, tracing, and alert
 │  ─────────────────────                                                          │
 │                                                                                 │
 │  • Certificate creation flow                                                    │
-│  • HoD approval workflow                                                        │
+│  • Reviewer approval workflow                                                   │
 │  • Customer review and signature                                                │
 │  • PDF generation and storage                                                   │
 │  • Email notification delivery                                                  │

@@ -14,7 +14,7 @@ import {
 } from '../setup/test-db'
 import {
   createTestUser,
-  createEngineerWithHod,
+  createEngineerWithAdmin,
   createCustomerAccount,
   createCustomerUser,
 } from '../setup/fixtures'
@@ -150,61 +150,47 @@ describe('Authentication Integration', () => {
       expect(retrieved?.isAdmin).toBe(true)
     })
 
-    it('should identify HoD users', async () => {
-      const hod = await createTestUser(prisma, {
-        role: 'HOD',
-        isAdmin: true,
-      })
+    it('should link engineer to assigned admin', async () => {
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
 
-      const retrieved = await prisma.user.findUnique({
-        where: { id: hod.id },
-      })
-
-      expect(retrieved?.role).toBe('HOD')
-      expect(retrieved?.isAdmin).toBe(true)
-    })
-
-    it('should link engineer to assigned HoD', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
-
-      const engineerWithHod = await prisma.user.findUnique({
+      const engineerWithAdmin = await prisma.user.findUnique({
         where: { id: engineer.id },
-        include: { assignedHod: true },
+        include: { assignedAdmin: true },
       })
 
-      expect(engineerWithHod?.assignedHodId).toBe(hod.id)
-      expect(engineerWithHod?.assignedHod?.role).toBe('HOD')
+      expect(engineerWithAdmin?.assignedAdminId).toBe(admin.id)
+      expect(engineerWithAdmin?.assignedAdmin?.role).toBe('ADMIN')
     })
 
-    it('should list engineers under a HoD', async () => {
-      const hod = await createTestUser(prisma, {
-        name: 'Department HoD',
-        role: 'HOD',
+    it('should list engineers under an admin', async () => {
+      const admin = await createTestUser(prisma, {
+        name: 'Department Admin',
+        role: 'ADMIN',
         isAdmin: true,
       })
 
       await createTestUser(prisma, {
         name: 'Engineer 1',
         role: 'ENGINEER',
-        assignedHodId: hod.id,
+        assignedAdminId: admin.id,
       })
       await createTestUser(prisma, {
         name: 'Engineer 2',
         role: 'ENGINEER',
-        assignedHodId: hod.id,
+        assignedAdminId: admin.id,
       })
       await createTestUser(prisma, {
         name: 'Other Engineer',
         role: 'ENGINEER',
-        assignedHodId: null,
+        assignedAdminId: null,
       })
 
-      const hodWithEngineers = await prisma.user.findUnique({
-        where: { id: hod.id },
+      const adminWithEngineers = await prisma.user.findUnique({
+        where: { id: admin.id },
         include: { engineers: true },
       })
 
-      expect(hodWithEngineers?.engineers).toHaveLength(2)
+      expect(adminWithEngineers?.engineers).toHaveLength(2)
     })
   })
 

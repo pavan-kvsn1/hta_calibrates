@@ -12,7 +12,7 @@ import {
   cleanTestDatabase,
 } from '../setup/test-db'
 import {
-  createEngineerWithHod,
+  createEngineerWithAdmin,
   createTestCertificate,
   createTestParameter,
 } from '../setup/fixtures'
@@ -34,7 +34,7 @@ describe('Database Transaction Integration', () => {
 
   describe('Transaction Commits', () => {
     it('should commit all changes in a successful transaction', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       await prisma.$transaction(async (tx) => {
         const certificate = await tx.certificate.create({
@@ -78,7 +78,7 @@ describe('Database Transaction Integration', () => {
     })
 
     it('should handle nested creates in transaction', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
 
       const result = await prisma.$transaction(async (tx) => {
         const certificate = await tx.certificate.create({
@@ -105,7 +105,7 @@ describe('Database Transaction Integration', () => {
 
   describe('Transaction Rollbacks', () => {
     it('should rollback all changes on error', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       const certNumber = 'ROLLBACK-TEST-001'
 
@@ -141,7 +141,7 @@ describe('Database Transaction Integration', () => {
     })
 
     it('should rollback on thrown error', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       try {
         await prisma.$transaction(async (tx) => {
@@ -170,7 +170,7 @@ describe('Database Transaction Integration', () => {
 
   describe('Constraint Violations', () => {
     it('should reject duplicate unique values', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       await createTestCertificate(prisma, engineer.id, {
         certificateNumber: 'UNIQUE-001',
@@ -196,7 +196,7 @@ describe('Database Transaction Integration', () => {
     })
 
     it('should enforce unique constraint on certificate events', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       await prisma.certificateEvent.create({
@@ -229,7 +229,7 @@ describe('Database Transaction Integration', () => {
 
   describe('Cascade Operations', () => {
     it('should cascade delete parameters when certificate is deleted', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
       const parameter = await createTestParameter(prisma, certificate.id)
 
@@ -245,7 +245,7 @@ describe('Database Transaction Integration', () => {
     })
 
     it('should cascade delete events when certificate is deleted', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       await prisma.certificateEvent.create({
@@ -272,7 +272,7 @@ describe('Database Transaction Integration', () => {
     })
 
     it('should cascade delete calibration results when parameter is deleted', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
       const parameter = await createTestParameter(prisma, certificate.id)
 
@@ -297,7 +297,7 @@ describe('Database Transaction Integration', () => {
 
   describe('Concurrent Operations', () => {
     it('should handle concurrent certificate creation', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       // Create 10 certificates concurrently
       const promises = Array.from({ length: 10 }, (_, i) =>
@@ -323,7 +323,7 @@ describe('Database Transaction Integration', () => {
     })
 
     it('should handle concurrent updates atomically', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       // Increment currentRevision multiple times concurrently
@@ -351,7 +351,7 @@ describe('Database Transaction Integration', () => {
 
   describe('Data Integrity', () => {
     it('should maintain referential integrity', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       // Verify relations are intact
@@ -359,17 +359,17 @@ describe('Database Transaction Integration', () => {
         where: { id: certificate.id },
         include: {
           createdBy: {
-            include: { assignedHod: true },
+            include: { assignedAdmin: true },
           },
         },
       })
 
       expect(certWithRelations?.createdBy.id).toBe(engineer.id)
-      expect(certWithRelations?.createdBy.assignedHod?.id).toBe(hod.id)
+      expect(certWithRelations?.createdBy.assignedAdmin?.id).toBe(admin.id)
     })
 
     it('should preserve event ordering after updates', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       // Create events with specific order

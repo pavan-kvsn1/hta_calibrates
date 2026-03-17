@@ -70,13 +70,21 @@ export async function cleanTestDatabase(): Promise<void> {
       await tx.approvalToken.deleteMany()
       await tx.notification.deleteMany()
 
+      // Chat tables
+      await tx.chatMessage.deleteMany()
+      await tx.chatThread.deleteMany()
+
+      // Internal requests (depends on certificate and user)
+      await tx.internalRequest.deleteMany()
+
       // Certificate depends on user
       await tx.certificate.deleteMany()
 
       // Master instrument depends on user
       await tx.masterInstrument.deleteMany()
 
-      // Customer tables
+      // Customer tables (delete in order of dependencies)
+      await tx.customerRequest.deleteMany()
       await tx.customerRegistration.deleteMany()
       await tx.customerUser.deleteMany()
       await tx.customerAccount.deleteMany()

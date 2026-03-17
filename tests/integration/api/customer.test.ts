@@ -310,6 +310,7 @@ describe('Customer Portal API Integration', () => {
           eventData: JSON.stringify({ notes: 'Please correct the serial number' }),
           sequenceNumber: 1,
           revision: 1,
+          userRole: 'CUSTOMER',
         },
       })
 
@@ -330,6 +331,7 @@ describe('Customer Portal API Integration', () => {
           signerType: 'CUSTOMER',
           signerName: 'John Customer',
           signerEmail: 'john@customer.com',
+          signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
           signedAt: new Date(),
         },
       })
@@ -348,6 +350,7 @@ describe('Customer Portal API Integration', () => {
           signerType: 'CUSTOMER',
           signerName: 'Customer Signer',
           signerEmail: 'signer@customer.com',
+          signatureData: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
           signedAt: new Date(),
         },
       })
@@ -379,6 +382,7 @@ describe('Customer Portal API Integration', () => {
           }),
           sequenceNumber: 1,
           revision: 1,
+          userRole: 'CUSTOMER',
         },
       })
 
@@ -398,6 +402,7 @@ describe('Customer Portal API Integration', () => {
           eventData: JSON.stringify({ note: 'Question about readings' }),
           sequenceNumber: 1,
           revision: 1,
+          userRole: 'CUSTOMER',
         },
       })
 
@@ -449,6 +454,7 @@ describe('Customer Portal API Integration', () => {
           description: 'Reference Multimeter',
           serialNumber: 'SN12345',
           category: 'Electro-Technical',
+          sopReference: 'SOP/CAL/001',
         },
       })
 
@@ -496,15 +502,17 @@ describe('Customer Portal API Integration', () => {
       expect(accountWithPoc?.primaryPoc?.name).toBe('Primary POC')
     })
 
-    it('should create team access request', async () => {
+    it('should create user addition request', async () => {
       const account = await createCustomerAccount(prisma)
+      const poc = await createCustomerUser(prisma, account.id, { name: 'POC User' })
 
-      const request = await prisma.teamAccessRequest.create({
+      const request = await prisma.customerRequest.create({
         data: {
-          email: 'newmember@team.com',
-          name: 'New Member',
-          customerAccountId: account.id,
+          type: 'USER_ADDITION',
           status: 'PENDING',
+          customerAccountId: account.id,
+          requestedById: poc.id,
+          data: JSON.stringify({ name: 'New Member', email: 'newmember@team.com' }),
         },
       })
 

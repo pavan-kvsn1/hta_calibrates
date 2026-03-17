@@ -12,7 +12,7 @@ import {
   cleanTestDatabase,
 } from '../setup/test-db'
 import {
-  createEngineerWithHod,
+  createEngineerWithAdmin,
   createTestCertificate,
   createTestParameter,
   createCalibrationResults,
@@ -46,7 +46,7 @@ describe('Database Query Integration', () => {
         where: { id: scenario.certificate.id },
         include: {
           createdBy: {
-            include: { assignedHod: true },
+            include: { assignedAdmin: true },
           },
           parameters: {
             include: { results: true },
@@ -58,13 +58,13 @@ describe('Database Query Integration', () => {
       })
 
       expect(certificate).toBeDefined()
-      expect(certificate?.createdBy.assignedHod).toBeDefined()
+      expect(certificate?.createdBy.assignedAdmin).toBeDefined()
       expect(certificate?.parameters.length).toBeGreaterThan(0)
       expect(certificate?.parameters[0].results.length).toBeGreaterThan(0)
     })
 
     it('should retrieve user with all certificate relations', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
 
       await createTestCertificate(prisma, engineer.id)
       await createTestCertificate(prisma, engineer.id)
@@ -73,22 +73,22 @@ describe('Database Query Integration', () => {
         where: { id: engineer.id },
         include: {
           createdCertificates: true,
-          assignedHod: true,
+          assignedAdmin: true,
         },
       })
 
       expect(userWithCerts?.createdCertificates).toHaveLength(2)
-      expect(userWithCerts?.assignedHod?.id).toBe(hod.id)
+      expect(userWithCerts?.assignedAdmin?.id).toBe(admin.id)
     })
   })
 
   describe('Aggregation Queries', () => {
     it('should count certificates by status', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       await createTestCertificate(prisma, engineer.id, { status: 'DRAFT' })
       await createTestCertificate(prisma, engineer.id, { status: 'DRAFT' })
-      await createTestCertificate(prisma, engineer.id, { status: 'PENDING_HOD_REVIEW' })
+      await createTestCertificate(prisma, engineer.id, { status: 'PENDING_REVIEW' })
       await createTestCertificate(prisma, engineer.id, { status: 'APPROVED' })
 
       const statusCounts = await prisma.certificate.groupBy({
@@ -97,14 +97,14 @@ describe('Database Query Integration', () => {
       })
 
       const draftCount = statusCounts.find((s) => s.status === 'DRAFT')?._count.status
-      const pendingCount = statusCounts.find((s) => s.status === 'PENDING_HOD_REVIEW')?._count.status
+      const pendingCount = statusCounts.find((s) => s.status === 'PENDING_REVIEW')?._count.status
 
       expect(draftCount).toBe(2)
       expect(pendingCount).toBe(1)
     })
 
     it('should count calibration results per certificate', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const cert1 = await createTestCertificate(prisma, engineer.id)
       const cert2 = await createTestCertificate(prisma, engineer.id)
 
@@ -125,7 +125,7 @@ describe('Database Query Integration', () => {
     })
 
     it('should get average error per parameter', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
       const parameter = await createTestParameter(prisma, certificate.id)
 
@@ -149,7 +149,7 @@ describe('Database Query Integration', () => {
 
   describe('Filtering and Pagination', () => {
     it('should paginate certificates', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       // Create 10 certificates
       for (let i = 0; i < 10; i++) {
@@ -176,7 +176,7 @@ describe('Database Query Integration', () => {
     })
 
     it('should filter by date range', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       const now = new Date()
       const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
@@ -197,7 +197,7 @@ describe('Database Query Integration', () => {
     })
 
     it('should search by text fields', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       await createTestCertificate(prisma, engineer.id, {
         customerName: 'Acme Corporation',
@@ -222,35 +222,35 @@ describe('Database Query Integration', () => {
   })
 
   describe('Relational Queries', () => {
-    it('should find certificates for a HoD\'s engineers', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+    it('should find certificates for an admin\'s engineers', async () => {
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
 
       await createTestCertificate(prisma, engineer.id)
       await createTestCertificate(prisma, engineer.id)
 
-      const hodCerts = await prisma.certificate.findMany({
+      const adminCerts = await prisma.certificate.findMany({
         where: {
           createdBy: {
-            assignedHodId: hod.id,
+            assignedAdminId: admin.id,
           },
         },
       })
 
-      expect(hodCerts).toHaveLength(2)
+      expect(adminCerts).toHaveLength(2)
     })
 
     it('should find unread notifications with certificate details', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
-      await createTestNotification(prisma, hod.id, certificate.id, {
+      await createTestNotification(prisma, admin.id, certificate.id, {
         read: false,
         title: 'Certificate Submitted',
       })
 
       const notifications = await prisma.notification.findMany({
         where: {
-          userId: hod.id,
+          userId: admin.id,
           read: false,
         },
         include: {
@@ -270,7 +270,7 @@ describe('Database Query Integration', () => {
 
   describe('Master Instruments', () => {
     it('should find latest version of instrument', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       // Create instrument with multiple versions
       const instrumentId = 'shared-instrument-id'
@@ -318,7 +318,7 @@ describe('Database Query Integration', () => {
     })
 
     it('should filter instruments by category', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       await createMasterInstrument(prisma, engineer.id, {
         category: 'Electro-Technical',
@@ -344,7 +344,7 @@ describe('Database Query Integration', () => {
     })
 
     it('should find instruments due for calibration', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const now = new Date()
       const pastDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
       const futureDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days from now

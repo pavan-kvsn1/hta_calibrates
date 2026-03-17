@@ -203,7 +203,7 @@ describe('Admin Certificates API Integration', () => {
           },
           parameters: {
             include: {
-              calibrationResults: true,
+              results: true,
             },
           },
         },

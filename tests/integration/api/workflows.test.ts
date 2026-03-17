@@ -12,7 +12,7 @@ import {
   cleanTestDatabase,
 } from '../setup/test-db'
 import {
-  createEngineerWithHod,
+  createEngineerWithAdmin,
   createTestCertificate,
   createCustomerAccount,
   createCustomerUser,
@@ -21,9 +21,9 @@ import {
 
 // Valid status transitions as per business rules
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  DRAFT: ['PENDING_HOD_REVIEW'],
-  PENDING_HOD_REVIEW: ['REVISION_REQUIRED', 'PENDING_CUSTOMER_APPROVAL', 'PENDING_ADMIN_AUTHORIZATION'],
-  REVISION_REQUIRED: ['PENDING_HOD_REVIEW'],
+  DRAFT: ['PENDING_REVIEW'],
+  PENDING_REVIEW: ['REVISION_REQUIRED', 'PENDING_CUSTOMER_APPROVAL', 'PENDING_ADMIN_AUTHORIZATION'],
+  REVISION_REQUIRED: ['PENDING_REVIEW'],
   PENDING_CUSTOMER_APPROVAL: ['CUSTOMER_REVISION_REQUIRED', 'APPROVED', 'PENDING_ADMIN_AUTHORIZATION'],
   CUSTOMER_REVISION_REQUIRED: ['PENDING_CUSTOMER_APPROVAL'],
   PENDING_ADMIN_AUTHORIZATION: ['AUTHORIZED', 'REVISION_REQUIRED'],
@@ -48,22 +48,22 @@ describe('Workflow Integration', () => {
   })
 
   describe('Status Transitions', () => {
-    it('should transition from DRAFT to PENDING_HOD_REVIEW', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+    it('should transition from DRAFT to PENDING_REVIEW', async () => {
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id, {
         status: 'DRAFT',
       })
 
       const updated = await prisma.certificate.update({
         where: { id: certificate.id },
-        data: { status: 'PENDING_HOD_REVIEW' },
+        data: { status: 'PENDING_REVIEW' },
       })
 
-      expect(updated.status).toBe('PENDING_HOD_REVIEW')
+      expect(updated.status).toBe('PENDING_REVIEW')
     })
 
     it('should record status change events', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id, {
         status: 'DRAFT',
       })
@@ -77,7 +77,7 @@ describe('Workflow Integration', () => {
           eventType: 'STATUS_CHANGED',
           eventData: JSON.stringify({
             from: 'DRAFT',
-            to: 'PENDING_HOD_REVIEW',
+            to: 'PENDING_REVIEW',
           }),
           userId: engineer.id,
           userRole: 'ENGINEER',
@@ -87,7 +87,7 @@ describe('Workflow Integration', () => {
       // Update status
       await prisma.certificate.update({
         where: { id: certificate.id },
-        data: { status: 'PENDING_HOD_REVIEW' },
+        data: { status: 'PENDING_REVIEW' },
       })
 
       const events = await prisma.certificateEvent.findMany({
@@ -99,7 +99,7 @@ describe('Workflow Integration', () => {
     })
 
     it('should track revision numbers on status changes', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id, {
         status: 'DRAFT',
       })
@@ -107,10 +107,10 @@ describe('Workflow Integration', () => {
       // Submit for review
       await prisma.certificate.update({
         where: { id: certificate.id },
-        data: { status: 'PENDING_HOD_REVIEW' },
+        data: { status: 'PENDING_REVIEW' },
       })
 
-      // HoD requests revision
+      // reviewer requests revision
       await prisma.certificate.update({
         where: { id: certificate.id },
         data: {
@@ -129,7 +129,7 @@ describe('Workflow Integration', () => {
 
   describe('Certificate Events', () => {
     it('should maintain event sequence order', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       // Create multiple events
@@ -177,7 +177,7 @@ describe('Workflow Integration', () => {
     })
 
     it('should enforce unique sequence numbers per certificate', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       await prisma.certificateEvent.create({
@@ -211,7 +211,7 @@ describe('Workflow Integration', () => {
 
   describe('Certificate Revisions', () => {
     it('should create revision snapshot', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id, {
         customerName: 'Original Customer',
       })
@@ -223,9 +223,9 @@ describe('Workflow Integration', () => {
           revisionNumber: 1,
           snapshotData: JSON.stringify({
             customerName: 'Original Customer',
-            status: 'PENDING_HOD_REVIEW',
+            status: 'PENDING_REVIEW',
           }),
-          status: 'PENDING_HOD_REVIEW',
+          status: 'PENDING_REVIEW',
           submittedById: engineer.id,
           submittedAt: new Date(),
           fromEventSeq: 1,
@@ -245,7 +245,7 @@ describe('Workflow Integration', () => {
     })
 
     it('should track multiple revisions', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       // Create two revisions
@@ -255,7 +255,7 @@ describe('Workflow Integration', () => {
             certificateId: certificate.id,
             revisionNumber: 1,
             snapshotData: '{"version": 1}',
-            status: 'PENDING_HOD_REVIEW',
+            status: 'PENDING_REVIEW',
             submittedById: engineer.id,
             fromEventSeq: 1,
             toEventSeq: 3,
@@ -264,7 +264,7 @@ describe('Workflow Integration', () => {
             certificateId: certificate.id,
             revisionNumber: 2,
             snapshotData: '{"version": 2}',
-            status: 'PENDING_HOD_REVIEW',
+            status: 'PENDING_REVIEW',
             submittedById: engineer.id,
             fromEventSeq: 4,
             toEventSeq: 7,
@@ -284,10 +284,10 @@ describe('Workflow Integration', () => {
   })
 
   describe('Review Feedback', () => {
-    it('should add HoD feedback to certificate', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+    it('should add reviewer feedback to certificate', async () => {
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id, {
-        status: 'PENDING_HOD_REVIEW',
+        status: 'PENDING_REVIEW',
       })
 
       await prisma.reviewFeedback.create({
@@ -297,7 +297,7 @@ describe('Workflow Integration', () => {
           feedbackType: 'REVISION_REQUEST',
           targetField: 'customerName',
           comment: 'Please verify the customer name spelling',
-          userId: hod.id,
+          userId: admin.id,
         },
       })
 
@@ -310,7 +310,7 @@ describe('Workflow Integration', () => {
     })
 
     it('should track resolved feedback', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       const feedback = await prisma.reviewFeedback.create({
@@ -319,7 +319,7 @@ describe('Workflow Integration', () => {
           revisionNumber: 1,
           feedbackType: 'COMMENT',
           comment: 'Initial feedback',
-          userId: hod.id,
+          userId: admin.id,
         },
       })
 
@@ -344,17 +344,17 @@ describe('Workflow Integration', () => {
 
   describe('Notifications', () => {
     it('should create notification on status change', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
-      await createTestNotification(prisma, hod.id, certificate.id, {
+      await createTestNotification(prisma, admin.id, certificate.id, {
         type: 'SUBMITTED_FOR_REVIEW',
         title: 'New Certificate for Review',
         message: `Certificate ${certificate.certificateNumber} submitted for review`,
       })
 
       const notifications = await prisma.notification.findMany({
-        where: { userId: hod.id },
+        where: { userId: admin.id },
       })
 
       expect(notifications).toHaveLength(1)
@@ -362,10 +362,10 @@ describe('Workflow Integration', () => {
     })
 
     it('should mark notifications as read', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
-      const notification = await createTestNotification(prisma, hod.id, certificate.id)
+      const notification = await createTestNotification(prisma, admin.id, certificate.id)
 
       // Mark as read
       await prisma.notification.update({
@@ -385,16 +385,16 @@ describe('Workflow Integration', () => {
     })
 
     it('should count unread notifications', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
-      await createTestNotification(prisma, hod.id, certificate.id, { read: false })
-      await createTestNotification(prisma, hod.id, certificate.id, { read: false })
-      await createTestNotification(prisma, hod.id, certificate.id, { read: true })
+      await createTestNotification(prisma, admin.id, certificate.id, { read: false })
+      await createTestNotification(prisma, admin.id, certificate.id, { read: false })
+      await createTestNotification(prisma, admin.id, certificate.id, { read: true })
 
       const unreadCount = await prisma.notification.count({
         where: {
-          userId: hod.id,
+          userId: admin.id,
           read: false,
         },
       })
@@ -405,8 +405,8 @@ describe('Workflow Integration', () => {
 
   describe('Customer Workflow', () => {
     it('should create approval token for customer', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
-      const account = await createCustomerAccount(prisma, { assignedHodId: hod.id })
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
+      const account = await createCustomerAccount(prisma, { assignedAdminId: admin.id })
       const customer = await createCustomerUser(prisma, account.id)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
@@ -424,7 +424,7 @@ describe('Workflow Integration', () => {
     })
 
     it('should track token usage', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const account = await createCustomerAccount(prisma)
       const customer = await createCustomerUser(prisma, account.id)
       const certificate = await createTestCertificate(prisma, engineer.id)

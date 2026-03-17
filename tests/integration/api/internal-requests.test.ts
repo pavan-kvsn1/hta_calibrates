@@ -40,16 +40,16 @@ describe('Internal Requests API Integration', () => {
 
       const request = await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Need to correct calibration data entry error',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Need to correct calibration data entry error' }),
           status: 'PENDING',
         },
       })
 
       expect(request).toBeDefined()
-      expect(request.type).toBe('UNLOCK')
+      expect(request.type).toBe('SECTION_UNLOCK')
       expect(request.status).toBe('PENDING')
     })
 
@@ -60,20 +60,20 @@ describe('Internal Requests API Integration', () => {
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert1.id,
           requestedById: engineer.id,
-          reason: 'Reason 1',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Reason 1' }),
           status: 'PENDING',
         },
       })
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert2.id,
           requestedById: engineer.id,
-          reason: 'Reason 2',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Reason 2' }),
           status: 'PENDING',
         },
       })
@@ -91,10 +91,10 @@ describe('Internal Requests API Integration', () => {
 
       const request = await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Need to unlock',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Need to unlock' }),
           status: 'PENDING',
         },
       })
@@ -105,7 +105,7 @@ describe('Internal Requests API Integration', () => {
           status: 'APPROVED',
           reviewedById: admin.id,
           reviewedAt: new Date(),
-          reviewNote: 'Approved for correction',
+          adminNote: 'Approved for correction',
         },
       })
 
@@ -119,10 +119,10 @@ describe('Internal Requests API Integration', () => {
 
       const request = await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Want to unlock',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Want to unlock' }),
           status: 'PENDING',
         },
       })
@@ -133,12 +133,12 @@ describe('Internal Requests API Integration', () => {
           status: 'REJECTED',
           reviewedById: admin.id,
           reviewedAt: new Date(),
-          reviewNote: 'Request not justified',
+          adminNote: 'Request not justified',
         },
       })
 
       expect(rejected.status).toBe('REJECTED')
-      expect(rejected.reviewNote).toContain('not justified')
+      expect(rejected.adminNote).toContain('not justified')
     })
 
     it('should track request history for a certificate', async () => {
@@ -148,10 +148,10 @@ describe('Internal Requests API Integration', () => {
       // Create multiple requests
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'First request',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'First request' }),
           status: 'REJECTED',
           reviewedById: admin.id,
           reviewedAt: new Date(),
@@ -160,10 +160,10 @@ describe('Internal Requests API Integration', () => {
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Second request with better justification',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Second request with better justification' }),
           status: 'APPROVED',
           reviewedById: admin.id,
           reviewedAt: new Date(),
@@ -182,40 +182,42 @@ describe('Internal Requests API Integration', () => {
   })
 
   describe('Request Filtering', () => {
-    it('should filter requests by type', async () => {
-      const { engineer } = await createEngineerWithAdmin(prisma)
+    it('should filter requests by status', async () => {
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const cert = await createTestCertificate(prisma, engineer.id)
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Unlock',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Pending request' }),
           status: 'PENDING',
         },
       })
 
       await prisma.internalRequest.create({
         data: {
-          type: 'REVISION',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Revision',
-          status: 'PENDING',
+          data: JSON.stringify({ sections: ['results'], reason: 'Approved request' }),
+          status: 'APPROVED',
+          reviewedById: admin.id,
+          reviewedAt: new Date(),
         },
       })
 
-      const unlockRequests = await prisma.internalRequest.findMany({
-        where: { type: 'UNLOCK' },
+      const pendingRequests = await prisma.internalRequest.findMany({
+        where: { status: 'PENDING' },
       })
 
-      const revisionRequests = await prisma.internalRequest.findMany({
-        where: { type: 'REVISION' },
+      const approvedRequests = await prisma.internalRequest.findMany({
+        where: { status: 'APPROVED' },
       })
 
-      expect(unlockRequests).toHaveLength(1)
-      expect(revisionRequests).toHaveLength(1)
+      expect(pendingRequests).toHaveLength(1)
+      expect(approvedRequests).toHaveLength(1)
     })
 
     it('should filter requests by requester', async () => {
@@ -235,20 +237,20 @@ describe('Internal Requests API Integration', () => {
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert1.id,
           requestedById: engineer.id,
-          reason: 'Engineer 1 request',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Engineer 1 request' }),
           status: 'PENDING',
         },
       })
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert2.id,
           requestedById: engineer2.id,
-          reason: 'Engineer 2 request',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Engineer 2 request' }),
           status: 'PENDING',
         },
       })
@@ -258,44 +260,6 @@ describe('Internal Requests API Integration', () => {
       })
 
       expect(engineer1Requests).toHaveLength(1)
-    })
-
-    it('should filter requests by status', async () => {
-      const { engineer, admin } = await createEngineerWithAdmin(prisma)
-      const cert = await createTestCertificate(prisma, engineer.id)
-
-      await prisma.internalRequest.create({
-        data: {
-          type: 'UNLOCK',
-          certificateId: cert.id,
-          requestedById: engineer.id,
-          reason: 'Pending',
-          status: 'PENDING',
-        },
-      })
-
-      await prisma.internalRequest.create({
-        data: {
-          type: 'UNLOCK',
-          certificateId: cert.id,
-          requestedById: engineer.id,
-          reason: 'Approved',
-          status: 'APPROVED',
-          reviewedById: admin.id,
-          reviewedAt: new Date(),
-        },
-      })
-
-      const pending = await prisma.internalRequest.findMany({
-        where: { status: 'PENDING' },
-      })
-
-      const approved = await prisma.internalRequest.findMany({
-        where: { status: 'APPROVED' },
-      })
-
-      expect(pending).toHaveLength(1)
-      expect(approved).toHaveLength(1)
     })
   })
 
@@ -309,10 +273,10 @@ describe('Internal Requests API Integration', () => {
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Test',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Test' }),
           status: 'PENDING',
         },
       })
@@ -339,10 +303,10 @@ describe('Internal Requests API Integration', () => {
 
       await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Test',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Test' }),
           status: 'PENDING',
         },
       })
@@ -364,10 +328,10 @@ describe('Internal Requests API Integration', () => {
 
       const request = await prisma.internalRequest.create({
         data: {
-          type: 'UNLOCK',
+          type: 'SECTION_UNLOCK',
           certificateId: cert.id,
           requestedById: engineer.id,
-          reason: 'Test',
+          data: JSON.stringify({ sections: ['parameters'], reason: 'Test' }),
           status: 'PENDING',
         },
       })
@@ -402,10 +366,10 @@ describe('Internal Requests API Integration', () => {
         const cert = await createTestCertificate(prisma, engineer.id)
         await prisma.internalRequest.create({
           data: {
-            type: 'UNLOCK',
+            type: 'SECTION_UNLOCK',
             certificateId: cert.id,
             requestedById: engineer.id,
-            reason: `Request ${i + 1}`,
+            data: JSON.stringify({ sections: ['parameters'], reason: `Request ${i + 1}` }),
             status: 'PENDING',
           },
         })
@@ -436,10 +400,10 @@ describe('Internal Requests API Integration', () => {
         const cert = await createTestCertificate(prisma, engineer.id)
         await prisma.internalRequest.create({
           data: {
-            type: 'UNLOCK',
+            type: 'SECTION_UNLOCK',
             certificateId: cert.id,
             requestedById: engineer.id,
-            reason: `Request ${i}`,
+            data: JSON.stringify({ sections: ['parameters'], reason: `Request ${i}` }),
             status: 'PENDING',
           },
         })
@@ -459,10 +423,10 @@ describe('Internal Requests API Integration', () => {
         const cert = await createTestCertificate(prisma, engineer.id)
         await prisma.internalRequest.create({
           data: {
-            type: 'UNLOCK',
+            type: 'SECTION_UNLOCK',
             certificateId: cert.id,
             requestedById: engineer.id,
-            reason: 'Pending',
+            data: JSON.stringify({ sections: ['parameters'], reason: 'Pending' }),
             status: 'PENDING',
           },
         })
@@ -472,10 +436,10 @@ describe('Internal Requests API Integration', () => {
         const cert = await createTestCertificate(prisma, engineer.id)
         await prisma.internalRequest.create({
           data: {
-            type: 'UNLOCK',
+            type: 'SECTION_UNLOCK',
             certificateId: cert.id,
             requestedById: engineer.id,
-            reason: 'Approved',
+            data: JSON.stringify({ sections: ['parameters'], reason: 'Approved' }),
             status: 'APPROVED',
             reviewedById: admin.id,
             reviewedAt: new Date(),
