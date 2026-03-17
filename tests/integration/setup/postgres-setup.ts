@@ -18,7 +18,31 @@ const DATABASE_URL = process.env.DATABASE_URL ||
 // Set DATABASE_URL environment variable for PrismaClient (Prisma 7 requirement)
 process.env.DATABASE_URL = DATABASE_URL
 
+// Determine if we're using PostgreSQL client (CI) or default client (local with SQLite fallback)
+const isPostgresUrl = DATABASE_URL.startsWith('postgresql')
+
 let isSetupComplete = false
+
+/**
+ * Import PrismaClient from the correct location based on environment
+ * - PostgreSQL tests in CI use client-postgres
+ * - Local tests may use the default client
+ */
+async function getPrismaClient() {
+  if (isPostgresUrl) {
+    try {
+      // Try to import from postgres-specific client location first
+      const module = await import('../../../node_modules/.prisma/client-postgres')
+      return module.PrismaClient
+    } catch {
+      // Fallback to default client if postgres client not generated
+      const module = await import('@prisma/client')
+      return module.PrismaClient
+    }
+  }
+  const module = await import('@prisma/client')
+  return module.PrismaClient
+}
 
 /**
  * Global setup - runs once before all tests
@@ -31,7 +55,7 @@ beforeAll(async () => {
   try {
     // Check if PostgreSQL is available
     // In Prisma 7, datasources in constructor is removed - use DATABASE_URL env var instead
-    const { PrismaClient } = await import('@prisma/client')
+    const PrismaClient = await getPrismaClient()
     const prisma = new PrismaClient()
 
     // Test connection
@@ -66,7 +90,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   // Import dynamically to get the right client
   // DATABASE_URL env var is already set at module load time
-  const { PrismaClient } = await import('@prisma/client')
+  const PrismaClient = await getPrismaClient()
   const prisma = new PrismaClient()
 
   try {
@@ -130,6 +154,6 @@ afterAll(async () => {
 // Export helper for tests to get PostgreSQL client
 // DATABASE_URL env var is already set at module load time
 export async function getPostgresPrisma() {
-  const { PrismaClient } = await import('@prisma/client')
+  const PrismaClient = await getPrismaClient()
   return new PrismaClient()
 }
