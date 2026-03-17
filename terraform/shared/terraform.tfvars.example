@@ -1,0 +1,8 @@
+# Shared Resources - Example Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# REQUIRED: Your GCP project ID
+project_id = "your-gcp-project-id"
+
+# OPTIONAL: Override the default region (asia-south1)
+# region = "asia-south1"
