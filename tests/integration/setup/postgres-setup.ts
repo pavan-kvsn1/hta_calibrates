@@ -54,11 +54,9 @@ beforeAll(async () => {
 
   try {
     // Check if PostgreSQL is available
-    // In Prisma 7, PrismaClient requires explicit options object
+    // DATABASE_URL env var is already set at module load time (line 19)
     const PrismaClient = await getPrismaClient()
-    const prisma = new PrismaClient({
-      datasourceUrl: DATABASE_URL,
-    })
+    const prisma = new PrismaClient()
 
     // Test connection
     await prisma.$queryRaw`SELECT 1`
@@ -91,10 +89,9 @@ beforeAll(async () => {
  */
 beforeEach(async () => {
   // Import dynamically to get the right client
+  // DATABASE_URL env var is already set at module load time
   const PrismaClient = await getPrismaClient()
-  const prisma = new PrismaClient({
-    datasourceUrl: DATABASE_URL,
-  })
+  const prisma = new PrismaClient()
 
   try {
     // Truncate all tables in dependency order (PostgreSQL supports TRUNCATE CASCADE)
@@ -157,7 +154,5 @@ afterAll(async () => {
 // Export helper for tests to get PostgreSQL client
 export async function getPostgresPrisma() {
   const PrismaClient = await getPrismaClient()
-  return new PrismaClient({
-    datasourceUrl: DATABASE_URL,
-  })
+  return new PrismaClient()
 }
