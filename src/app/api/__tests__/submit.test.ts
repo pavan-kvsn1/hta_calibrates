@@ -56,6 +56,7 @@ vi.mock('@/lib/services/notifications', () => ({
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+import { notifyReviewerOnSubmit, notifyReviewerOnAssigneeResponse } from '@/lib/services/notifications'
 
 function createRequest(body: object): NextRequest {
   return new NextRequest('http://localhost:3000/api/certificates/cert-123/submit', {
@@ -109,6 +110,35 @@ const mockReviewer = {
   email: 'reviewer@test.com',
   role: 'ENGINEER',
   isActive: true,
+}
+
+// Helper to create a transaction mock that executes the callback
+const createTransactionMock = (returnValue: { cert: any; signature: any }) => {
+  return vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+    // Create mock tx object with all needed methods
+    const tx = {
+      certificateEvent: {
+        findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+        create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+      },
+      certificate: {
+        update: vi.fn().mockResolvedValue(returnValue.cert),
+      },
+      reviewFeedback: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+      auditLog: {
+        create: vi.fn().mockResolvedValue({}),
+      },
+      signature: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        create: vi.fn().mockResolvedValue(returnValue.signature),
+      },
+    }
+    // Execute the callback to cover the transaction code
+    await fn(tx)
+    return returnValue
+  })
 }
 
 describe('POST /api/certificates/[id]/submit', () => {
@@ -339,11 +369,9 @@ describe('POST /api/certificates/[id]/submit', () => {
   describe('successful submission', () => {
     it('successfully submits new certificate', async () => {
       const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return {
-          cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
-          signature: mockSignature,
-        }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
+        signature: mockSignature,
       })
 
       const request = createRequest({
@@ -360,6 +388,31 @@ describe('POST /api/certificates/[id]/submit', () => {
       expect(data.certificate.status).toBe('PENDING_REVIEW')
     })
 
+    it('successfully submits with client evidence', async () => {
+      const mockSignature = { id: 'sig-123' }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
+        signature: mockSignature,
+      })
+
+      const request = createRequest({
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'Jane Engineer',
+        reviewerId: 'reviewer-456',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await POST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
     it('successfully resubmits certificate with revision required status', async () => {
       vi.mocked(prisma.certificate.findUnique).mockResolvedValue({
         ...mockCertificate,
@@ -368,11 +421,9 @@ describe('POST /api/certificates/[id]/submit', () => {
       } as any)
 
       const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return {
-          cert: { ...mockCertificate, status: 'PENDING_REVIEW', currentRevision: 2 },
-          signature: mockSignature,
-        }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW', currentRevision: 2 },
+        signature: mockSignature,
       })
 
       const request = createRequest({
@@ -399,11 +450,9 @@ describe('POST /api/certificates/[id]/submit', () => {
       })
 
       const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return {
-          cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
-          signature: mockSignature,
-        }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
+        signature: mockSignature,
       })
 
       const request = createRequest({
@@ -414,6 +463,36 @@ describe('POST /api/certificates/[id]/submit', () => {
       const response = await POST(request, { params: Promise.resolve({ id: 'cert-123' }) })
       const data = await response.json()
 
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('handles evidence capture failure gracefully', async () => {
+      const mockSignature = { id: 'sig-123' }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
+        signature: mockSignature,
+      })
+
+      // Make evidence capture fail
+      const { appendSigningEvidence } = await import('@/lib/stores/signing-evidence')
+      vi.mocked(appendSigningEvidence).mockRejectedValueOnce(new Error('Evidence capture failed'))
+
+      const request = createRequest({
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'Jane Engineer',
+        reviewerId: 'reviewer-456',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await POST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed even if evidence capture fails
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
     })
@@ -433,6 +512,61 @@ describe('POST /api/certificates/[id]/submit', () => {
 
       expect(response.status).toBe(500)
       expect(data.error).toBe('Internal server error')
+    })
+  })
+
+  describe('notification failure handling', () => {
+    it('handles notification failure gracefully on initial submit', async () => {
+      const mockSignature = { id: 'sig-123' }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
+        signature: mockSignature,
+      })
+      vi.mocked(notifyReviewerOnSubmit).mockRejectedValueOnce(new Error('Notification failed'))
+
+      const request = createRequest({
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'Jane Engineer',
+        reviewerId: 'reviewer-456',
+      })
+      const response = await POST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed - notification is fire-and-forget
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Wait for async notification to settle
+      await new Promise(resolve => setTimeout(resolve, 50))
+    })
+
+    it('handles notification failure gracefully on resubmission', async () => {
+      // Set up certificate in REVISION_REQUIRED status (resubmission)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue({
+        ...mockCertificate,
+        status: 'REVISION_REQUIRED',
+        reviewerId: 'reviewer-456',
+      } as any)
+
+      const mockSignature = { id: 'sig-123' }
+      createTransactionMock({
+        cert: { ...mockCertificate, status: 'PENDING_REVIEW' },
+        signature: mockSignature,
+      })
+      vi.mocked(notifyReviewerOnAssigneeResponse).mockRejectedValueOnce(new Error('Notification failed'))
+
+      const request = createRequest({
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'Jane Engineer',
+        reviewerId: 'reviewer-456',
+      })
+      const response = await POST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed - notification is fire-and-forget
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Wait for async notification to settle
+      await new Promise(resolve => setTimeout(resolve, 50))
     })
   })
 })

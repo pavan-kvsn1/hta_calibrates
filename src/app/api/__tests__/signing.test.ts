@@ -54,8 +54,8 @@ vi.mock('@/lib/services/notifications', () => ({
 vi.mock('@/lib/services/opensign', () => ({
   isOpenSignHealthy: vi.fn(() => false),
   selfSignDocument: vi.fn(),
-  getSignatureWidgets: vi.fn(),
-  withRetry: vi.fn(),
+  getSignatureWidgets: vi.fn(() => [{ page: 1, x: 100, y: 100, width: 200, height: 50 }]),
+  withRetry: vi.fn((fn: () => Promise<unknown>) => fn()),
 }))
 
 // Mock PDF generator
@@ -100,6 +100,38 @@ const mockCertificate = {
   customerName: 'Test Corp',
   dateOfCalibration: new Date('2024-01-01'),
   calibrationDueDate: new Date('2025-01-01'),
+}
+
+// Helper to create a transaction mock that executes the callback for approvals
+function createApprovalTransactionMock(returnValue: { certificate: any; reviewerSignature: any; tokenResult: any }) {
+  return vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+    const tx = {
+      certificateEvent: {
+        findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+        create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+      },
+      certificate: {
+        update: vi.fn().mockResolvedValue(returnValue.certificate),
+      },
+      reviewFeedback: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      signature: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        create: vi.fn().mockResolvedValue(returnValue.reviewerSignature),
+      },
+      customerUser: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: 'customer-1' }),
+      },
+      approvalToken: {
+        create: vi.fn().mockResolvedValue({ id: 'token-1', token: 'test-token', expiresAt: new Date() }),
+      },
+    }
+    await fn(tx)
+    return returnValue
+  })
 }
 
 describe('POST /api/certificates/[id]/review', () => {
@@ -228,12 +260,10 @@ describe('POST /api/certificates/[id]/review', () => {
 
     it('successfully approves certificate with valid signature', async () => {
       const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return {
-          certificate: { ...mockCertificate, status: 'APPROVED', currentRevision: 1 },
-          reviewerSignature: mockSignature,
-          tokenResult: null,
-        }
+      createApprovalTransactionMock({
+        certificate: { ...mockCertificate, status: 'APPROVED', currentRevision: 1 },
+        reviewerSignature: mockSignature,
+        tokenResult: null,
       })
 
       const request = createRequest({
@@ -306,12 +336,10 @@ describe('POST /api/certificates/[id]/review', () => {
           customerId: 'customer-456',
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         }
-        vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-          return {
-            certificate: { ...mockCertificate, status: 'PENDING_CUSTOMER_APPROVAL', currentRevision: 1 },
-            reviewerSignature: mockSignature,
-            tokenResult: mockToken,
-          }
+        createApprovalTransactionMock({
+          certificate: { ...mockCertificate, status: 'PENDING_CUSTOMER_APPROVAL', currentRevision: 1 },
+          reviewerSignature: mockSignature,
+          tokenResult: mockToken,
         })
 
         const request = createRequest({
@@ -370,6 +398,26 @@ describe('POST /api/certificates/[id]/review', () => {
   })
 
   describe('revision request flow', () => {
+    // Helper for revision/reject transaction mocks
+    const createRevisionTransactionMock = () => {
+      return vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+        const tx = {
+          certificateEvent: {
+            findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+            create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+          },
+          certificate: {
+            update: vi.fn().mockResolvedValue({ ...mockCertificate, status: 'REVISION_REQUIRED' }),
+          },
+          reviewFeedback: {
+            create: vi.fn().mockResolvedValue({}),
+          },
+        }
+        await fn(tx)
+        return undefined
+      })
+    }
+
     it('returns 400 when no feedback provided', async () => {
       const request = createRequest({
         action: 'request_revision',
@@ -394,10 +442,7 @@ describe('POST /api/certificates/[id]/review', () => {
     })
 
     it('successfully requests revision with comment', async () => {
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        // Simulate transaction completion
-        return undefined
-      })
+      createRevisionTransactionMock()
 
       const request = createRequest({
         action: 'request_revision',
@@ -412,9 +457,7 @@ describe('POST /api/certificates/[id]/review', () => {
     })
 
     it('successfully requests revision with section feedbacks', async () => {
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return undefined
-      })
+      createRevisionTransactionMock()
 
       const request = createRequest({
         action: 'request_revision',
@@ -433,6 +476,25 @@ describe('POST /api/certificates/[id]/review', () => {
   })
 
   describe('rejection flow', () => {
+    const createRejectTransactionMock = () => {
+      return vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+        const tx = {
+          certificateEvent: {
+            findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+            create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+          },
+          certificate: {
+            update: vi.fn().mockResolvedValue({ ...mockCertificate, status: 'REJECTED' }),
+          },
+          reviewFeedback: {
+            create: vi.fn().mockResolvedValue({}),
+          },
+        }
+        await fn(tx)
+        return undefined
+      })
+    }
+
     it('returns 400 when comment is missing for rejection', async () => {
       const request = createRequest({
         action: 'reject',
@@ -457,9 +519,7 @@ describe('POST /api/certificates/[id]/review', () => {
     })
 
     it('successfully rejects certificate', async () => {
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return undefined
-      })
+      createRejectTransactionMock()
 
       const request = createRequest({
         action: 'reject',
@@ -471,6 +531,240 @@ describe('POST /api/certificates/[id]/review', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.message).toBe('Certificate rejected')
+    })
+
+    it('successfully rejects with target section', async () => {
+      createRejectTransactionMock()
+
+      const request = createRequest({
+        action: 'reject',
+        comment: 'Invalid calibration results',
+        targetSection: 'results',
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe('approval with edits', () => {
+    it('successfully approves with auto-calculated edits', async () => {
+      const mockSignature = { id: 'sig-123' }
+      createApprovalTransactionMock({
+        certificate: { ...mockCertificate, status: 'APPROVED', currentRevision: 1 },
+        reviewerSignature: mockSignature,
+        tokenResult: null,
+      })
+
+      const request = createRequest({
+        action: 'approve',
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Reviewer',
+        edits: [{
+          field: 'calibrationDueDate',
+          fieldLabel: 'Calibration Due Date',
+          originalValue: '2024-12-01',
+          newValue: '2025-01-01',
+          reason: '',
+          autoCalculated: true,
+        }],
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('successfully approves with manual edits and reason', async () => {
+      const mockSignature = { id: 'sig-123' }
+      createApprovalTransactionMock({
+        certificate: { ...mockCertificate, status: 'APPROVED', currentRevision: 1 },
+        reviewerSignature: mockSignature,
+        tokenResult: null,
+      })
+
+      const request = createRequest({
+        action: 'approve',
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Reviewer',
+        edits: [{
+          field: 'dateOfCalibration',
+          fieldLabel: 'Date of Calibration',
+          originalValue: '2024-01-01',
+          newValue: '2024-01-15',
+          reason: 'Corrected calibration date',
+        }],
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe('approval with client evidence', () => {
+    it('captures signing evidence when client evidence provided', async () => {
+      const mockSignature = { id: 'sig-123' }
+      createApprovalTransactionMock({
+        certificate: { ...mockCertificate, status: 'APPROVED', currentRevision: 1 },
+        reviewerSignature: mockSignature,
+        tokenResult: null,
+      })
+
+      const request = createRequest({
+        action: 'approve',
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Reviewer',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe('customer feedback forwarding', () => {
+    it('forwards customer feedback when status is CUSTOMER_REVISION_REQUIRED', async () => {
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue({
+        ...mockCertificate,
+        status: 'CUSTOMER_REVISION_REQUIRED',
+      } as any)
+
+      // Use createRevisionTransactionMock from revision request flow
+      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+        const tx = {
+          certificateEvent: {
+            findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+            create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+          },
+          certificate: {
+            update: vi.fn().mockResolvedValue({ ...mockCertificate, status: 'REVISION_REQUIRED' }),
+          },
+          reviewFeedback: {
+            create: vi.fn().mockResolvedValue({}),
+          },
+        }
+        await fn(tx)
+        return undefined
+      })
+
+      const request = createRequest({
+        action: 'request_revision',
+        sectionFeedbacks: [
+          { section: 'summary', comment: 'Customer wants this fixed' },
+        ],
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.message).toContain('Customer feedback forwarded')
+    })
+
+    it('handles mixed section feedbacks and general notes', async () => {
+      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+        const tx = {
+          certificateEvent: {
+            findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+            create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+          },
+          certificate: {
+            update: vi.fn().mockResolvedValue({ ...mockCertificate, status: 'REVISION_REQUIRED' }),
+          },
+          reviewFeedback: {
+            create: vi.fn().mockResolvedValue({}),
+          },
+        }
+        await fn(tx)
+        return undefined
+      })
+
+      const request = createRequest({
+        action: 'request_revision',
+        sectionFeedbacks: [
+          { section: 'summary', comment: 'Update summary' },
+        ],
+        generalNotes: 'Please review all sections carefully',
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.message).toContain('2 feedback item')
+    })
+  })
+
+  describe('send to customer with message', () => {
+    it('successfully sends to customer with optional message', async () => {
+      const mockSignature = { id: 'sig-123' }
+      const mockToken = {
+        token: 'token-456',
+        customerId: 'customer-789',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      }
+      createApprovalTransactionMock({
+        certificate: { ...mockCertificate, status: 'PENDING_CUSTOMER_APPROVAL', currentRevision: 1 },
+        reviewerSignature: mockSignature,
+        tokenResult: mockToken,
+      })
+
+      const request = createRequest({
+        action: 'approve',
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Reviewer',
+        sendToCustomer: {
+          email: 'customer@test.com',
+          name: 'Customer Name',
+          message: 'Please review this certificate at your earliest convenience.',
+        },
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(data.customerToken.reviewUrl).toContain('customer/review/')
+    })
+  })
+
+  describe('error handling', () => {
+    it('returns 500 on unexpected error', async () => {
+      vi.mocked(prisma.certificate.findUnique).mockRejectedValue(new Error('Database error'))
+
+      const request = createRequest({
+        action: 'approve',
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Reviewer',
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.error).toBe('Failed to process review')
+    })
+
+    it('returns 400 for invalid action', async () => {
+      const request = createRequest({
+        action: 'invalid_action',
+      })
+      const response = await reviewPOST(request, { params: Promise.resolve({ id: 'cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('Invalid action')
     })
   })
 })

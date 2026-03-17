@@ -51,8 +51,8 @@ vi.mock('@/lib/services/notifications', () => ({
 vi.mock('@/lib/services/opensign', () => ({
   isOpenSignHealthy: vi.fn(() => false),
   selfSignDocument: vi.fn(),
-  getSignatureWidgets: vi.fn(),
-  withRetry: vi.fn(),
+  getSignatureWidgets: vi.fn(() => [{ page: 1, x: 100, y: 100, width: 200, height: 50 }]),
+  withRetry: vi.fn((fn: () => Promise<unknown>) => fn()),
 }))
 
 // Mock PDF generator
@@ -68,6 +68,9 @@ vi.mock('@/lib/services/pdf/storage', () => ({
 
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { appendSigningEvidence } from '@/lib/stores/signing-evidence'
+import { notifyOnCustomerApproval } from '@/lib/services/notifications'
+import { isOpenSignHealthy, selfSignDocument, withRetry } from '@/lib/services/opensign'
 
 function createRequest(token: string, body: object): NextRequest {
   return new NextRequest(`http://localhost:3000/api/customer/review/${token}/approve`, {
@@ -103,6 +106,30 @@ const mockToken = {
   usedAt: null,
   certificate: mockCertificate,
   customer: mockCustomer,
+}
+
+// Helper to create transaction mock that executes the callback
+function createTransactionMock() {
+  const mockSignature = { id: 'sig-123' }
+  return vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+    const tx = {
+      signature: {
+        create: vi.fn().mockResolvedValue(mockSignature),
+      },
+      certificate: {
+        update: vi.fn().mockResolvedValue(mockCertificate),
+      },
+      approvalToken: {
+        update: vi.fn().mockResolvedValue(mockToken),
+      },
+      certificateEvent: {
+        findFirst: vi.fn().mockResolvedValue({ sequenceNumber: 1 }),
+        create: vi.fn().mockResolvedValue({ id: 'event-1' }),
+      },
+    }
+    await fn(tx)
+    return { customerSignature: mockSignature }
+  })
 }
 
 describe('POST /api/customer/review/[token]/approve', () => {
@@ -218,11 +245,7 @@ describe('POST /api/customer/review/[token]/approve', () => {
         ...mockToken,
         certificate: { ...mockCertificate, status: 'CUSTOMER_REVISION_REQUIRED' },
       } as any)
-
-      const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return { customerSignature: mockSignature }
-      })
+      createTransactionMock()
 
       const request = createRequest('valid-token', {
         signatureData: 'data:image/png;base64,abc123',
@@ -236,10 +259,7 @@ describe('POST /api/customer/review/[token]/approve', () => {
     })
 
     it('successfully approves certificate', async () => {
-      const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return { customerSignature: mockSignature }
-      })
+      createTransactionMock()
 
       const request = createRequest('valid-token', {
         signatureData: 'data:image/png;base64,abc123',
@@ -254,10 +274,7 @@ describe('POST /api/customer/review/[token]/approve', () => {
     })
 
     it('handles case-insensitive name comparison', async () => {
-      const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return { customerSignature: mockSignature }
-      })
+      createTransactionMock()
 
       const request = createRequest('valid-token', {
         signatureData: 'data:image/png;base64,abc123',
@@ -401,10 +418,7 @@ describe('POST /api/customer/review/[token]/approve', () => {
     })
 
     it('successfully approves via session', async () => {
-      const mockSignature = { id: 'sig-123' }
-      vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-        return { customerSignature: mockSignature }
-      })
+      createTransactionMock()
 
       const request = createRequest('cert:cert-123', {
         signatureData: 'data:image/png;base64,abc123',
@@ -432,6 +446,521 @@ describe('POST /api/customer/review/[token]/approve', () => {
 
       expect(response.status).toBe(500)
       expect(data.error).toBe('Failed to approve certificate')
+    })
+  })
+
+  describe('client evidence capture', () => {
+    it('captures signing evidence when client evidence provided (token)', async () => {
+      createTransactionMock()
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(appendSigningEvidence).toHaveBeenCalled()
+    })
+
+    it('handles evidence capture failure gracefully (token)', async () => {
+      createTransactionMock()
+      vi.mocked(appendSigningEvidence).mockRejectedValueOnce(new Error('Evidence capture failed'))
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      // Should still succeed even if evidence capture fails
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('captures signing evidence when client evidence provided (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(appendSigningEvidence).toHaveBeenCalled()
+    })
+
+    it('handles evidence capture failure gracefully (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+      vi.mocked(appendSigningEvidence).mockRejectedValueOnce(new Error('Evidence capture failed'))
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+        clientEvidence: {
+          userAgent: 'Mozilla/5.0',
+          screenResolution: '1920x1080',
+          timezone: 'UTC',
+          timestamp: new Date().toISOString(),
+        },
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed even if evidence capture fails
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe('company name matching', () => {
+    it('uses fallback companyName when customerAccount.companyName is null', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        companyName: 'Test Corp', // Should be used as fallback
+        customerAccount: { companyName: null },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('rejects when no company name matches and customer has no account', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        companyName: null,
+        customerAccount: null,
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data.error).toBe('You do not have permission to approve this certificate')
+    })
+
+    it('allows session approval for CUSTOMER_REVISION_REQUIRED status', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue({
+        ...mockCertificate,
+        status: 'CUSTOMER_REVISION_REQUIRED',
+      } as any)
+      createTransactionMock()
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe('notifications', () => {
+    it('sends notification on successful approval (token)', async () => {
+      createTransactionMock()
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+
+      expect(notifyOnCustomerApproval).toHaveBeenCalledWith({
+        certificateId: 'cert-123',
+        certificateNumber: 'HTA-001',
+        assigneeId: 'engineer-456',
+        reviewerId: 'reviewer-789',
+      })
+    })
+
+    it('sends notification on successful approval (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+
+      expect(notifyOnCustomerApproval).toHaveBeenCalledWith({
+        certificateId: 'cert-123',
+        certificateNumber: 'HTA-001',
+        assigneeId: 'engineer-456',
+        reviewerId: 'reviewer-789',
+      })
+    })
+
+    it('handles notification failure gracefully (token)', async () => {
+      createTransactionMock()
+      vi.mocked(notifyOnCustomerApproval).mockRejectedValueOnce(new Error('Notification failed'))
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      // Should still succeed - notification is fire-and-forget
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Wait for async notification to settle
+      await new Promise(resolve => setTimeout(resolve, 50))
+    })
+
+    it('handles notification failure gracefully (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+      vi.mocked(notifyOnCustomerApproval).mockRejectedValueOnce(new Error('Notification failed'))
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed - notification is fire-and-forget
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Wait for async notification to settle
+      await new Promise(resolve => setTimeout(resolve, 50))
+    })
+  })
+
+  describe('optional signer email', () => {
+    it('accepts optional signer email for token-based approval', async () => {
+      createTransactionMock()
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+        signerEmail: 'alternate@email.com',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('accepts optional signer email for session-based approval', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+        signerEmail: 'alternate@email.com',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+  })
+
+  describe('OpenSign integration', () => {
+    it('sends to OpenSign when healthy (token)', async () => {
+      createTransactionMock()
+      vi.mocked(isOpenSignHealthy).mockResolvedValue(true)
+      vi.mocked(selfSignDocument).mockResolvedValue({
+        documentId: 'doc-123',
+        signedPdfUrl: 'https://example.com/signed.pdf',
+        auditTrailUrl: 'https://example.com/audit.pdf',
+      })
+      vi.mocked(prisma.openSignDocument.create).mockResolvedValue({} as any)
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Give time for async OpenSign call
+      await new Promise(resolve => setTimeout(resolve, 100))
+    })
+
+    it('handles OpenSign failure gracefully (token)', async () => {
+      createTransactionMock()
+      vi.mocked(isOpenSignHealthy).mockResolvedValue(true)
+      vi.mocked(selfSignDocument).mockRejectedValue(new Error('OpenSign error'))
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      // Should still succeed - OpenSign is fire-and-forget
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('sends to OpenSign when healthy (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+      vi.mocked(isOpenSignHealthy).mockResolvedValue(true)
+      vi.mocked(selfSignDocument).mockResolvedValue({
+        documentId: 'doc-123',
+        signedPdfUrl: 'https://example.com/signed.pdf',
+        auditTrailUrl: 'https://example.com/audit.pdf',
+      })
+      vi.mocked(prisma.openSignDocument.create).mockResolvedValue({} as any)
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Give time for async OpenSign call
+      await new Promise(resolve => setTimeout(resolve, 100))
+    })
+
+    it('handles OpenSign failure gracefully (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+      vi.mocked(isOpenSignHealthy).mockResolvedValue(true)
+      vi.mocked(selfSignDocument).mockRejectedValue(new Error('OpenSign error'))
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed - OpenSign is fire-and-forget
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      // Wait for async OpenSign call to settle
+      await new Promise(resolve => setTimeout(resolve, 100))
+    })
+  })
+
+  describe('PDF generation failure', () => {
+    it('handles PDF generation failure gracefully (token)', async () => {
+      createTransactionMock()
+      // Make PDF generation fail
+      const { generateSignedPDF } = await import('@/lib/services/pdf/generator')
+      vi.mocked(generateSignedPDF).mockRejectedValueOnce(new Error('PDF generation failed'))
+
+      const request = createRequest('valid-token', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'valid-token' }) })
+      const data = await response.json()
+
+      // Should still succeed - PDF generation is best-effort
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+    })
+
+    it('handles PDF generation failure gracefully (session)', async () => {
+      const sessionMockCustomer = {
+        ...mockCustomer,
+        customerAccount: { companyName: 'Test Corp' },
+      }
+      vi.mocked(auth).mockResolvedValue({
+        user: {
+          id: 'customer-123',
+          email: 'customer@test.com',
+          role: 'CUSTOMER',
+        },
+        expires: new Date().toISOString(),
+      })
+      vi.mocked(prisma.customerUser.findUnique).mockResolvedValue(sessionMockCustomer as any)
+      vi.mocked(prisma.certificate.findUnique).mockResolvedValue(mockCertificate as any)
+      createTransactionMock()
+
+      // Make PDF generation fail
+      const { generateSignedPDF } = await import('@/lib/services/pdf/generator')
+      vi.mocked(generateSignedPDF).mockRejectedValueOnce(new Error('PDF generation failed'))
+
+      const request = createRequest('cert:cert-123', {
+        signatureData: 'data:image/png;base64,abc123',
+        signerName: 'John Customer',
+      })
+      const response = await POST(request, { params: Promise.resolve({ token: 'cert:cert-123' }) })
+      const data = await response.json()
+
+      // Should still succeed - PDF generation is best-effort
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
     })
   })
 })
