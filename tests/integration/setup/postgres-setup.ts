@@ -4,44 +4,42 @@
  * This file initializes the PostgreSQL test database connection
  * and handles schema migration before tests run.
  *
- * Note: This setup uses a direct PostgreSQL connection, separate from
- * the SQLite-based app prisma instance.
+ * Uses Prisma 7 driver adapter pattern for PostgreSQL.
  */
 
 import { beforeAll, afterAll, beforeEach } from 'vitest'
 import { execSync } from 'child_process'
+import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 
-// PostgreSQL connection string - set as environment variable for Prisma 7 compatibility
+// PostgreSQL connection string
 const DATABASE_URL = process.env.DATABASE_URL ||
   'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test'
 
-// Set DATABASE_URL environment variable for PrismaClient (Prisma 7 requirement)
+// Set DATABASE_URL environment variable for Prisma CLI commands
 process.env.DATABASE_URL = DATABASE_URL
 
-// Determine if we're using PostgreSQL client (CI) or default client (local with SQLite fallback)
-const isPostgresUrl = DATABASE_URL.startsWith('postgresql')
-
 let isSetupComplete = false
+let globalPool: Pool | null = null
 
 /**
- * Import PrismaClient from the correct location based on environment
- * - PostgreSQL tests in CI use client-postgres
- * - Local tests may use the default client
+ * Create a PrismaClient with PostgreSQL adapter
  */
-async function getPrismaClient() {
-  if (isPostgresUrl) {
-    try {
-      // Try to import from postgres-specific client location first
-      const module = await import('../../../node_modules/.prisma/client-postgres')
-      return module.PrismaClient
-    } catch {
-      // Fallback to default client if postgres client not generated
-      const module = await import('@prisma/client')
-      return module.PrismaClient
-    }
+function createPrismaClient(pool: Pool): PrismaClient {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const adapter = new PrismaPg(pool as any)
+  return new PrismaClient({ adapter })
+}
+
+/**
+ * Get or create the global connection pool
+ */
+function getPool(): Pool {
+  if (!globalPool) {
+    globalPool = new Pool({ connectionString: DATABASE_URL })
   }
-  const module = await import('@prisma/client')
-  return module.PrismaClient
+  return globalPool
 }
 
 /**
@@ -53,13 +51,8 @@ beforeAll(async () => {
   console.log('\n🐘 Setting up PostgreSQL test database...')
 
   try {
-    // Check if PostgreSQL is available
-    const PrismaClient = await getPrismaClient()
-    const prisma = new PrismaClient({
-      datasources: {
-        db: { url: DATABASE_URL }
-      }
-    })
+    const pool = getPool()
+    const prisma = createPrismaClient(pool)
 
     // Test connection
     await prisma.$queryRaw`SELECT 1`
@@ -91,13 +84,8 @@ beforeAll(async () => {
  * Clean database before each test
  */
 beforeEach(async () => {
-  // Import dynamically to get the right client
-  const PrismaClient = await getPrismaClient()
-  const prisma = new PrismaClient({
-    datasources: {
-      db: { url: DATABASE_URL }
-    }
-  })
+  const pool = getPool()
+  const prisma = createPrismaClient(pool)
 
   try {
     // Truncate all tables in dependency order (PostgreSQL supports TRUNCATE CASCADE)
@@ -154,15 +142,17 @@ beforeEach(async () => {
  * Global teardown - runs once after all tests
  */
 afterAll(async () => {
+  if (globalPool) {
+    await globalPool.end()
+    globalPool = null
+  }
   console.log('\n🧹 PostgreSQL test cleanup complete')
 })
 
-// Export helper for tests to get PostgreSQL client
-export async function getPostgresPrisma() {
-  const PrismaClient = await getPrismaClient()
-  return new PrismaClient({
-    datasources: {
-      db: { url: DATABASE_URL }
-    }
-  })
+/**
+ * Export helper for tests to get PostgreSQL client
+ */
+export async function getPostgresPrisma(): Promise<PrismaClient> {
+  const pool = getPool()
+  return createPrismaClient(pool)
 }
