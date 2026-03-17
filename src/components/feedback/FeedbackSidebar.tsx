@@ -16,8 +16,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Individual HoD edit
-interface HoDEdit {
+// Individual Reviewer edit
+interface ReviewerEdit {
   field: string
   fieldLabel: string
   previousValue: string | null
@@ -36,8 +36,8 @@ interface Feedback {
     name: string
     role: string
   }
-  // Individual HoD edits (new format)
-  hodEdits?: HoDEdit[] | null
+  // Individual Reviewer edits (new format)
+  reviewerEdits?: ReviewerEdit[] | null
 }
 
 interface FeedbackSidebarProps {
@@ -79,13 +79,13 @@ function groupFeedbacksByRevision(feedbacks: Feedback[]) {
     .sort(([a], [b]) => Number(b) - Number(a))
     .map(([revision, items]) => ({
       revision: Number(revision),
-      // Sort within group: HoD feedback first, then engineer response (by date)
+      // Sort within group: Reviewer feedback first, then engineer response (by date)
       feedbacks: items.sort((a, b) => {
-        // HoD feedbacks (non-engineer) come first
+        // Reviewer feedbacks (non-engineer) come first
         const aIsEngineer = a.feedbackType === 'ENGINEER_RESPONSE'
         const bIsEngineer = b.feedbackType === 'ENGINEER_RESPONSE'
         if (aIsEngineer !== bIsEngineer) {
-          return aIsEngineer ? 1 : -1 // Engineer responses come after HoD feedback
+          return aIsEngineer ? 1 : -1 // Engineer responses come after Reviewer feedback
         }
         // Within same type, sort by date
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
@@ -258,7 +258,7 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
                       {revisionFeedbacks.map((feedback) => {
                         const style = getFeedbackStyle(feedback.feedbackType)
                         const Icon = style.icon
-                        const isHoD = feedback.user.role === 'HOD' || feedback.user.role === 'ADMIN'
+                        const isReviewer = feedback.user.role === 'ADMIN'
 
                         return (
                           <div
@@ -266,12 +266,12 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
                             className={cn(
                               'rounded-lg border p-3',
                               style.borderColor,
-                              isHoD ? 'bg-white' : 'bg-blue-50/50'
+                              isReviewer ? 'bg-white' : 'bg-blue-50/50'
                             )}
                           >
                             <div className="flex items-start gap-2">
                               <div className={cn('p-1.5 rounded-full', style.bgColor)}>
-                                {isHoD ? (
+                                {isReviewer ? (
                                   <Icon className={cn('size-3', style.textColor)} />
                                 ) : (
                                   <PenLine className="size-3 text-blue-600" />
@@ -284,9 +284,9 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
                                   </span>
                                   <span className={cn(
                                     'text-[10px] px-1.5 py-0.5 rounded font-medium',
-                                    isHoD ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
+                                    isReviewer ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
                                   )}>
-                                    {isHoD ? 'HoD' : 'Engineer'}
+                                    {isReviewer ? 'Reviewer' : 'Engineer'}
                                   </span>
                                 </div>
                                 {feedback.comment && (
@@ -295,15 +295,15 @@ export function FeedbackSidebar({ feedbacks, isOpen, onToggle, currentRevision =
                                   </p>
                                 )}
 
-                                {/* HoD Edits Info */}
-                                {feedback.hodEdits && feedback.hodEdits.length > 0 && (
+                                {/* Reviewer Edits Info */}
+                                {feedback.reviewerEdits && feedback.reviewerEdits.length > 0 && (
                                   <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px]">
                                     <div className="flex items-center gap-1.5 text-amber-700 font-semibold mb-2">
                                       <Calendar className="size-3.5" />
-                                      HoD Edits Applied
+                                      Reviewer Edits Applied
                                     </div>
                                     <div className="space-y-2">
-                                      {feedback.hodEdits.map((edit, idx) => (
+                                      {feedback.reviewerEdits.map((edit, idx) => (
                                         <div
                                           key={edit.field}
                                           className={cn(

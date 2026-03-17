@@ -3,15 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -23,8 +15,6 @@ import {
 import {
   Loader2,
   ShieldCheck,
-  Clock,
-  CheckCircle,
   Eye,
   FileText,
 } from 'lucide-react'
@@ -61,15 +51,14 @@ export default function AuthorizationPage() {
     total: 0,
     totalPages: 0,
   })
-  const [statusFilter, setStatusFilter] = useState('PENDING_ADMIN_AUTHORIZATION')
 
-  const fetchCertificates = async (page = 1, status = statusFilter) => {
+  const fetchCertificates = async (page = 1) => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '20',
-        status,
+        status: 'PENDING_ADMIN_AUTHORIZATION',
       })
       const res = await fetch(`/api/admin/authorization?${params}`)
       if (res.ok) {
@@ -88,32 +77,6 @@ export default function AuthorizationPage() {
     fetchCertificates()
   }, [])
 
-  const handleStatusChange = (value: string) => {
-    setStatusFilter(value)
-    fetchCertificates(1, value)
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING_ADMIN_AUTHORIZATION':
-        return (
-          <Badge className="bg-blue-100 text-blue-800">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending Authorization
-          </Badge>
-        )
-      case 'AUTHORIZED':
-        return (
-          <Badge className="bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Authorized
-          </Badge>
-        )
-      default:
-        return <Badge>{status}</Badge>
-    }
-  }
-
   return (
     <div className="p-3 h-full">
       {/* Master Bounding Box */}
@@ -121,47 +84,34 @@ export default function AuthorizationPage() {
         <div className="p-6 overflow-auto h-full">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Certificate Authorization</h1>
+              <h1 className="flex items-center gap-3 text-2xl font-bold text-slate-900">
+                <ShieldCheck className="h-8 w-8 text-indigo-500 shrink-0" />
+                <span>Certificate Authorization</span>
+              </h1>
               <p className="text-slate-600 mt-1">
                 Review and authorize certificates that have been approved by customers
               </p>
             </div>
+            {!loading && (
+              <div className="text-right">
+                <p className="text-3xl font-bold text-indigo-600">{pagination.total}</p>
+                <p className="text-sm text-slate-500">Awaiting Authorization</p>
+              </div>
+            )}
           </div>
 
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-slate-400" />
-                  Certificates Awaiting Authorization
-                </CardTitle>
-                <div className="flex items-center gap-4">
-                  <Select value={statusFilter} onValueChange={handleStatusChange}>
-                    <SelectTrigger className="w-52">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PENDING_ADMIN_AUTHORIZATION">Pending Authorization</SelectItem>
-                      <SelectItem value="AUTHORIZED">Authorized</SelectItem>
-                      <SelectItem value="ALL">All</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
                 </div>
               ) : certificates.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <ShieldCheck className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                  <p className="font-medium">No certificates found</p>
+                <div className="text-center py-12 text-slate-500">
+                  <ShieldCheck className="h-16 w-16 mx-auto mb-4 text-green-300" />
+                  <p className="font-medium text-lg text-green-700">All caught up!</p>
                   <p className="text-sm mt-1">
-                    {statusFilter === 'PENDING_ADMIN_AUTHORIZATION'
-                      ? 'All certificates have been authorized'
-                      : 'No certificates match the selected filter'}
+                    No certificates are awaiting authorization
                   </p>
                 </div>
               ) : (
@@ -174,7 +124,6 @@ export default function AuthorizationPage() {
                         <TableHead>UUC Description</TableHead>
                         <TableHead>Make / Model</TableHead>
                         <TableHead>Calibration Date</TableHead>
-                        <TableHead>Status</TableHead>
                         <TableHead>Engineer</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
@@ -202,7 +151,6 @@ export default function AuthorizationPage() {
                               ? new Date(cert.dateOfCalibration).toLocaleDateString()
                               : '-'}
                           </TableCell>
-                          <TableCell>{getStatusBadge(cert.status)}</TableCell>
                           <TableCell className="text-slate-500">
                             {cert.createdBy?.name || '-'}
                           </TableCell>
@@ -210,15 +158,10 @@ export default function AuthorizationPage() {
                             <Link href={`/admin/authorization/${cert.id}`}>
                               <Button
                                 size="sm"
-                                variant={cert.status === 'PENDING_ADMIN_AUTHORIZATION' ? 'default' : 'outline'}
-                                className={
-                                  cert.status === 'PENDING_ADMIN_AUTHORIZATION'
-                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                    : ''
-                                }
+                                className="bg-indigo-600 hover:bg-indigo-700"
                               >
                                 <Eye className="h-4 w-4 mr-1" />
-                                {cert.status === 'PENDING_ADMIN_AUTHORIZATION' ? 'Review' : 'View'}
+                                Review
                               </Button>
                             </Link>
                           </TableCell>

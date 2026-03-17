@@ -7,11 +7,12 @@ import { ReviewerPageClient } from './ReviewerPageClient'
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Draft', className: 'bg-amber-50 text-amber-600 border-amber-100' },
   PENDING_REVIEW: { label: 'Pending Review', className: 'bg-blue-50 text-blue-600 border-blue-100' },
-  PENDING_HOD_REVIEW: { label: 'Pending Review', className: 'bg-blue-50 text-blue-600 border-blue-100' },
   REVISION_REQUIRED: { label: 'Revision Required', className: 'bg-orange-50 text-orange-600 border-orange-100' },
   CUSTOMER_REVISION_REQUIRED: { label: 'Customer Feedback', className: 'bg-purple-50 text-purple-600 border-purple-100' },
   PENDING_CUSTOMER_APPROVAL: { label: 'Pending Customer', className: 'bg-purple-50 text-purple-600 border-purple-100' },
+  PENDING_ADMIN_AUTHORIZATION: { label: 'Pending Authorization', className: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
   APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-600 border-green-100' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-600 border-green-100' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-600 border-red-100' },
 }
 
@@ -125,7 +126,7 @@ export default async function ReviewerReviewPage({ params }: Props) {
   // Get chat thread if exists
   const chatThread = certificate.chatThreads[0] || null
 
-  // Get latest customer feedback if status is CUSTOMER_REVISION_REQUIRED
+  // Get latest customer feedback (show in timeline for its respective revision)
   let customerFeedback: {
     notes: string
     sectionFeedbacks: { section: string; comment: string }[] | null
@@ -133,38 +134,40 @@ export default async function ReviewerReviewPage({ params }: Props) {
     customerName: string
     customerEmail: string
     requestedAt: string
+    revision: number
   } | null = null
 
-  if (certificate.status === 'CUSTOMER_REVISION_REQUIRED') {
-    const latestCustomerEvent = await prisma.certificateEvent.findFirst({
-      where: {
-        certificateId: certificate.id,
-        eventType: 'CUSTOMER_REVISION_REQUESTED',
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+  // Fetch the most recent customer feedback event (regardless of revision)
+  const latestCustomerEvent = await prisma.certificateEvent.findFirst({
+    where: {
+      certificateId: certificate.id,
+      eventType: 'CUSTOMER_REVISION_REQUESTED',
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
-    if (latestCustomerEvent?.eventData) {
-      try {
-        const eventData = JSON.parse(latestCustomerEvent.eventData)
-        customerFeedback = {
-          notes: eventData.notes || '',
-          sectionFeedbacks: eventData.sectionFeedbacks || null,
-          generalNotes: eventData.generalNotes || null,
-          customerName: eventData.customerName || 'Customer',
-          customerEmail: eventData.customerEmail || '',
-          requestedAt: eventData.requestedAt || latestCustomerEvent.createdAt.toISOString(),
-        }
-      } catch {
-        // Fallback to statusNotes if event data parsing fails
-        customerFeedback = {
-          notes: certificate.statusNotes || '',
-          sectionFeedbacks: null,
-          generalNotes: null,
-          customerName: 'Customer',
-          customerEmail: '',
-          requestedAt: latestCustomerEvent.createdAt.toISOString(),
-        }
+  if (latestCustomerEvent?.eventData) {
+    try {
+      const eventData = JSON.parse(latestCustomerEvent.eventData)
+      customerFeedback = {
+        notes: eventData.notes || '',
+        sectionFeedbacks: eventData.sectionFeedbacks || null,
+        generalNotes: eventData.generalNotes || null,
+        customerName: eventData.customerName || 'Customer',
+        customerEmail: eventData.customerEmail || '',
+        requestedAt: eventData.requestedAt || latestCustomerEvent.createdAt.toISOString(),
+        revision: latestCustomerEvent.revision,
+      }
+    } catch {
+      // Fallback to statusNotes if event data parsing fails
+      customerFeedback = {
+        notes: certificate.statusNotes || '',
+        sectionFeedbacks: null,
+        generalNotes: null,
+        customerName: 'Customer',
+        customerEmail: '',
+        requestedAt: latestCustomerEvent.createdAt.toISOString(),
+        revision: latestCustomerEvent.revision,
       }
     }
   }

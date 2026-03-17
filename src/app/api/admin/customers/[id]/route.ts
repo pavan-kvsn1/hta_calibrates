@@ -18,7 +18,7 @@ export async function GET(
     const account = await prisma.customerAccount.findUnique({
       where: { id },
       include: {
-        assignedHod: {
+        assignedAdmin: {
           select: { id: true, name: true, email: true },
         },
         primaryPoc: {
@@ -90,7 +90,7 @@ export async function GET(
         contactEmail: account.contactEmail,
         contactPhone: account.contactPhone,
         isActive: account.isActive,
-        assignedHod: account.assignedHod,
+        assignedAdmin: account.assignedAdmin,
         primaryPocId: account.primaryPocId,
         primaryPoc: account.primaryPoc ? {
           ...account.primaryPoc,
@@ -140,7 +140,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { companyName, address, contactEmail, contactPhone, assignedHodId, isActive } = body
+    const { companyName, address, contactEmail, contactPhone, assignedAdminId, isActive } = body
 
     const existing = await prisma.customerAccount.findUnique({
       where: { id },
@@ -188,19 +188,19 @@ export async function PUT(
       updateData.contactPhone = contactPhone?.trim() || null
     }
 
-    if (assignedHodId !== undefined) {
-      if (assignedHodId) {
+    if (assignedAdminId !== undefined) {
+      if (assignedAdminId) {
         const hod = await prisma.user.findFirst({
-          where: { id: assignedHodId, role: 'HOD', isActive: true },
+          where: { id: assignedAdminId, role: 'ADMIN', isActive: true },
         })
         if (!hod) {
           return NextResponse.json(
-            { error: 'Invalid HoD selected' },
+            { error: 'Invalid Admin selected' },
             { status: 400 }
           )
         }
       }
-      updateData.assignedHodId = assignedHodId || null
+      updateData.assignedAdminId = assignedAdminId || null
     }
 
     if (isActive !== undefined) {
@@ -211,7 +211,7 @@ export async function PUT(
       where: { id },
       data: updateData,
       include: {
-        assignedHod: {
+        assignedAdmin: {
           select: { id: true, name: true },
         },
       },
@@ -223,7 +223,7 @@ export async function PUT(
         id: account.id,
         companyName: account.companyName,
         isActive: account.isActive,
-        assignedHod: account.assignedHod,
+        assignedAdmin: account.assignedAdmin,
       },
     })
   } catch (error) {

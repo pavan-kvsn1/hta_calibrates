@@ -18,7 +18,7 @@ export async function GET(
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
-        assignedHod: {
+        assignedAdmin: {
           select: { id: true, name: true, email: true },
         },
         engineers: {
@@ -57,13 +57,14 @@ export async function GET(
         email: user.email,
         name: user.name,
         role: user.role,
+        adminType: user.adminType,  // 'MASTER' | 'WORKER' for admins
         isAdmin: user.isAdmin,
         isActive: user.isActive,
         authProvider: user.authProvider,
         signatureUrl: user.signatureUrl,
         profileImageUrl: user.profileImageUrl,
-        assignedHod: user.assignedHod,
-        engineers: user.engineers, // Engineers managed by this HoD
+        assignedAdmin: user.assignedAdmin,  // Renamed from assignedAdmin to assignedAdmin
+        engineers: user.engineers, // Engineers managed by this Admin
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
       },
@@ -88,7 +89,7 @@ export async function PUT(
 
     const { id } = await params
     const body = await request.json()
-    const { name, role, assignedHodId, signatureUrl, isAdmin } = body
+    const { name, role, assignedAdminId, signatureUrl, adminType } = body
 
     const existingUser = await prisma.user.findUnique({
       where: { id },
@@ -121,18 +122,18 @@ export async function PUT(
     }
 
     if (role !== undefined && role !== existingUser.role) {
-      if (!['ENGINEER', 'HOD', 'ADMIN'].includes(role)) {
+      if (!['ENGINEER', 'ADMIN'].includes(role)) {
         return NextResponse.json(
           { error: 'Invalid role' },
           { status: 400 }
         )
       }
 
-      // If changing from HOD to ENGINEER, ensure no engineers are assigned
-      if (existingUser.role === 'HOD' && role === 'ENGINEER') {
+      // If changing from ADMIN to ENGINEER, ensure no engineers are assigned
+      if (existingUser.role === 'ADMIN' && role === 'ENGINEER') {
         if (existingUser.engineers.length > 0) {
           return NextResponse.json(
-            { error: 'Cannot demote HoD with assigned engineers. Reassign them first.' },
+            { error: 'Cannot demote Admin with assigned engineers. Reassign them first.' },
             { status: 400 }
           )
         }
@@ -140,52 +141,63 @@ export async function PUT(
 
       updateData.role = role
 
-      // Clear HoD assignment if becoming HOD or ADMIN
+      // Clear Admin assignment if becoming ADMIN
       if (role !== 'ENGINEER') {
-        updateData.assignedHodId = null
+        updateData.assignedAdminId = null
+        // Clear adminType if becoming ENGINEER
+      } else {
+        updateData.adminType = null
       }
     }
 
-    // Handle HoD assignment for engineers
-    if (assignedHodId !== undefined) {
+    // Handle Admin assignment for engineers
+    if (assignedAdminId !== undefined) {
       const finalRole = role || existingUser.role
 
       if (finalRole !== 'ENGINEER') {
-        // Silently ignore HoD assignment for non-engineers
+        // Silently ignore Admin assignment for non-engineers
       } else {
-        if (assignedHodId === null) {
+        if (assignedAdminId === null) {
           return NextResponse.json(
-            { error: 'Engineers must be assigned to an HoD' },
+            { error: 'Engineers must be assigned to an Admin' },
             { status: 400 }
           )
         }
 
-        const hod = await prisma.user.findFirst({
-          where: { id: assignedHodId, role: 'HOD', isActive: true },
+        const admin = await prisma.user.findFirst({
+          where: { id: assignedAdminId, role: 'ADMIN', isActive: true },
         })
 
-        if (!hod) {
+        if (!admin) {
           return NextResponse.json(
-            { error: 'Invalid HoD selected' },
+            { error: 'Invalid Admin selected' },
             { status: 400 }
           )
         }
 
-        updateData.assignedHodId = assignedHodId
+        updateData.assignedAdminId = assignedAdminId
       }
     }
 
-    // Handle isAdmin flag - only applies to HOD role
-    if (isAdmin !== undefined) {
+    // Handle adminType - only applies to ADMIN role
+    if (adminType !== undefined) {
       const finalRole = role || existingUser.role
-      updateData.isAdmin = finalRole === 'HOD' ? Boolean(isAdmin) : false
+      if (finalRole === 'ADMIN') {
+        if (!['MASTER', 'WORKER'].includes(adminType)) {
+          return NextResponse.json(
+            { error: 'Invalid admin type. Must be MASTER or WORKER.' },
+            { status: 400 }
+          )
+        }
+        updateData.adminType = adminType
+      }
     }
 
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
       include: {
-        assignedHod: {
+        assignedAdmin: {
           select: { id: true, name: true },
         },
       },
@@ -198,8 +210,9 @@ export async function PUT(
         email: user.email,
         name: user.name,
         role: user.role,
+        adminType: user.adminType,
         isActive: user.isActive,
-        assignedHod: user.assignedHod,
+        assignedAdmin: user.assignedAdmin,
       },
     })
   } catch (error) {

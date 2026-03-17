@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ChatSidebar } from '@/components/chat/ChatSidebar'
+import { SectionUnlockRequest } from '@/components/engineer/SectionUnlockRequest'
 
 const SECTIONS: { id: string; label: string; showWhenNotDraft?: boolean }[] = [
   { id: 'summary', label: 'Summary' },
@@ -38,9 +39,11 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Draft', className: 'bg-slate-50 text-slate-700 border-slate-200' },
   REVISION_REQUIRED: { label: 'Revision Required', className: 'bg-orange-50 text-orange-700 border-orange-200' },
   PENDING_REVIEW: { label: 'Pending Review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  PENDING_HOD_REVIEW: { label: 'Pending Review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
   PENDING_CUSTOMER_APPROVAL: { label: 'Pending Customer', className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  CUSTOMER_REVISION_REQUIRED: { label: 'Customer Revision', className: 'bg-purple-50 text-purple-700 border-purple-200' },
+  PENDING_ADMIN_AUTHORIZATION: { label: 'Pending Authorization', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-700 border-green-200' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-700 border-green-200' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
 }
 
@@ -134,7 +137,7 @@ interface ApiResult {
   isOutOfLimit: boolean
 }
 
-interface HoDEdit {
+interface ReviewerEdit {
   field: string
   fieldLabel: string
   previousValue: string | null
@@ -154,7 +157,7 @@ interface ApiFeedback {
     name: string
     role: string
   }
-  hodEdits?: HoDEdit[] | null
+  reviewerEdits?: ReviewerEdit[] | null
 }
 
 interface ApiEvent {
@@ -346,14 +349,14 @@ function mergeDateAdjustmentsWithFeedbacks(
 ): ApiFeedback[] {
   if (!events || events.length === 0) return feedbacks
 
-  const dateAdjustmentMap = new Map<number, { edits: HoDEdit[] }>()
+  const dateAdjustmentMap = new Map<number, { edits: ReviewerEdit[] }>()
 
   events.forEach((event) => {
     try {
       const data = JSON.parse(event.eventData)
       const eventTime = new Date(event.createdAt).getTime()
 
-      let edits: HoDEdit[] = []
+      let edits: ReviewerEdit[] = []
 
       if (data.edits && Array.isArray(data.edits)) {
         edits = data.edits.map((edit: {
@@ -414,7 +417,7 @@ function mergeDateAdjustmentsWithFeedbacks(
 
     let cleanComment = feedback.comment
     if (matchedAdjustment && cleanComment) {
-      const editsSectionIndex = cleanComment.indexOf('[HoD Edits Applied]')
+      const editsSectionIndex = cleanComment.indexOf('[Reviewer Edits Applied]')
       if (editsSectionIndex !== -1) {
         cleanComment = cleanComment.substring(0, editsSectionIndex).trim()
       }
@@ -423,7 +426,7 @@ function mergeDateAdjustmentsWithFeedbacks(
     return {
       ...feedback,
       comment: cleanComment,
-      hodEdits: matchedAdjustment?.edits || null,
+      reviewerEdits: matchedAdjustment?.edits || null,
     }
   })
 }
@@ -443,6 +446,60 @@ export default function EditCertificatePage() {
   const [currentRevision, setCurrentRevision] = useState(1)
   const [reviewerName, setReviewerName] = useState<string | null>(null)
   const [isChatExpanded, setIsChatExpanded] = useState(true)
+  const [unlockedSections, setUnlockedSections] = useState<string[]>([])
+  const [customerFeedback, setCustomerFeedback] = useState<{
+    notes: string
+    sectionFeedbacks: { section: string; comment: string }[] | null
+    generalNotes: string | null
+    customerName: string
+    customerEmail: string
+    requestedAt: string
+    revision?: number
+  } | null>(null)
+
+  // Fetch unlock requests when certificate is in REVISION_REQUIRED status
+  useEffect(() => {
+    async function fetchUnlockRequests() {
+      if (formData.status !== 'REVISION_REQUIRED') {
+        setUnlockedSections([])
+        return
+      }
+
+      try {
+        const response = await fetch(`/api/certificates/${certificateId}/unlock-requests`)
+        if (response.ok) {
+          const data = await response.json()
+          setUnlockedSections(data.unlockedSections?.all || [])
+        }
+      } catch (error) {
+        console.error('Error fetching unlock requests:', error)
+      }
+    }
+
+    if (certificateId && !isLoading) {
+      fetchUnlockRequests()
+    }
+  }, [certificateId, formData.status, isLoading])
+
+  // Calculate which sections have feedback targeting them (only from current revision)
+  const sectionsWithFeedback = feedbacks
+    .filter(f =>
+      (f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED') &&
+      f.revisionNumber === currentRevision
+    )
+    .map(f => f.targetSection)
+    .filter(Boolean) as string[]
+
+  // Combined editable sections (from feedback + approved unlock requests)
+  const editableSections = [...new Set([...sectionsWithFeedback, ...unlockedSections])]
+
+  // Helper to check if a section should be disabled
+  const isSectionDisabled = (sectionId: string): boolean => {
+    // Only lock sections when in REVISION_REQUIRED status
+    if (formData.status !== 'REVISION_REQUIRED') return false
+    // Section is editable if it has feedback or approved unlock
+    return !editableSections.includes(sectionId)
+  }
 
   // Fetch certificate data on mount
   useEffect(() => {
@@ -481,6 +538,30 @@ export default function EditCertificatePage() {
             data.events || []
           )
           setFeedbacks(mergedFeedbacks)
+        }
+
+        // Extract customer feedback from events
+        if (data.events) {
+          const customerEvent = data.events
+            .filter(e => e.eventType === 'CUSTOMER_REVISION_REQUESTED')
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+          if (customerEvent) {
+            try {
+              const eventData = JSON.parse(customerEvent.eventData)
+              setCustomerFeedback({
+                notes: eventData.notes || '',
+                sectionFeedbacks: eventData.sectionFeedbacks || null,
+                generalNotes: eventData.generalNotes || null,
+                customerName: eventData.customerName || 'Customer',
+                customerEmail: eventData.customerEmail || '',
+                requestedAt: eventData.requestedAt || customerEvent.createdAt,
+                revision: customerEvent.revision,
+              })
+            } catch {
+              // If parsing fails, ignore
+            }
+          }
         }
 
         setCurrentRevision(data.currentRevision ?? 1)
@@ -592,7 +673,7 @@ export default function EditCertificatePage() {
   }
 
   return (
-    <div className="flex h-full bg-slate-100 p-3 gap-3">
+    <div className="flex h-full bg-slate-100 p-3 gap-3 overflow-hidden">
       {/* Left Side - Certificate Card */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -743,7 +824,7 @@ export default function EditCertificatePage() {
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <span className="font-semibold text-slate-900 text-xs">{feedback.user.name}</span>
                                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-                                    {feedback.user.role === 'HOD' ? 'HoD' : feedback.user.role}
+                                    {feedback.user.role === 'ADMIN' ? 'Reviewer' : feedback.user.role}
                                   </span>
                                 </div>
                                 {feedback.comment && (
@@ -752,14 +833,14 @@ export default function EditCertificatePage() {
                                     <p className="text-slate-700 whitespace-pre-wrap text-xs">{feedback.comment}</p>
                                   </div>
                                 )}
-                                {feedback.hodEdits && feedback.hodEdits.length > 0 && (
+                                {feedback.reviewerEdits && feedback.reviewerEdits.length > 0 && (
                                   <div className="mt-3 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
                                     <div className="flex items-center gap-1.5 text-amber-700 font-semibold mb-2 text-xs">
                                       <Calendar className="size-3.5" />
-                                      HoD Edits Applied
+                                      Reviewer Edits Applied
                                     </div>
                                     <div className="space-y-2">
-                                      {feedback.hodEdits.map((edit, idx) => (
+                                      {feedback.reviewerEdits.map((edit, idx) => (
                                         <div key={edit.field} className={cn(idx > 0 && 'pt-2 border-t border-amber-200/60')}>
                                           <p className="font-semibold text-slate-700 text-[11px] mb-0.5">{edit.fieldLabel}</p>
                                           <div className="flex items-center gap-1.5 text-slate-600 text-xs">
@@ -790,28 +871,35 @@ export default function EditCertificatePage() {
                   isNewCertificate={formData.status === 'DRAFT'}
                   certificateId={certificateId}
                   reviewerName={reviewerName}
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="summary" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="summary" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('summary')}
                 />
                 <UUCSection
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="uuc-details" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="uuc-details" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('uuc-details')}
                 />
                 <MasterInstrumentSection
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="master-inst" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="master-inst" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('master-inst')}
                 />
                 <EnvironmentalSection
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="environment" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="environment" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('environment')}
                 />
                 <ResultsSection
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="results" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="results" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('results')}
                 />
                 <RemarksSection
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="remarks" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="remarks" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('remarks')}
                 />
                 <ConclusionSection
-                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="conclusion" />}
+                  feedbackSlot={<SectionFeedback feedbacks={feedbacks} sectionId="conclusion" currentRevision={currentRevision} />}
+                  disabled={isSectionDisabled('conclusion')}
                 />
                 {/* Feedback History Section - Only show if not a draft */}
-                {formData.status !== 'DRAFT' && (
+                {formData.status !== 'DRAFT' && (feedbacks.length > 0 || customerFeedback) && (
                   <FeedbackTimeline
                     feedbacks={feedbacks}
                     currentRevision={currentRevision}
@@ -819,6 +907,7 @@ export default function EditCertificatePage() {
                     emptyMessage="No feedback history yet"
                     groupBySection={true}
                     showRevisionTransition={true}
+                    customerFeedback={customerFeedback}
                   />
                 )}
                 <FinalizeSection feedbacks={feedbacks} reviewerName={reviewerName} />
@@ -829,13 +918,13 @@ export default function EditCertificatePage() {
       </div>
 
       {/* Right Panel - Chat */}
-      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3">
-        {/* Chat Box */}
-        <div className={cn(
-          'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
-          isChatExpanded ? 'flex-1 min-h-0' : 'flex-shrink-0'
-        )}>
-          {/* Chat Header - Collapsible */}
+<div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+      {/* Chat Box */}
+      <div className={cn(
+      'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
+      isChatExpanded ? 'min-h-[700px] max-h-[900px]' : 'flex-shrink-0'
+      )}>
+            {/* Chat Header - Collapsible */}
           <button
             onClick={() => setIsChatExpanded(!isChatExpanded)}
             className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
@@ -899,6 +988,12 @@ export default function EditCertificatePage() {
             </div>
           )}
         </div>
+
+        {/* Section Unlock Request - Only for REVISION_REQUIRED status */}
+        <SectionUnlockRequest
+          certificateId={certificateId}
+          certificateStatus={formData.status}
+        />
       </div>
     </div>
   )

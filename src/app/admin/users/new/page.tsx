@@ -16,10 +16,11 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react'
 
-interface HoD {
+interface Admin {
   id: string
   name: string
   email: string
+  adminType: string | null
   engineerCount: number
 }
 
@@ -29,7 +30,7 @@ export default function CreateUserPage() {
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [hods, setHods] = useState<HoD[]>([])
+  const [admins, setAdmins] = useState<Admin[]>([])
 
   const [formData, setFormData] = useState({
     email: '',
@@ -37,15 +38,15 @@ export default function CreateUserPage() {
     password: '',
     confirmPassword: '',
     role: 'ENGINEER',
-    assignedHodId: '',
-    isAdmin: false,
+    assignedAdminId: '',
+    adminType: 'WORKER',
   })
 
   useEffect(() => {
-    // Fetch HoDs for assignment dropdown
-    fetch('/api/admin/users/hods')
+    // Fetch Admins for assignment dropdown
+    fetch('/api/admin/users/admins')
       .then((res) => res.json())
-      .then((data) => setHods(data.hods || []))
+      .then((data) => setAdmins(data.admins || []))
       .catch(console.error)
   }, [])
 
@@ -69,8 +70,8 @@ export default function CreateUserPage() {
       return
     }
 
-    if (formData.role === 'ENGINEER' && !formData.assignedHodId) {
-      setError('Please select an HoD for this engineer')
+    if (formData.role === 'ENGINEER' && !formData.assignedAdminId) {
+      setError('Please select an Admin for this engineer')
       return
     }
 
@@ -85,8 +86,8 @@ export default function CreateUserPage() {
           name: formData.name,
           password: formData.password,
           role: formData.role,
-          assignedHodId: formData.role === 'ENGINEER' ? formData.assignedHodId : undefined,
-          isAdmin: formData.role === 'HOD' ? formData.isAdmin : false,
+          assignedAdminId: formData.role === 'ENGINEER' ? formData.assignedAdminId : undefined,
+          adminType: formData.role === 'ADMIN' ? formData.adminType : undefined,
         }),
       })
 
@@ -226,7 +227,7 @@ export default function CreateUserPage() {
                     <Select
                       value={formData.role}
                       onValueChange={(value) =>
-                        setFormData((prev) => ({ ...prev, role: value, assignedHodId: '', isAdmin: false }))
+                        setFormData((prev) => ({ ...prev, role: value, assignedAdminId: '', adminType: 'WORKER' }))
                       }
                     >
                       <SelectTrigger>
@@ -234,66 +235,76 @@ export default function CreateUserPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ENGINEER">Engineer</SelectItem>
-                        <SelectItem value="HOD">Head of Department (HoD)</SelectItem>
-                        <SelectItem value="ADMIN">Administrator</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  {/* HoD Assignment (for Engineers) */}
+                  {/* Admin Assignment (for Engineers) */}
                   {formData.role === 'ENGINEER' && (
                     <div className="space-y-2">
-                      <Label htmlFor="assignedHodId">Assign to HoD</Label>
+                      <Label htmlFor="assignedAdminId">Assign to Admin</Label>
                       <Select
-                        value={formData.assignedHodId}
+                        value={formData.assignedAdminId}
                         onValueChange={(value) =>
-                          setFormData((prev) => ({ ...prev, assignedHodId: value }))
+                          setFormData((prev) => ({ ...prev, assignedAdminId: value }))
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select HoD..." />
+                          <SelectValue placeholder="Select Admin..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {hods.map((hod) => (
-                            <SelectItem key={hod.id} value={hod.id}>
-                              {hod.name}{' '}
+                          {admins.map((admin) => (
+                            <SelectItem key={admin.id} value={admin.id}>
+                              {admin.name}{' '}
                               <span className="text-slate-500">
-                                ({hod.engineerCount} engineers)
+                                ({admin.engineerCount} engineers)
                               </span>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      {hods.length === 0 && (
+                      {admins.length === 0 && (
                         <p className="text-sm text-amber-600">
-                          No HoDs available. Create an HoD first.
+                          No Admins available. Create an Admin first.
                         </p>
                       )}
                     </div>
                   )}
 
-                  {/* Admin Access (for HoD) */}
-                  {formData.role === 'HOD' && (
+                  {/* Admin Type (for Admin role) */}
+                  {formData.role === 'ADMIN' && (
                     <div className="space-y-2">
-                      <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                        <input
-                          type="checkbox"
-                          id="isAdmin"
-                          checked={formData.isAdmin}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, isAdmin: e.target.checked }))
-                          }
-                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <div>
-                          <Label htmlFor="isAdmin" className="font-medium text-blue-900">
-                            Grant Admin Access
-                          </Label>
-                          <p className="text-sm text-blue-700 mt-1">
-                            Allows this HoD to access admin features like user management,
-                            customer accounts, and system settings.
-                          </p>
-                        </div>
+                      <Label>Admin Type</Label>
+                      <div className="flex gap-4">
+                        <label className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${formData.adminType === 'MASTER' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <input
+                            type="radio"
+                            name="adminType"
+                            value="MASTER"
+                            checked={formData.adminType === 'MASTER'}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, adminType: e.target.value }))}
+                            className="h-4 w-4 text-blue-600"
+                          />
+                          <div>
+                            <span className="font-medium">Master Admin</span>
+                            <p className="text-xs text-slate-500">Internal + Customer requests</p>
+                          </div>
+                        </label>
+                        <label className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${formData.adminType === 'WORKER' ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                          <input
+                            type="radio"
+                            name="adminType"
+                            value="WORKER"
+                            checked={formData.adminType === 'WORKER'}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, adminType: e.target.value }))}
+                            className="h-4 w-4 text-blue-600"
+                          />
+                          <div>
+                            <span className="font-medium">Worker Admin</span>
+                            <p className="text-xs text-slate-500">Internal requests only</p>
+                          </div>
+                        </label>
                       </div>
                     </div>
                   )}

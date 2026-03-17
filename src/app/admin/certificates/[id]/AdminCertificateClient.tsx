@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { AdminCertificateHeader } from './AdminCertificateHeader'
 import { AdminCertificateContent } from './AdminCertificateContent'
 import { AdminHistorySection } from './AdminHistorySection'
@@ -10,132 +10,18 @@ import { AdminReviewActions } from './AdminReviewActions'
 import { InlinePDFViewer } from '@/app/(dashboard)/dashboard/reviewer/[id]/InlinePDFViewer'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import type {
+  CertificateData,
+  Assignee,
+  Reviewer,
+  Feedback,
+  CertificateEvent,
+  AdminHeaderData,
+} from '@/types/certificate'
 
-interface Parameter {
-  id: string
-  parameterName: string
-  parameterUnit: string | null
-  rangeMin: string | null
-  rangeMax: string | null
-  rangeUnit: string | null
-  operatingMin: string | null
-  operatingMax: string | null
-  operatingUnit: string | null
-  leastCountValue: string | null
-  leastCountUnit: string | null
-  accuracyValue: string | null
-  accuracyUnit: string | null
-  accuracyType: string
-  errorFormula: string
-  showAfterAdjustment: boolean
-  requiresBinning: boolean
-  bins: string | null
-  sopReference: string | null
-  results: {
-    id: string
-    pointNumber: number
-    standardReading: string | null
-    beforeAdjustment: string | null
-    afterAdjustment: string | null
-    errorObserved: number | null
-    isOutOfLimit: boolean
-  }[]
-}
-
-interface MasterInstrument {
-  id: string
-  description: string | null
-  make: string | null
-  model: string | null
-  serialNumber: string | null
-  calibrationDueDate: string | null
-}
-
-export interface CertificateData {
-  id: string
-  certificateNumber: string
-  status: string
-  customerName: string | null
-  customerAddress: string | null
-  calibratedAt: string | null
-  srfNumber: string | null
-  srfDate: string | null
-  dateOfCalibration: string | null
-  calibrationDueDate: string | null
-  dueDateNotApplicable: boolean
-  uucDescription: string | null
-  uucMake: string | null
-  uucModel: string | null
-  uucSerialNumber: string | null
-  uucLocationName: string | null
-  ambientTemperature: string | null
-  relativeHumidity: string | null
-  calibrationStatus: string[]
-  conclusionStatements: string[]
-  additionalConclusionStatement: string | null
-  currentRevision: number
-  createdAt: string
-  updatedAt: string
-  parameters: Parameter[]
-  masterInstruments: MasterInstrument[]
-}
-
-export interface Assignee {
-  id: string
-  name: string
-  email: string
-}
-
-export interface Reviewer {
-  id: string
-  name: string
-  email: string
-}
-
-export interface Feedback {
-  id: string
-  feedbackType: string
-  comment: string | null
-  createdAt: string
-  revisionNumber: number
-  targetSection: string | null
-  user: {
-    name: string | null
-    role: string
-  }
-}
-
-export interface CertificateEvent {
-  id: string
-  sequenceNumber: number
-  revision: number
-  eventType: string
-  eventData: string
-  userRole: string
-  createdAt: string
-  user: {
-    id: string
-    name: string | null
-    role: string
-  } | null
-  customer: {
-    id: string
-    name: string | null
-    email: string
-  } | null
-}
-
-export interface HeaderData {
-  certificateNumber: string
-  status: string
-  statusLabel: string
-  statusClassName: string
-  tat: { hours: number; status: 'ok' | 'warning' | 'overdue' }
-  assigneeName: string
-  customerName: string
-  calibratedAt: string | null
-  currentRevision: number
-}
+// Re-export types for components that import from this file
+export type { CertificateData, Assignee, Reviewer, Feedback, CertificateEvent }
+export type HeaderData = AdminHeaderData
 
 interface AdminCertificateClientProps {
   certificate: CertificateData
@@ -163,14 +49,43 @@ export function AdminCertificateClient({
 }: AdminCertificateClientProps) {
   // View mode state: 'details' shows certificate content, 'pdf' shows PDF preview
   const [viewMode, setViewMode] = useState<'details' | 'pdf'>('details')
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Collapsible panel states
   const [isChatExpanded, setIsChatExpanded] = useState(true)
   const [isEditExpanded, setIsEditExpanded] = useState(true)
   const [isReviewExpanded, setIsReviewExpanded] = useState(true)
 
+  const isAuthorized = headerData.status === 'AUTHORIZED'
+
+  // Handle download PDF
+  const handleDownload = useCallback(async () => {
+    setIsDownloading(true)
+    try {
+      const response = await fetch(`/api/certificates/${certificate.id}/download-signed`)
+      if (!response.ok) {
+        throw new Error('Failed to download PDF')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const fileName = `${certificate.certificateNumber.replace(/\//g, '-')}.pdf`
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading PDF:', err)
+      alert('Failed to download PDF')
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [certificate.id, certificate.certificateNumber])
+
   return (
-    <div className="flex h-full bg-slate-100 p-3 gap-3">
+    <div className="flex h-full bg-slate-100 p-3 gap-3 overflow-hidden">
       {/* Left Side - Header + Content (Scrollable) */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Certificate Card - Bounding Box */}
@@ -180,6 +95,9 @@ export function AdminCertificateClient({
             headerData={headerData}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
+            isAuthorized={isAuthorized}
+            onDownload={isAuthorized ? handleDownload : undefined}
+            isDownloading={isDownloading}
           />
 
           {/* Content Area - Scrollable */}

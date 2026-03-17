@@ -23,9 +23,10 @@ const STICKER_OPTIONS = [
 
 interface RemarksSectionProps {
   feedbackSlot?: React.ReactNode
+  disabled?: boolean
 }
 
-export function RemarksSection({ feedbackSlot }: RemarksSectionProps = {}) {
+export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps = {}) {
   const { formData, setFormField, toggleCalibrationStatus } = useCertificateStore()
 
   // Calculate out of limit count from all parameters
@@ -61,6 +62,7 @@ export function RemarksSection({ feedbackSlot }: RemarksSectionProps = {}) {
       sectionNumber="Section 06"
       title="Remarks & Status"
       feedbackSlot={feedbackSlot}
+      disabled={disabled}
     >
       <div className="space-y-8">
         {/* System Recommendation */}

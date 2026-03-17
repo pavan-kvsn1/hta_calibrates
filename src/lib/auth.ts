@@ -260,8 +260,8 @@ export function canAccessChatThread(
   }
 
   if (threadType === 'REVIEWER_CUSTOMER') {
-    // Only Reviewer can access (customer access handled separately)
-    return user.id === certificate.reviewerId
+    // Reviewer or Customer can access
+    return user.id === certificate.reviewerId || user.role === 'CUSTOMER'
   }
 
   return false

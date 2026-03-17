@@ -15,12 +15,12 @@ model User {
   email         String   @unique
   name          String
   passwordHash  String?  // Nullable for Google-only users
-  role          String   @default("ENGINEER") // ENGINEER, ADMIN (HOD removed - peer review model)
-  isAdmin       Boolean  @default(false)      // Legacy: kept for migration
-  adminType     String?  // "MASTER" | "WORKER" (null for non-admins)
-  assignedHodId String?  // DEPRECATED: kept for migration, use reviewerId on Certificate
-  assignedHod   User?    @relation("EngineerToHod", fields: [assignedHodId], references: [id])
-  engineers     User[]   @relation("EngineerToHod")
+  role            String   @default("ENGINEER") // ENGINEER, ADMIN
+  isAdmin         Boolean  @default(false)      // Legacy: kept for migration
+  adminType       String?  // "MASTER" | "WORKER" (null for non-admins)
+  assignedAdminId String?  // Admin this engineer is assigned to
+  assignedAdmin   User?    @relation("EngineerToAdmin", fields: [assignedAdminId], references: [id])
+  engineers       User[]   @relation("EngineerToAdmin")
   signatureUrl  String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -54,12 +54,16 @@ model User {
   // Admin relations
   reviewedRegistrations   CustomerRegistration[] @relation("RegistrationReviewer")
   reviewedRequests        CustomerRequest[]      @relation("RequestReviewer")  // NEW: Customer requests reviewed by this admin
-  managedCustomerAccounts CustomerAccount[]      @relation("HodToCustomerAccount")
+  managedCustomerAccounts CustomerAccount[]      @relation("AdminToCustomerAccount")
   modifiedInstruments     MasterInstrument[]     @relation("InstrumentModifier")
 
   // Chat relations
   chatMessages         ChatMessage[]
   uploadedUUCImages    UUCImage[]
+
+  // Internal requests relations
+  requestedInternalRequests  InternalRequest[] @relation("InternalRequestedBy")
+  reviewedInternalRequests   InternalRequest[] @relation("InternalRequestReviewer")
 }
 
 model CustomerUser {
@@ -98,28 +102,28 @@ model CustomerUser {
 // ====================
 
 model CustomerAccount {
-  id            String   @id @default(uuid())
-  companyName   String   @unique
-  address       String?
-  contactEmail  String?
-  contactPhone  String?
-  assignedHodId String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(uuid())
+  companyName     String   @unique
+  address         String?
+  contactEmail    String?
+  contactPhone    String?
+  assignedAdminId String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Primary POC (Point of Contact)
   primaryPocId  String?  @unique
   primaryPoc    CustomerUser? @relation("PrimaryPOC", fields: [primaryPocId], references: [id])
 
   // Relations
-  assignedHod   User?                   @relation("HodToCustomerAccount", fields: [assignedHodId], references: [id])
+  assignedAdmin User?                   @relation("AdminToCustomerAccount", fields: [assignedAdminId], references: [id])
   users         CustomerUser[]          @relation("CustomerUsers")
   registrations CustomerRegistration[]  // Keep for migration, will be removed later
   requests      CustomerRequest[]       // NEW: POC-initiated requests
 
   @@index([companyName])
-  @@index([assignedHodId])
+  @@index([assignedAdminId])
 }
 
 // ====================
@@ -356,6 +360,9 @@ model Certificate {
   // NEW: UUC reading images
   uucImages      UUCImage[]
 
+  // Internal requests (section unlock requests)
+  internalRequests InternalRequest[]
+
   @@index([status])
   @@index([createdById])
   @@index([reviewerId])  // NEW: Index for reviewer queries
@@ -558,7 +565,7 @@ model CertificateMasterInstrument {
 model Signature {
   id            String       @id @default(uuid())
   certificateId String
-  signerType    String       // ENGINEER, HOD, CUSTOMER
+  signerType    String       // ASSIGNEE, REVIEWER, CUSTOMER
   signerName    String
   signerEmail   String
   signatureData String
@@ -650,7 +657,7 @@ model OpenSignDocument {
   id                  String   @id @default(cuid())
   certificateId       String
   openSignDocumentId  String   @unique
-  signerType          String   // HOD, CUSTOMER
+  signerType          String   // REVIEWER, CUSTOMER
   signerEmail         String
   status              String   @default("PENDING") // PENDING, VIEWED, SIGNED, DECLINED, EXPIRED
   signingUrl          String?
@@ -681,7 +688,7 @@ model SigningEvidence {
   recordHash      String   // SHA-256 of this record's evidence field
 
   // Evidence payload (immutable after creation)
-  eventType       String   // ENGINEER_SIGNED, HOD_SIGNED, CUSTOMER_SIGNED
+  eventType       String   // ASSIGNEE_SIGNED, REVIEWER_SIGNED, CUSTOMER_SIGNED
   evidence        String   // JSON blob with all captured evidence
 
   createdAt       DateTime @default(now())
@@ -808,4 +815,52 @@ model RealtimeEvent {
   @@index([userId, delivered, createdAt])
   @@index([customerId, delivered, createdAt])
   @@index([channel, createdAt])
+}
+
+// ====================
+// INTERNAL REQUESTS (Engineer-initiated)
+// ====================
+
+// Request types for internal staff
+enum InternalRequestType {
+  SECTION_UNLOCK  // Engineer requesting to unlock additional sections
+  // Future: OTHER_TYPES
+}
+
+// Request status
+enum InternalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model InternalRequest {
+  id                String                @id @default(uuid())
+  type              InternalRequestType
+  status            InternalRequestStatus @default(PENDING)
+
+  // Who made the request
+  requestedById     String
+  requestedBy       User                  @relation("InternalRequestedBy", fields: [requestedById], references: [id])
+
+  // Related certificate (for SECTION_UNLOCK type)
+  certificateId     String?
+  certificate       Certificate?          @relation(fields: [certificateId], references: [id])
+
+  // Request data (JSON)
+  // SECTION_UNLOCK: { sections: string[], reason: string }
+  data              String
+
+  // Review info
+  reviewedById      String?
+  reviewedBy        User?                 @relation("InternalRequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt        DateTime?
+  adminNote         String?               // Optional note from admin
+
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([certificateId])
+  @@index([status])
+  @@index([type])
 }

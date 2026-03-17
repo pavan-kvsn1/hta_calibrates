@@ -54,8 +54,10 @@ export function AdminSidebar({
     setIsCollapsed((prev) => {
       const next = !prev
       localStorage.setItem(STORAGE_KEY, String(next))
-      // Dispatch custom event for layout wrapper to sync
-      window.dispatchEvent(new CustomEvent('sidebar-toggle'))
+      // Defer event dispatch to avoid state update during render
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('sidebar-toggle'))
+      }, 0)
       return next
     })
   }, [])
@@ -75,7 +77,7 @@ export function AdminSidebar({
     { name: 'Customer Accounts', href: '/admin/customers', icon: Building2, badge: 0, masterOnly: true },
     {
       name: 'Requests',
-      href: '/admin/customers/requests',
+      href: '/admin/requests',
       icon: Bell,
       badge: pendingRequests,
       masterOnly: true,

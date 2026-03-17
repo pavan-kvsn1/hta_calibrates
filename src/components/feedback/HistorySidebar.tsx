@@ -18,7 +18,7 @@ import {
 import { cn } from '@/lib/utils'
 
 // Engineer feedback types
-interface HoDEdit {
+interface ReviewerEdit {
   field: string
   fieldLabel: string
   previousValue: string | null
@@ -37,7 +37,7 @@ interface EngineerFeedback {
     name: string
     role: string
   }
-  hodEdits?: HoDEdit[] | null
+  reviewerEdits?: ReviewerEdit[] | null
 }
 
 // Customer event types
@@ -47,7 +47,7 @@ interface CustomerEvent {
   eventData: {
     notes?: string
     message?: string
-    response?: string // HoD reply to customer
+    response?: string // Admin reply to customer
     customerEmail?: string
     customerName?: string
     customerCompany?: string
@@ -219,13 +219,13 @@ function getCustomerEventStyle(eventType: string) {
         borderColor: 'border-orange-200',
         label: 'Forwarded to Engineer'
       }
-    case 'HOD_REPLIED_TO_CUSTOMER':
+    case 'ADMIN_REPLIED_TO_CUSTOMER':
       return {
         icon: MessageSquare,
         bgColor: 'bg-amber-100',
         textColor: 'text-amber-600',
         borderColor: 'border-amber-200',
-        label: 'HoD Response'
+        label: 'Admin Response'
       }
     default:
       return {
@@ -438,7 +438,7 @@ export function HistorySidebar({
                           {feedbacks.map((feedback) => {
                             const style = getEngineerFeedbackStyle(feedback.feedbackType)
                             const Icon = style.icon
-                            const isHoD = feedback.user.role === 'HOD' || feedback.user.role === 'ADMIN'
+                            const isReviewer = feedback.user.role === 'ADMIN'
 
                             return (
                               <div
@@ -446,12 +446,12 @@ export function HistorySidebar({
                                 className={cn(
                                   'rounded-lg border p-3',
                                   style.borderColor,
-                                  isHoD ? 'bg-white' : 'bg-blue-50/50'
+                                  isReviewer ? 'bg-white' : 'bg-blue-50/50'
                                 )}
                               >
                                 <div className="flex items-start gap-2">
                                   <div className={cn('p-1.5 rounded-full', style.bgColor)}>
-                                    {isHoD ? (
+                                    {isReviewer ? (
                                       <Icon className={cn('size-3', style.textColor)} />
                                     ) : (
                                       <PenLine className="size-3 text-blue-600" />
@@ -464,9 +464,9 @@ export function HistorySidebar({
                                       </span>
                                       <span className={cn(
                                         'text-[10px] px-1.5 py-0.5 rounded font-medium',
-                                        isHoD ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
+                                        isReviewer ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'
                                       )}>
-                                        {isHoD ? 'HoD' : 'Engineer'}
+                                        {isReviewer ? 'Reviewer' : 'Engineer'}
                                       </span>
                                     </div>
                                     {feedback.comment && (
@@ -475,15 +475,15 @@ export function HistorySidebar({
                                       </p>
                                     )}
 
-                                    {/* HoD Edits Info */}
-                                    {feedback.hodEdits && feedback.hodEdits.length > 0 && (
+                                    {/* Reviewer Edits Info */}
+                                    {feedback.reviewerEdits && feedback.reviewerEdits.length > 0 && (
                                       <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px]">
                                         <div className="flex items-center gap-1.5 text-amber-700 font-semibold mb-2">
                                           <Calendar className="size-3.5" />
-                                          HoD Edits Applied
+                                          Reviewer Edits Applied
                                         </div>
                                         <div className="space-y-2">
-                                          {feedback.hodEdits.map((edit, idx) => (
+                                          {feedback.reviewerEdits.map((edit, idx) => (
                                             <div
                                               key={edit.field}
                                               className={cn(idx > 0 && 'pt-2 border-t border-amber-200/60')}
@@ -616,7 +616,7 @@ export function HistorySidebar({
                                       </p>
                                     )}
 
-                                    {/* Actor info for HoD actions */}
+                                    {/* Actor info for Admin actions */}
                                     {event.user && !isCustomerAction && (
                                       <p className="text-[11px] text-slate-400 mt-1">
                                         by {event.user.name}

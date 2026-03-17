@@ -17,33 +17,34 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, Loader2, Info } from 'lucide-react'
 
-interface HoD {
+interface Admin {
   id: string
   name: string
   email: string
+  adminType: string | null
 }
 
 export default function CreateCustomerPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [hods, setHods] = useState<HoD[]>([])
+  const [admins, setAdmins] = useState<Admin[]>([])
 
   const [formData, setFormData] = useState({
     companyName: '',
     address: '',
     contactEmail: '',
     contactPhone: '',
-    assignedHodId: '',
+    assignedAdminId: '',
     pocName: '',
     pocEmail: '',
   })
 
   useEffect(() => {
-    // Fetch HoDs for assignment dropdown
-    fetch('/api/admin/users/hods')
+    // Fetch Admins for assignment dropdown
+    fetch('/api/admin/users/admins')
       .then((res) => res.json())
-      .then((data) => setHods(data.hods || []))
+      .then((data) => setAdmins(data.admins || []))
       .catch(console.error)
   }, [])
 
@@ -84,7 +85,7 @@ export default function CreateCustomerPage() {
           address: formData.address || undefined,
           contactEmail: formData.contactEmail || undefined,
           contactPhone: formData.contactPhone || undefined,
-          assignedHodId: formData.assignedHodId || undefined,
+          assignedAdminId: formData.assignedAdminId || undefined,
           pocName: formData.pocName,
           pocEmail: formData.pocEmail,
         }),
@@ -246,29 +247,29 @@ export default function CreateCustomerPage() {
                       Assignment
                     </h3>
 
-                    {/* Assigned HoD */}
+                    {/* Assigned Admin */}
                     <div className="space-y-2">
-                      <Label htmlFor="assignedHodId">Assigned HoD</Label>
+                      <Label htmlFor="assignedAdminId">Assigned Admin</Label>
                       <Select
-                        value={formData.assignedHodId || 'none'}
+                        value={formData.assignedAdminId || 'none'}
                         onValueChange={(value) =>
-                          setFormData((prev) => ({ ...prev, assignedHodId: value === 'none' ? '' : value }))
+                          setFormData((prev) => ({ ...prev, assignedAdminId: value === 'none' ? '' : value }))
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select HoD (optional)..." />
+                          <SelectValue placeholder="Select Admin (optional)..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No HoD assigned</SelectItem>
-                          {hods.map((hod) => (
-                            <SelectItem key={hod.id} value={hod.id}>
-                              {hod.name}
+                          <SelectItem value="none">No Admin assigned</SelectItem>
+                          {admins.map((admin) => (
+                            <SelectItem key={admin.id} value={admin.id}>
+                              {admin.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-slate-500">
-                        The assigned HoD will manage customer communications for certificates
+                        The assigned Admin will manage customer communications for certificates
                       </p>
                     </div>
                   </div>

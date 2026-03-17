@@ -291,8 +291,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
       // Success - clear section responses and redirect to dashboard
       clearSectionResponses()
       setShowSignatureModal(false)
-      const reviewLabel = USE_NEW_WORKFLOW ? 'peer' : 'HoD'
-      alert(`Certificate submitted successfully for ${reviewLabel} review!`)
+      alert('Certificate submitted successfully for peer review!')
       router.push('/dashboard')
     } catch (error) {
       console.error('Submit error:', error)
@@ -314,7 +313,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
       isDark={true}
     >
       <div className="space-y-8">
-        {/* HoD Feedback Reference - Collapsible (only when revision required, shows latest only) */}
+        {/* Reviewer Feedback Reference - Collapsible (only when revision required, shows latest only) */}
         {isRevisionRequired && latestRevisionFeedback && (
           <div className="rounded-2xl border-2 border-orange-200 bg-orange-50/50 overflow-hidden">
             <button
@@ -323,7 +322,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
             >
               <div className="flex items-center gap-3">
                 <AlertTriangle className="size-5 text-orange-600" />
-                <span className="font-semibold text-orange-900 text-[14px]" >HoD Feedback Reference</span>
+                <span className="font-semibold text-orange-900 text-[14px]" >Reviewer Feedback Reference</span>
                 <span className="text-xs px-2 py-0.5 rounded-full bg-orange-200 text-orange-700 font-medium">
                   Latest
                 </span>
@@ -345,7 +344,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
                       <div className="flex items-center gap-2 mb-2">
                         <span className="font-semibold text-slate-900 text-[13px]">{latestRevisionFeedback.user.name}</span>
                         <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">
-                          {latestRevisionFeedback.user.role === 'HOD' ? 'Head of Department' : latestRevisionFeedback.user.role}
+                          {latestRevisionFeedback.user.role === 'ADMIN' ? 'Reviewer' : latestRevisionFeedback.user.role}
                         </span>
                         <span className="text-xs text-slate-400 text-[12px]">
                           {new Date(latestRevisionFeedback.createdAt).toLocaleDateString('en-GB', {
@@ -554,7 +553,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
           defaultName={session?.user?.name || ''}
           nameReadOnly={true}
           title="Sign & Submit Certificate"
-          description="Your signature confirms you have reviewed and are submitting this certificate for HoD approval."
+          description="Your signature confirms you have reviewed and are submitting this certificate for peer review."
           confirmLabel="Sign & Submit"
           loading={isSubmitting}
           error={submitError}

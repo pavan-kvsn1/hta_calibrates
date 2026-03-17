@@ -73,12 +73,12 @@ export async function GET() {
       // 3. Awaiting Response: Certificates in these statuses
       prisma.certificate.findMany({
         where: {
-          status: { in: ['PENDING_HOD_REVIEW', 'CUSTOMER_REVISION_REQUIRED', 'REVISION_REQUIRED'] },
+          status: { in: ['PENDING_REVIEW', 'CUSTOMER_REVISION_REQUIRED', 'REVISION_REQUIRED'] },
         },
         include: {
           events: {
             where: {
-              eventType: { in: ['CUSTOMER_REVISION_REQUESTED', 'HOD_REPLIED_TO_CUSTOMER'] },
+              eventType: { in: ['CUSTOMER_REVISION_REQUESTED', 'ADMIN_REPLIED_TO_CUSTOMER'] },
             },
             orderBy: { createdAt: 'desc' },
             take: 2,
@@ -140,11 +140,11 @@ export async function GET() {
     const pending = [
       // Token-based pending
       ...pendingTokens.map((token) => {
-        let hodMessage: string | null = null
+        let adminMessage: string | null = null
         if (token.certificate.events[0]) {
           try {
             const data = JSON.parse(token.certificate.events[0].eventData)
-            hodMessage = data.message || null
+            adminMessage = data.message || null
           } catch {
             // ignore
           }
@@ -159,7 +159,7 @@ export async function GET() {
           expiresAt: token.expiresAt.toISOString(),
           tokenId: token.token,
           hasToken: true,
-          hodMessage,
+          adminMessage,
           srfNumber: token.certificate.srfNumber,
           dateOfCalibration: token.certificate.dateOfCalibration?.toISOString() || null,
         }
@@ -181,7 +181,7 @@ export async function GET() {
           expiresAt: null,
           tokenId: null,
           hasToken: false,
-          hodMessage: null,
+          adminMessage: null,
           srfNumber: cert.srfNumber,
           dateOfCalibration: cert.dateOfCalibration?.toISOString() || null,
         })),
@@ -192,12 +192,12 @@ export async function GET() {
       .filter((cert) => cert.customerName?.toLowerCase() === companyNameLower)
       .map((cert) => {
         const customerEvent = cert.events.find((e) => e.eventType === 'CUSTOMER_REVISION_REQUESTED')
-        const hodEvent = cert.events.find((e) => e.eventType === 'HOD_REPLIED_TO_CUSTOMER')
+        const adminEvent = cert.events.find((e) => e.eventType === 'ADMIN_REPLIED_TO_CUSTOMER')
 
         let customerFeedback: string | null = null
         let feedbackDate: string | null = null
-        let hodResponse: string | null = null
-        let hodName: string | null = null
+        let adminResponse: string | null = null
+        let adminName: string | null = null
         let respondedAt: string | null = null
 
         if (customerEvent) {
@@ -210,12 +210,12 @@ export async function GET() {
           }
         }
 
-        if (hodEvent) {
+        if (adminEvent) {
           try {
-            const data = JSON.parse(hodEvent.eventData)
-            hodResponse = data.response || null
-            hodName = hodEvent.user?.name || null
-            respondedAt = hodEvent.createdAt.toISOString()
+            const data = JSON.parse(adminEvent.eventData)
+            adminResponse = data.response || null
+            adminName = adminEvent.user?.name || null
+            respondedAt = adminEvent.createdAt.toISOString()
           } catch {
             // ignore
           }
@@ -228,11 +228,11 @@ export async function GET() {
           uucMake: cert.uucMake,
           uucModel: cert.uucModel,
           updatedAt: cert.updatedAt.toISOString(),
-          internalStatus: cert.status as 'PENDING_HOD_REVIEW' | 'CUSTOMER_REVISION_REQUIRED' | 'REVISION_REQUIRED',
+          internalStatus: cert.status as 'PENDING_REVIEW' | 'CUSTOMER_REVISION_REQUIRED' | 'REVISION_REQUIRED',
           customerFeedback,
           feedbackDate,
-          hodResponse,
-          hodName,
+          adminResponse,
+          adminName,
           respondedAt,
         }
       })
@@ -248,8 +248,8 @@ export async function GET() {
         uucModel: sig.certificate.uucModel,
         signedAt: sig.signedAt.toISOString(),
         signerName: sig.signerName,
-        hasEngineerSig: sigTypes.includes('ENGINEER'),
-        hasHodSig: sigTypes.includes('HOD'),
+        hasEngineerSig: sigTypes.includes('ASSIGNEE'),
+        hasReviewerSig: sigTypes.includes('REVIEWER'),
         hasCustomerSig: sigTypes.includes('CUSTOMER'),
         hasAdminSig: sigTypes.includes('ADMIN'),
       }

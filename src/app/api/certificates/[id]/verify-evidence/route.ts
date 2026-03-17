@@ -15,8 +15,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only HoD and Admin can verify evidence
-    if (!['HOD', 'ADMIN'].includes(session.user.role)) {
+    // Only Admin can verify evidence
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

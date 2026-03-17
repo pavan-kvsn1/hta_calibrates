@@ -7,14 +7,14 @@ import { formatDistanceToNow } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useCertificateStore } from '@/lib/stores/certificate-store'
+import {
+  isRevisionRequest,
+  isEngineerResponse,
+  type Feedback as BaseFeedback,
+} from '@/components/feedback/shared/feedback-utils'
 
-interface Feedback {
-  id: string
-  feedbackType: string
-  comment: string | null
-  createdAt: string
-  revisionNumber: number
-  targetSection: string | null
+// Extend base feedback type to allow non-nullable user fields (for display)
+interface Feedback extends Omit<BaseFeedback, 'user'> {
   user: {
     name: string
     role: string
@@ -26,9 +26,10 @@ interface SectionFeedbackProps {
   sectionId: string
   className?: string
   currentUserName?: string
+  currentRevision?: number
 }
 
-export function SectionFeedback({ feedbacks, sectionId, className, currentUserName = 'You' }: SectionFeedbackProps) {
+export function SectionFeedback({ feedbacks, sectionId, className, currentUserName = 'You', currentRevision }: SectionFeedbackProps) {
   const { formData, setSectionResponse } = useCertificateStore()
   const savedResponse = formData.sectionResponses[sectionId] || ''
 
@@ -43,21 +44,15 @@ export function SectionFeedback({ feedbacks, sectionId, className, currentUserNa
   }, [savedResponse, isEditing])
 
   // Filter feedbacks for this specific section
+  // Only show feedbacks from the current revision cycle if currentRevision is provided
   const sectionFeedbacks = feedbacks.filter(
-    (f) => f.targetSection === sectionId && f.comment
+    (f) => f.targetSection === sectionId && f.comment &&
+      (currentRevision === undefined || f.revisionNumber === currentRevision)
   )
 
   if (sectionFeedbacks.length === 0) {
     return null
   }
-
-  // Helper to check if feedback is a revision request
-  const isRevisionRequest = (feedbackType: string) =>
-    feedbackType === 'REVISION_REQUEST' || feedbackType === 'REVISION_REQUESTED'
-
-  // Helper to check if feedback is a response from engineer (already submitted in previous revision)
-  const isEngineerResponse = (feedbackType: string) =>
-    feedbackType === 'REVISION_RESPONSE' || feedbackType === 'ASSIGNEE_RESPONSE'
 
   // Get the latest revision request for this section
   const latestRequest = sectionFeedbacks

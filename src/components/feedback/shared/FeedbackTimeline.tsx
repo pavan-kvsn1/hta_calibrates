@@ -11,6 +11,16 @@ import {
 } from './feedback-utils'
 import { FeedbackItem } from './FeedbackItem'
 
+interface CustomerFeedbackData {
+  notes: string
+  sectionFeedbacks: { section: string; comment: string }[] | null
+  generalNotes: string | null
+  customerName: string
+  customerEmail: string
+  requestedAt: string
+  revision?: number
+}
+
 interface FeedbackTimelineProps {
   feedbacks: Feedback[]
   currentRevision: number
@@ -27,6 +37,8 @@ interface FeedbackTimelineProps {
   variant?: 'default' | 'compact' | 'sidebar'
   /** Initially expanded revision numbers */
   defaultExpandedRevisions?: number[]
+  /** Customer feedback data (from CUSTOMER_REVISION_REQUESTED event) */
+  customerFeedback?: CustomerFeedbackData | null
 }
 
 export function FeedbackTimeline({
@@ -40,6 +52,7 @@ export function FeedbackTimeline({
   currentUserName,
   variant = 'default',
   defaultExpandedRevisions,
+  customerFeedback,
 }: FeedbackTimelineProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [expandedRevisions, setExpandedRevisions] = useState<Set<number>>(
@@ -63,7 +76,8 @@ export function FeedbackTimeline({
     })
   }
 
-  if (revisionGroups.length === 0) {
+  // Show empty state only if no feedbacks AND no customer feedback
+  if (revisionGroups.length === 0 && !customerFeedback) {
     return (
       <div className={cn(
         'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
@@ -99,6 +113,13 @@ export function FeedbackTimeline({
     )
   }
 
+  // If there are no revision groups but we have customer feedback, create a synthetic group for the customer feedback's revision
+  const effectiveRevisionGroups = revisionGroups.length > 0
+    ? revisionGroups
+    : customerFeedback
+      ? [{ revision: customerFeedback.revision ?? currentRevision, feedbacks: [], approvals: [] }]
+      : []
+
   return (
     <div className={cn(
       'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
@@ -121,7 +142,7 @@ export function FeedbackTimeline({
         </div>
         {!isExpanded && (
           <span className="text-xs text-slate-500">
-            {revisionGroups.length} revision cycle{revisionGroups.length > 1 ? 's' : ''}
+            {effectiveRevisionGroups.length} revision cycle{effectiveRevisionGroups.length > 1 ? 's' : ''}
           </span>
         )}
       </button>
@@ -129,7 +150,7 @@ export function FeedbackTimeline({
       {/* Content */}
       {isExpanded && (
         <div className="border-t border-slate-100">
-          {revisionGroups.map((group, revIndex) => (
+          {effectiveRevisionGroups.map((group, revIndex) => (
             <RevisionGroupContent
               key={group.revision}
               group={group}
@@ -141,6 +162,7 @@ export function FeedbackTimeline({
               showRevisionTransition={showRevisionTransition}
               currentUserName={currentUserName}
               variant={variant}
+              customerFeedback={group.revision === (customerFeedback?.revision ?? currentRevision) ? customerFeedback : undefined}
             />
           ))}
         </div>
@@ -160,6 +182,7 @@ interface RevisionGroupContentProps {
   showRevisionTransition: boolean
   currentUserName?: string
   variant: 'default' | 'compact' | 'sidebar'
+  customerFeedback?: CustomerFeedbackData | null
 }
 
 function RevisionGroupContent({
@@ -172,11 +195,52 @@ function RevisionGroupContent({
   showRevisionTransition,
   currentUserName,
   variant,
+  customerFeedback,
 }: RevisionGroupContentProps) {
   const { revision, feedbacks, approvals } = group
   const isCurrentRevision = revision === currentRevision
-  const sectionGroups = groupBySection ? groupFeedbacksBySection(feedbacks) : []
-  const totalItems = feedbacks.length + approvals.length
+
+  // Convert customer feedback into Feedback items to integrate with section groups
+  const customerFeedbackItems: Feedback[] = []
+  if (customerFeedback) {
+    // Add section-specific feedbacks
+    if (customerFeedback.sectionFeedbacks && customerFeedback.sectionFeedbacks.length > 0) {
+      customerFeedback.sectionFeedbacks.forEach((sf, idx) => {
+        customerFeedbackItems.push({
+          id: `customer-section-${idx}`,
+          feedbackType: 'CUSTOMER_REVISION_REQUEST',
+          comment: sf.comment,
+          createdAt: customerFeedback.requestedAt,
+          revisionNumber: customerFeedback.revision ?? currentRevision,
+          targetSection: sf.section,
+          user: {
+            name: customerFeedback.customerName,
+            role: 'CUSTOMER',
+          },
+        })
+      })
+    }
+    // Add general notes as a feedback item in 'general' section (only if generalNotes exists)
+    if (customerFeedback.generalNotes) {
+      customerFeedbackItems.push({
+        id: 'customer-general',
+        feedbackType: 'CUSTOMER_REVISION_REQUEST',
+        comment: customerFeedback.generalNotes,
+        createdAt: customerFeedback.requestedAt,
+        revisionNumber: customerFeedback.revision ?? currentRevision,
+        targetSection: 'general',
+        user: {
+          name: customerFeedback.customerName,
+          role: 'CUSTOMER',
+        },
+      })
+    }
+  }
+
+  // Merge customer feedback items with regular feedbacks
+  const allFeedbacks = [...feedbacks, ...customerFeedbackItems]
+  const sectionGroups = groupBySection ? groupFeedbacksBySection(allFeedbacks) : []
+  const totalItems = allFeedbacks.length + approvals.length
 
   return (
     <div className={cn(showBorder && 'border-t border-slate-100')}>
@@ -253,7 +317,7 @@ function RevisionGroupContent({
       {/* Revision Content */}
       {isExpanded && (
         <div className="px-4 pb-4 space-y-3">
-          {/* Approvals first */}
+          {/* Approvals */}
           {approvals.length > 0 && (
             <div className="rounded-xl border-2 border-green-200 bg-green-50 overflow-hidden">
               <div className="flex items-center gap-2 px-3 py-2 bg-green-100/50 border-b border-green-200">
@@ -355,4 +419,4 @@ function SectionContent({
 }
 
 // Export for barrel file
-export type { FeedbackTimelineProps }
+export type { FeedbackTimelineProps, CustomerFeedbackData }

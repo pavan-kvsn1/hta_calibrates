@@ -17,9 +17,10 @@ interface SummarySectionProps {
   certificateId?: string
   reviewerName?: string | null
   feedbackSlot?: React.ReactNode
+  disabled?: boolean
 }
 
-export function SummarySection({ isNewCertificate = true, certificateId, reviewerName, feedbackSlot }: SummarySectionProps) {
+export function SummarySection({ isNewCertificate = true, certificateId, reviewerName, feedbackSlot, disabled }: SummarySectionProps) {
   const { formData, setFormField } = useCertificateStore()
   const [isCheckingNumber, setIsCheckingNumber] = useState(false)
   const [numberExists, setNumberExists] = useState<boolean | null>(null)
@@ -86,6 +87,7 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
       sectionNumber="Section 01"
       title="Summary Information"
       feedbackSlot={feedbackSlot}
+      disabled={disabled}
     >
       <div className="space-y-8">
         {isNewCertificate ? (
@@ -105,8 +107,8 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                   onChange={(e) => setFormField('certificateNumber', e.target.value)}
                   placeholder="e.g., HTA/12345/24/01"
                   className={cn(
-                    "w-full rounded-xl border-slate-200 h-12 pl-12 pr-12 focus:ring-primary focus:border-primary font-semibold",
-                    numberExists === true && "border-amber-500 focus:border-amber-500 focus:ring-amber-500",
+                    "w-full rounded-xl border-slate-200 h-12 pl-12 pr-12 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs",
+                    numberExists === true && "border-amber-500 focus:border-amber-500 focus:ring-amber-500 font-semibold text-xs md:text-xs",
                     numberExists === false && formData.certificateNumber.length >= 3 && "border-green-500 focus:border-green-500 focus:ring-green-500"
                   )}
                 />
@@ -272,8 +274,8 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
         )}
 
         {/* SRF Details */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-slate-50/50 rounded-2xl p-3 pb-5 border border-slate-100 shadow-sm">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               SRF Number <span className="text-red-500">*</span>
             </Label>
@@ -282,10 +284,10 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
               value={formData.srfNumber}
               onChange={(e) => setFormField('srfNumber', e.target.value)}
               placeholder="Enter SRF Number"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-semibold"
+              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs"
             />
           </div>
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div className="bg-slate-50/50 rounded-2xl p-3 pb-5 border border-slate-100 shadow-sm">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               SRF Date <span className="text-red-500">*</span>
             </Label>
@@ -293,7 +295,7 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
               type="date"
               value={formData.srfDate}
               onChange={(e) => setFormField('srfDate', e.target.value)}
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary"
+              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs"
             />
           </div>
         </div>

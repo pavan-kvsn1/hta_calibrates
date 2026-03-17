@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       prisma.user.findMany({
         where,
         include: {
-          assignedHod: {
+          assignedAdmin: {
             select: { id: true, name: true, email: true },
           },
           _count: {
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
         role: user.role,
         isActive: user.isActive,
         authProvider: user.authProvider,
-        assignedHod: user.assignedHod,
+        assignedAdmin: user.assignedAdmin,
         certificateCount: user._count.createdCertificates,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, name, password, role, assignedHodId, isAdmin } = body
+    const { email, name, password, role, assignedAdminId, adminType } = body
 
     // Validation
     if (!email || !name || !password || !role) {
@@ -100,9 +100,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!['ENGINEER', 'HOD', 'ADMIN'].includes(role)) {
+    if (!['ENGINEER', 'ADMIN'].includes(role)) {
       return NextResponse.json(
-        { error: 'Invalid role. Must be ENGINEER, HOD, or ADMIN' },
+        { error: 'Invalid role. Must be ENGINEER or ADMIN' },
         { status: 400 }
       )
     }
@@ -134,25 +134,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate HoD assignment for engineers
+    // Validate Admin assignment for engineers
     if (role === 'ENGINEER') {
-      if (!assignedHodId) {
+      if (!assignedAdminId) {
         return NextResponse.json(
-          { error: 'Engineers must be assigned to an HoD' },
+          { error: 'Engineers must be assigned to an Admin' },
           { status: 400 }
         )
       }
 
-      const hod = await prisma.user.findFirst({
-        where: { id: assignedHodId, role: 'HOD', isActive: true },
+      const admin = await prisma.user.findFirst({
+        where: { id: assignedAdminId, role: 'ADMIN', isActive: true },
       })
 
-      if (!hod) {
+      if (!admin) {
         return NextResponse.json(
-          { error: 'Invalid HoD selected' },
+          { error: 'Invalid Admin selected' },
           { status: 400 }
         )
       }
+    }
+
+    // Validate adminType for ADMIN role
+    if (role === 'ADMIN' && adminType && !['MASTER', 'WORKER'].includes(adminType)) {
+      return NextResponse.json(
+        { error: 'Invalid admin type. Must be MASTER or WORKER' },
+        { status: 400 }
+      )
     }
 
     // Create user
@@ -165,12 +173,12 @@ export async function POST(request: NextRequest) {
         passwordHash,
         role,
         authProvider: 'PASSWORD',
-        assignedHodId: role === 'ENGINEER' ? assignedHodId : null,
-        isAdmin: role === 'HOD' ? Boolean(isAdmin) : false,
+        assignedAdminId: role === 'ENGINEER' ? assignedAdminId : null,
+        adminType: role === 'ADMIN' ? (adminType || 'WORKER') : null,
         isActive: true,
       },
       include: {
-        assignedHod: {
+        assignedAdmin: {
           select: { id: true, name: true },
         },
       },
@@ -183,7 +191,8 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name,
         role: user.role,
-        assignedHod: user.assignedHod,
+        adminType: user.adminType,
+        assignedAdmin: user.assignedAdmin,
       },
     })
   } catch (error) {

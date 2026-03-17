@@ -5,7 +5,7 @@ import { parseUserAgent, type SigningMetadata } from '@/components/pdf/pdf-utils
 
 interface RevisionHistoryItem {
   id: string
-  type: 'customer_request' | 'hod_response' | 'sent_to_customer' | 'admin_message'
+  type: 'customer_request' | 'admin_response' | 'sent_to_customer' | 'admin_message'
   message: string
   createdAt: string
   userName?: string
@@ -55,7 +55,7 @@ export async function GET(
           in: [
             'SENT_TO_CUSTOMER',
             'CUSTOMER_REVISION_REQUESTED',
-            'HOD_REPLIED_TO_CUSTOMER',
+            'ADMIN_REPLIED_TO_CUSTOMER',
             'ADMIN_MESSAGE',
           ],
         },
@@ -82,9 +82,9 @@ export async function GET(
       if (event.eventType === 'CUSTOMER_REVISION_REQUESTED') {
         type = 'customer_request'
         message = eventData.notes || 'Revision requested'
-      } else if (event.eventType === 'HOD_REPLIED_TO_CUSTOMER') {
-        type = 'hod_response'
-        message = eventData.response || 'HoD responded to customer feedback'
+      } else if (event.eventType === 'ADMIN_REPLIED_TO_CUSTOMER') {
+        type = 'admin_response'
+        message = eventData.response || 'Admin responded to customer feedback'
       } else if (event.eventType === 'SENT_TO_CUSTOMER') {
         type = 'sent_to_customer'
         message = eventData.responseToFeedback || eventData.message || 'Certificate sent for review'
@@ -128,8 +128,8 @@ export async function GET(
 
       if (!evidence) {
         const eventTypeMap: Record<string, string> = {
-          'ENGINEER': 'ENGINEER_SIGNED',
-          'HOD': 'HOD_SIGNED',
+          'ASSIGNEE': 'ASSIGNEE_SIGNED',
+          'REVIEWER': 'REVIEWER_SIGNED',
           'ADMIN': 'ADMIN_SIGNED',
           'CUSTOMER': 'CUSTOMER_SIGNED',
         }
@@ -156,8 +156,8 @@ export async function GET(
     // Helper to check if signature has evidence for current revision
     const hasEvidenceForCurrentRevision = (signatureId: string, signerType: string): boolean => {
       const eventTypeMap: Record<string, string> = {
-        'ENGINEER': 'ENGINEER_SIGNED',
-        'HOD': 'HOD_SIGNED',
+        'ASSIGNEE': 'ASSIGNEE_SIGNED',
+        'REVIEWER': 'REVIEWER_SIGNED',
         'ADMIN': 'ADMIN_SIGNED',
         'CUSTOMER': 'CUSTOMER_SIGNED',
       }
@@ -166,31 +166,31 @@ export async function GET(
       )
     }
 
-    const engineerSig = dbSignatures.find(s => s.signerType === 'ENGINEER')
-    const hodSig = dbSignatures.find(s => s.signerType === 'HOD')
+    const assigneeSig = dbSignatures.find(s => s.signerType === 'ASSIGNEE')
+    const reviewerSig = dbSignatures.find(s => s.signerType === 'REVIEWER')
     const adminSig = dbSignatures.find(s => s.signerType === 'ADMIN')
     const customerSig = dbSignatures.find(s => s.signerType === 'CUSTOMER')
 
-    const validEngineerSig = engineerSig && hasEvidenceForCurrentRevision(engineerSig.id, 'ENGINEER') ? engineerSig : null
-    const validHodSig = hodSig && hasEvidenceForCurrentRevision(hodSig.id, 'HOD') ? hodSig : null
+    const validAssigneeSig = assigneeSig && hasEvidenceForCurrentRevision(assigneeSig.id, 'ASSIGNEE') ? assigneeSig : null
+    const validReviewerSig = reviewerSig && hasEvidenceForCurrentRevision(reviewerSig.id, 'REVIEWER') ? reviewerSig : null
     const validAdminSig = adminSig && hasEvidenceForCurrentRevision(adminSig.id, 'ADMIN') ? adminSig : null
     const validCustomerSig = customerSig && hasEvidenceForCurrentRevision(customerSig.id, 'CUSTOMER') ? customerSig : null
 
-    const signatures = (validEngineerSig || validHodSig || validAdminSig || validCustomerSig) ? {
-      ...(validEngineerSig ? {
+    const signatures = (validAssigneeSig || validReviewerSig || validAdminSig || validCustomerSig) ? {
+      ...(validAssigneeSig ? {
         engineer: {
-          name: validEngineerSig.signerName.toUpperCase(),
-          image: validEngineerSig.signatureData,
-          signatureId: validEngineerSig.id,
-          metadata: getMetadataForSignature(validEngineerSig.id, 'ENGINEER'),
+          name: validAssigneeSig.signerName.toUpperCase(),
+          image: validAssigneeSig.signatureData,
+          signatureId: validAssigneeSig.id,
+          metadata: getMetadataForSignature(validAssigneeSig.id, 'ASSIGNEE'),
         }
       } : {}),
-      ...(validHodSig ? {
+      ...(validReviewerSig ? {
         hod: {
-          name: validHodSig.signerName.toUpperCase(),
-          image: validHodSig.signatureData,
-          signatureId: validHodSig.id,
-          metadata: getMetadataForSignature(validHodSig.id, 'HOD'),
+          name: validReviewerSig.signerName.toUpperCase(),
+          image: validReviewerSig.signatureData,
+          signatureId: validReviewerSig.id,
+          metadata: getMetadataForSignature(validReviewerSig.id, 'REVIEWER'),
         }
       } : {}),
       ...(validAdminSig ? {

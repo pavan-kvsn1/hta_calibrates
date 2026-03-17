@@ -17,7 +17,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-// POST - Submit certificate for HoD review
+// POST - Submit certificate for peer review
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth()
@@ -198,14 +198,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         ? certificate.currentRevision + 1
         : certificate.currentRevision
 
-      // Determine target status based on workflow
-      const targetStatus = useNewWorkflow ? 'PENDING_REVIEW' : 'PENDING_HOD_REVIEW'
-
       // Update certificate status and assign reviewer
       const cert = await tx.certificate.update({
         where: { id },
         data: {
-          status: targetStatus,
+          status: 'PENDING_REVIEW',
           currentRevision: newRevision,
           lastModifiedById: session.user.id,
           // Assign reviewer if new workflow
@@ -223,7 +220,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           eventType: isResubmission ? 'RESUBMITTED_FOR_REVIEW' : 'SUBMITTED_FOR_REVIEW',
           eventData: JSON.stringify({
             previousStatus: certificate.status,
-            newStatus: targetStatus,
+            newStatus: 'PENDING_REVIEW',
             submittedAt: new Date().toISOString(),
             isResubmission,
             engineerNotes: engineerNotes || null,
@@ -287,7 +284,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           actorType: 'USER',
           changes: JSON.stringify({
             previousStatus: certificate.status,
-            newStatus: 'PENDING_HOD_REVIEW',
+            newStatus: 'PENDING_REVIEW',
             previousRevision: certificate.currentRevision,
             newRevision,
             hasEngineerNotes: !!engineerNotes?.trim(),
@@ -302,11 +299,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
         where: { certificateId: id },
       })
 
-      // Create ENGINEER signature record
+      // Create ASSIGNEE signature record
       const signature = await tx.signature.create({
         data: {
           certificateId: id,
-          signerType: 'ENGINEER',
+          signerType: 'ASSIGNEE',
           signerName: signerName!,
           signerEmail: session.user.email,
           signatureData: signatureData!,
@@ -327,13 +324,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
           clientEvidence,
           serverEvidence,
           {
-            signerType: 'ENGINEER',
+            signerType: 'ASSIGNEE',
             signerName: signerName!,
             signerEmail: session.user.email,
             signerId: session.user.id,
           }
         )
-        await appendSigningEvidence(id, signature.id, 'ENGINEER_SIGNED', evidencePayload, updatedCert.currentRevision)
+        await appendSigningEvidence(id, signature.id, 'ASSIGNEE_SIGNED', evidencePayload, updatedCert.currentRevision)
       } catch (evidenceError) {
         // Log but don't fail the submission if evidence capture fails
         console.error('Failed to capture signing evidence:', evidenceError)

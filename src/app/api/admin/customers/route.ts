@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       prisma.customerAccount.findMany({
         where,
         include: {
-          assignedHod: {
+          assignedAdmin: {
             select: { id: true, name: true, email: true },
           },
           primaryPoc: {
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         contactEmail: acc.contactEmail,
         contactPhone: acc.contactPhone,
         isActive: acc.isActive,
-        assignedHod: acc.assignedHod,
+        assignedAdmin: acc.assignedAdmin,
         primaryPoc: acc.primaryPoc,
         userCount: acc._count.users,
         pendingRequests: acc._count.requests,
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { companyName, address, contactEmail, contactPhone, assignedHodId, pocName, pocEmail } = body
+    const { companyName, address, contactEmail, contactPhone, assignedAdminId, pocName, pocEmail } = body
 
     // Validation
     if (!companyName?.trim()) {
@@ -157,15 +157,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate HoD if provided
-    if (assignedHodId) {
-      const hod = await prisma.user.findFirst({
-        where: { id: assignedHodId, role: 'HOD', isActive: true },
+    // Validate Admin if provided
+    if (assignedAdminId) {
+      const admin = await prisma.user.findFirst({
+        where: { id: assignedAdminId, role: 'ADMIN', isActive: true },
       })
 
-      if (!hod) {
+      if (!admin) {
         return NextResponse.json(
-          { error: 'Invalid HoD selected' },
+          { error: 'Invalid Admin selected' },
           { status: 400 }
         )
       }
@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
           address: address?.trim() || null,
           contactEmail: contactEmail?.trim() || null,
           contactPhone: contactPhone?.trim() || null,
-          assignedHodId: assignedHodId || null,
+          assignedAdminId: assignedAdminId || null,
           isActive: true,
         },
       })
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
         where: { id: account.id },
         data: { primaryPocId: pocUser.id },
         include: {
-          assignedHod: {
+          assignedAdmin: {
             select: { id: true, name: true },
           },
           primaryPoc: {
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
       account: {
         id: result.account.id,
         companyName: result.account.companyName,
-        assignedHod: result.account.assignedHod,
+        assignedAdmin: result.account.assignedAdmin,
         primaryPoc: result.account.primaryPoc,
       },
       message: 'Customer account created. Activation email will be sent to the POC.',

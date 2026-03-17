@@ -40,8 +40,7 @@ async function getStats(userId: string) {
     prisma.certificate.count({
       where: {
         createdById: userId,
-        // Include both old and new workflow statuses
-        status: { in: ['PENDING_HOD_REVIEW', 'PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'] },
+        status: { in: ['PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'] },
       },
     }),
     prisma.certificate.count({
@@ -63,11 +62,6 @@ export default async function EngineerDashboard() {
 
   if (!session?.user) {
     redirect('/login')
-  }
-
-  // Redirect HoD users to their dashboard
-  if (session.user.role === 'HOD') {
-    redirect('/hod/dashboard')
   }
 
   // Redirect Admin users to admin dashboard

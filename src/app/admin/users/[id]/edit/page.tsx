@@ -27,17 +27,19 @@ import {
 } from '@/components/ui/alert-dialog'
 import { ArrowLeft, Loader2, Users, FileText, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { UserTATMetrics } from '@/components/admin/UserTATMetrics'
 
 interface User {
   id: string
   email: string
   name: string
   role: string
+  adminType: string | null  // 'MASTER' | 'WORKER' for admins
   isAdmin: boolean
   isActive: boolean
   authProvider: string
   signatureUrl: string | null
-  assignedHod: { id: string; name: string } | null
+  assignedAdmin: { id: string; name: string } | null
   engineers: { id: string; name: string; email: string }[]
   createdAt: string
   updatedAt: string
@@ -48,10 +50,11 @@ interface Stats {
   byStatus: Record<string, number>
 }
 
-interface HoD {
+interface Admin {
   id: string
   name: string
   email: string
+  adminType: string | null
   engineerCount: number
 }
 
@@ -67,34 +70,34 @@ export default function EditUserPage({
   const [error, setError] = useState('')
   const [user, setUser] = useState<User | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
-  const [hods, setHods] = useState<HoD[]>([])
+  const [admins, setAdmins] = useState<Admin[]>([])
   const [showDeactivateDialog, setShowDeactivateDialog] = useState(false)
   const [showReactivateDialog, setShowReactivateDialog] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
     role: '',
-    assignedHodId: '',
-    isAdmin: false,
+    assignedAdminId: '',
+    adminType: '' as 'MASTER' | 'WORKER' | '',
   })
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/admin/users/${id}`).then((res) => res.json()),
-      fetch('/api/admin/users/hods').then((res) => res.json()),
+      fetch('/api/admin/users/admins').then((res) => res.json()),
     ])
-      .then(([userData, hodsData]) => {
+      .then(([userData, adminsData]) => {
         if (userData.user) {
           setUser(userData.user)
           setStats(userData.stats)
           setFormData({
             name: userData.user.name,
             role: userData.user.role,
-            assignedHodId: userData.user.assignedHod?.id || '',
-            isAdmin: userData.user.isAdmin || false,
+            assignedAdminId: userData.user.assignedAdmin?.id || '',
+            adminType: userData.user.adminType || '',
           })
         }
-        setHods(hodsData.hods || [])
+        setAdmins(adminsData.admins || [])
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -104,8 +107,13 @@ export default function EditUserPage({
     e.preventDefault()
     setError('')
 
-    if (formData.role === 'ENGINEER' && !formData.assignedHodId) {
-      setError('Please select an HoD for this engineer')
+    if (formData.role === 'ENGINEER' && !formData.assignedAdminId) {
+      setError('Please select an Admin for this engineer')
+      return
+    }
+
+    if (formData.role === 'ADMIN' && !formData.adminType) {
+      setError('Please select admin type (Master or Worker)')
       return
     }
 
@@ -118,8 +126,8 @@ export default function EditUserPage({
         body: JSON.stringify({
           name: formData.name,
           role: formData.role,
-          assignedHodId: formData.role === 'ENGINEER' ? formData.assignedHodId : null,
-          isAdmin: formData.role === 'HOD' ? formData.isAdmin : false,
+          assignedAdminId: formData.role === 'ENGINEER' ? formData.assignedAdminId : null,
+          adminType: formData.role === 'ADMIN' ? formData.adminType : null,
         }),
       })
 
@@ -219,10 +227,10 @@ export default function EditUserPage({
             Back to Users
           </Link>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100%-3rem)]">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Form */}
               <div className="lg:col-span-2">
-                <Card>
+                <Card className="h-full">
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Edit Staff User</CardTitle>
                     {user.isActive ? (
@@ -296,8 +304,8 @@ export default function EditUserPage({
                             setFormData((prev) => ({
                               ...prev,
                               role: value,
-                              assignedHodId: value !== 'ENGINEER' ? '' : prev.assignedHodId,
-                              isAdmin: value === 'HOD' ? prev.isAdmin : false,
+                              assignedAdminId: value !== 'ENGINEER' ? '' : prev.assignedAdminId,
+                              adminType: value === 'ADMIN' ? prev.adminType : '',
                             }))
                           }
                         >
@@ -306,37 +314,36 @@ export default function EditUserPage({
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="ENGINEER">Engineer</SelectItem>
-                            <SelectItem value="HOD">Head of Department (HoD)</SelectItem>
                             <SelectItem value="ADMIN">Administrator</SelectItem>
                           </SelectContent>
                         </Select>
-                        {user.role === 'HOD' && user.engineers.length > 0 && formData.role !== 'HOD' && (
+                        {user.role === 'ADMIN' && user.engineers.length > 0 && formData.role !== 'ADMIN' && (
                           <p className="text-sm text-amber-600">
-                            This HoD has {user.engineers.length} assigned engineers. Reassign them before
+                            This Admin has {user.engineers.length} assigned engineers. Reassign them before
                             changing role.
                           </p>
                         )}
                       </div>
 
-                      {/* HoD Assignment (for Engineers) */}
+                      {/* Admin Assignment (for Engineers) */}
                       {formData.role === 'ENGINEER' && (
                         <div className="space-y-2">
-                          <Label htmlFor="assignedHodId">Assign to HoD</Label>
+                          <Label htmlFor="assignedAdminId">Assign to Admin</Label>
                           <Select
-                            value={formData.assignedHodId}
+                            value={formData.assignedAdminId}
                             onValueChange={(value) =>
-                              setFormData((prev) => ({ ...prev, assignedHodId: value }))
+                              setFormData((prev) => ({ ...prev, assignedAdminId: value }))
                             }
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select HoD..." />
+                              <SelectValue placeholder="Select Admin..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {hods.map((hod) => (
-                                <SelectItem key={hod.id} value={hod.id}>
-                                  {hod.name}{' '}
+                              {admins.map((admin) => (
+                                <SelectItem key={admin.id} value={admin.id}>
+                                  {admin.name}{' '}
                                   <span className="text-slate-500">
-                                    ({hod.engineerCount} engineers)
+                                    ({admin.adminType === 'MASTER' ? 'Master' : 'Worker'} · {admin.engineerCount} engineers)
                                   </span>
                                 </SelectItem>
                               ))}
@@ -345,28 +352,57 @@ export default function EditUserPage({
                         </div>
                       )}
 
-                      {/* Admin Access (for HoD) */}
-                      {formData.role === 'HOD' && (
+                      {/* Admin Type (for Admin role) */}
+                      {formData.role === 'ADMIN' && (
                         <div className="space-y-2">
-                          <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <input
-                              type="checkbox"
-                              id="isAdmin"
-                              checked={formData.isAdmin}
-                              onChange={(e) =>
-                                setFormData((prev) => ({ ...prev, isAdmin: e.target.checked }))
-                              }
-                              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <div>
-                              <Label htmlFor="isAdmin" className="font-medium text-blue-900">
-                                Grant Admin Access
-                              </Label>
-                              <p className="text-sm text-blue-700 mt-1">
-                                Allows this HoD to access admin features like user management,
-                                customer accounts, and system settings.
-                              </p>
-                            </div>
+                          <Label>Admin Type</Label>
+                          <div className="flex gap-4">
+                            <label className={cn(
+                              "flex-1 flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all",
+                              formData.adminType === 'MASTER'
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-slate-200 hover:border-slate-300"
+                            )}>
+                              <input
+                                type="radio"
+                                name="adminType"
+                                value="MASTER"
+                                checked={formData.adminType === 'MASTER'}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({ ...prev, adminType: e.target.value as 'MASTER' | 'WORKER' }))
+                                }
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div>
+                                <span className="font-medium text-slate-900">Master Admin</span>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  Internal + Customer requests
+                                </p>
+                              </div>
+                            </label>
+                            <label className={cn(
+                              "flex-1 flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all",
+                              formData.adminType === 'WORKER'
+                                ? "border-blue-500 bg-blue-50"
+                                : "border-slate-200 hover:border-slate-300"
+                            )}>
+                              <input
+                                type="radio"
+                                name="adminType"
+                                value="WORKER"
+                                checked={formData.adminType === 'WORKER'}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({ ...prev, adminType: e.target.value as 'MASTER' | 'WORKER' }))
+                                }
+                                className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div>
+                                <span className="font-medium text-slate-900">Worker Admin</span>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                  Internal requests only
+                                </p>
+                              </div>
+                            </label>
                           </div>
                         </div>
                       )}
@@ -395,8 +431,8 @@ export default function EditUserPage({
                 </Card>
               </div>
 
-              {/* Sidebar Info */}
-              <div className="space-y-6">
+              {/* Sidebar Info - matches form height */}
+              <div className="flex flex-col gap-4">
                 {/* User Info Card */}
                 <Card>
                   <CardHeader>
@@ -426,32 +462,36 @@ export default function EditUserPage({
                   </CardContent>
                 </Card>
 
-                {/* Stats Card */}
-                {stats && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-slate-400" />
-                        Certificates
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Total Created</span>
-                        <span className="font-medium">{stats.total}</span>
-                      </div>
-                      {Object.entries(stats.byStatus).map(([status, count]) => (
-                        <div key={status} className="flex justify-between text-xs">
-                          <span className="text-slate-400">{status}</span>
-                          <span>{count}</span>
+                {/* Stats Card - fills remaining space */}
+                <Card className="flex-1">
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-slate-400" />
+                      Certificates
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {stats ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-slate-500">Total Created</span>
+                          <span className="font-medium">{stats.total}</span>
                         </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                )}
+                        {Object.entries(stats.byStatus).map(([status, count]) => (
+                          <div key={status} className="flex justify-between text-xs">
+                            <span className="text-slate-400">{status}</span>
+                            <span>{count}</span>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <p className="text-slate-400 text-sm">No certificates yet</p>
+                    )}
+                  </CardContent>
+                </Card>
 
-                {/* Managed Engineers (for HoDs) */}
-                {user.role === 'HOD' && user.engineers.length > 0 && (
+                {/* Managed Engineers (for Admins) */}
+                {user.role === 'ADMIN' && user.engineers.length > 0 && (
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base flex items-center gap-2">
@@ -470,6 +510,11 @@ export default function EditUserPage({
                   </Card>
                 )}
               </div>
+            </div>
+
+            {/* Performance Metrics - Full Width */}
+            <div className="mt-6">
+              <UserTATMetrics userId={id} userRole={user.role} adminType={user.adminType} periodDays={30} />
             </div>
         </div>
       </div>

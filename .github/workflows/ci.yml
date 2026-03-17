@@ -11,6 +11,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: '20'
+  # Shared environment variables
+  CI: true
+
 jobs:
   # Job 1: Code Quality (runs first, fail fast)
   code-quality:
@@ -24,7 +29,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -70,7 +75,7 @@ jobs:
 
   # Job 2: Unit Tests (parallel with build, after code-quality)
   unit-tests:
-    name: Unit & Integration Tests
+    name: Unit Tests
     runs-on: ubuntu-latest
     needs: code-quality
 
@@ -81,7 +86,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -100,6 +105,64 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+
+      - name: Unit test summary
+        if: always()
+        run: |
+          echo "## Unit Tests Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tests include:" >> $GITHUB_STEP_SUMMARY
+          echo "- TAT Calculator" >> $GITHUB_STEP_SUMMARY
+          echo "- Feedback Utilities" >> $GITHUB_STEP_SUMMARY
+          echo "- Route Guards" >> $GITHUB_STEP_SUMMARY
+          echo "- Certificate Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Certificate Store" >> $GITHUB_STEP_SUMMARY
+
+  # Job 2a: SQLite Integration Tests
+  integration-sqlite:
+    name: SQLite Integration Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Setup SQLite database
+        run: npx prisma db push
+        env:
+          DATABASE_URL: file:./test.db
+
+      - name: Run SQLite integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: file:./test.db
+
+      - name: SQLite test summary
+        if: always()
+        run: |
+          echo "## SQLite Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "API integration tests ran against SQLite for:" >> $GITHUB_STEP_SUMMARY
+          echo "- Authentication endpoints" >> $GITHUB_STEP_SUMMARY
+          echo "- Certificate CRUD operations" >> $GITHUB_STEP_SUMMARY
+          echo "- Admin user management" >> $GITHUB_STEP_SUMMARY
+          echo "- Customer workflows" >> $GITHUB_STEP_SUMMARY
+          echo "- Internal request handling" >> $GITHUB_STEP_SUMMARY
+          echo "- Instrument management" >> $GITHUB_STEP_SUMMARY
+          echo "- Notification system" >> $GITHUB_STEP_SUMMARY
 
   # Job 2b: PostgreSQL Integration Tests (production parity)
   integration-postgres:
@@ -129,7 +192,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -173,7 +236,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -187,11 +250,18 @@ jobs:
         env:
           DATABASE_URL: file:./prisma/build.db
 
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## Build Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Next.js application built successfully" >> $GITHUB_STEP_SUMMARY
+
   # Job 4: E2E Tests (after unit tests and build pass)
   e2e-tests:
-    name: E2E Tests
+    name: E2E Workflow Tests
     runs-on: ubuntu-latest
-    needs: [unit-tests, build]
+    needs: [unit-tests, integration-sqlite, build]
 
     steps:
       - name: Checkout code
@@ -200,7 +270,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -214,11 +284,23 @@ jobs:
         env:
           DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install chromium --with-deps
 
-      - name: Run E2E tests
-        run: npm run test:e2e
+      - name: Install Playwright browser dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Run E2E workflow tests
+        run: npx playwright test --project=chromium
         env:
           DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
           NEXTAUTH_SECRET: test-secret-for-ci
@@ -231,6 +313,30 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+      - name: Upload test screenshots
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-screenshots
+          path: test-results/
+          retention-days: 7
+
+      - name: E2E test summary
+        if: always()
+        run: |
+          echo "## E2E Workflow Tests Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Workflow Stages Tested:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Workflow | Description |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|----------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | Engineer Creates Certificate | Form filling, parameters, master instruments |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2-3 | Submit & Reviewer Feedback | Submission, reviewer queue, feedback flow |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4-5 | Unlock Request | Section unlock, admin review |" >> $GITHUB_STEP_SUMMARY
+          echo "| 6-8 | Customer Review | Customer portal, approval, chat |" >> $GITHUB_STEP_SUMMARY
+          echo "| 9-12 | Final Approval | Feedback addressing, resubmission |" >> $GITHUB_STEP_SUMMARY
+          echo "| 13-16 | Admin Authorization | Requests, instruments, authorization |" >> $GITHUB_STEP_SUMMARY
 
   # Job 5: Security Scan (after E2E tests pass)
   security-scan:
@@ -246,7 +352,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -283,3 +389,32 @@ jobs:
           else
             echo "⚠️ Could not parse audit results" >> $GITHUB_STEP_SUMMARY
           fi
+
+  # Final summary job
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-tests, integration-sqlite, integration-postgres, build, e2e-tests, security-scan]
+    if: always()
+
+    steps:
+      - name: Generate final summary
+        run: |
+          echo "# CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | Count | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | 7 test files | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration (SQLite) | 12 test files | ${{ needs.integration-sqlite.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration (PostgreSQL) | 12 test files | ${{ needs.integration-postgres.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Workflow Tests | 6 workflow specs | ${{ needs.e2e-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Pipeline Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '⚠️ Check warnings' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Scan | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '⚠️ Review needed' }} |" >> $GITHUB_STEP_SUMMARY

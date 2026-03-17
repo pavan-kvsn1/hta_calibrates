@@ -12,6 +12,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   PENDING_CUSTOMER_APPROVAL: { label: 'Pending Your Approval', className: 'bg-purple-50 text-purple-600 border-purple-100' },
   CUSTOMER_REVISION_REQUIRED: { label: 'Revision in Progress', className: 'bg-orange-50 text-orange-600 border-orange-100' },
   REVISION_REQUIRED: { label: 'Under Revision', className: 'bg-amber-50 text-amber-600 border-amber-100' },
+  PENDING_ADMIN_AUTHORIZATION: { label: 'Pending Authorization', className: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
   APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-600 border-green-100' },
   AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-600 border-green-100' },
 }

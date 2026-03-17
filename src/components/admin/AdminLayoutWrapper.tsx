@@ -46,7 +46,7 @@ export function AdminLayoutWrapper({ children, showEngineerSwitch = false }: Adm
   return (
     <div
       className={cn(
-        'min-h-screen flex flex-col transition-all duration-200',
+        'h-screen flex flex-col transition-all duration-200 overflow-hidden',
         isCollapsed ? 'ml-16' : 'ml-56'
       )}
     >
@@ -54,7 +54,7 @@ export function AdminLayoutWrapper({ children, showEngineerSwitch = false }: Adm
       <AdminHeader showEngineerSwitch={showEngineerSwitch} />
 
       {/* Main Content */}
-      <main className="flex-1">
+      <main className="flex-1 overflow-hidden">
         {children}
       </main>
     </div>

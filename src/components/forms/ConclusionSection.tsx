@@ -51,9 +51,10 @@ const CONCLUSION_LABELS: Record<string, string> = {
 
 interface ConclusionSectionProps {
   feedbackSlot?: React.ReactNode
+  disabled?: boolean
 }
 
-export function ConclusionSection({ feedbackSlot }: ConclusionSectionProps = {}) {
+export function ConclusionSection({ feedbackSlot, disabled }: ConclusionSectionProps = {}) {
   const { formData, setFormField } = useCertificateStore()
   const [showAdditionalInput, setShowAdditionalInput] = useState(false)
 
@@ -98,6 +99,7 @@ export function ConclusionSection({ feedbackSlot }: ConclusionSectionProps = {})
       sectionNumber="Section 07"
       title="Conclusion Statements"
       feedbackSlot={feedbackSlot}
+      disabled={disabled}
     >
       <div className="space-y-6">
         {/* Dropdown to add statements */}

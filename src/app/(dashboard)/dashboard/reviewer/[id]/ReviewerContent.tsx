@@ -3,19 +3,17 @@
 import { useState } from 'react'
 import {
   ChevronDown,
-  ChevronUp,
   ChevronRight,
   AlertCircle,
   CheckCircle,
   CheckCircle2,
-  User,
-  Clock,
-  MapPin,
   MessageSquare,
-  RotateCcw,
-  Send,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CollapsibleSection } from '@/components/certificate/CollapsibleSection'
+import { InfoField } from '@/components/certificate/InfoField'
+import { MasterInstrumentsTable } from '@/components/certificate/MasterInstrumentsTable'
+import { CalibrationResultsTable } from '@/components/certificate/CalibrationResultsTable'
 import { getConclusionText } from '@/components/pdf/pdf-utils'
 import { CALIBRATION_STATUS_OPTIONS } from '@/components/forms/RemarksSection'
 import {
@@ -85,6 +83,7 @@ interface CustomerFeedback {
   customerName: string
   customerEmail: string
   requestedAt: string
+  revision?: number
 }
 
 // Section mapping for display
@@ -408,44 +407,7 @@ export function ReviewerContent({
           />
         }
       >
-        {certificate.masterInstruments.length === 0 ? (
-          <p className="text-gray-500 text-sm">No master instruments listed.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                    Description
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                    Make
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                    Model
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                    Serial No.
-                  </th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                    Cal. Due Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {certificate.masterInstruments.map((mi) => (
-                  <tr key={mi.id}>
-                    <td className="px-4 py-2 text-gray-900 text-xs">{mi.description}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.make || '-'}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.model || '-'}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.serialNumber || '-'}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.calibrationDueDate || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <MasterInstrumentsTable instruments={certificate.masterInstruments} />
       </CollapsibleSection>
 
       {/* Section 4: Environmental Conditions */}
@@ -497,81 +459,7 @@ export function ReviewerContent({
           />
         }
       >
-        {certificate.parameters.length === 0 ? (
-          <p className="text-gray-500 text-sm">No results recorded.</p>
-        ) : (
-          <div className="space-y-6">
-            {certificate.parameters.map((param) => (
-              <div key={param.id} className="border rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-4 py-2 border-b">
-                  <span className="font-medium text-gray-900 text-sm">
-                    {param.parameterName}
-                    {param.parameterUnit && (
-                      <span className="text-gray-500 font-normal ml-1 text-sm">({param.parameterUnit})</span>
-                    )}
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
-                          Point
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
-                          Standard Reading
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
-                          UUC Reading
-                        </th>
-                        {param.showAfterAdjustment && (
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
-                            After Adjustment
-                          </th>
-                        )}
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">
-                          Error
-                        </th>
-                        <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500">
-                          Status
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {param.results.map((result) => (
-                        <tr
-                          key={result.id}
-                          className={cn(result.isOutOfLimit && 'bg-red-50')}
-                        >
-                          <td className="px-4 py-2 text-gray-900 text-xs">{result.pointNumber}</td>
-                          <td className="px-4 py-2 text-gray-700 text-xs">{result.standardReading || '-'}</td>
-                          <td className="px-4 py-2 text-gray-700 text-xs">{result.beforeAdjustment || '-'}</td>
-                          {param.showAfterAdjustment && (
-                            <td className="px-4 py-2 text-gray-700 text-xs">{result.afterAdjustment || '-'}</td>
-                          )}
-                          <td className="px-4 py-2 text-gray-700 text-xs">{result.errorObserved ?? '-'}</td>
-                          <td className="px-4 py-2 text-center">
-                            {result.isOutOfLimit ? (
-                              <span className="inline-flex items-center gap-1 text-red-600">
-                                <AlertCircle className="h-3 w-3" />
-                                <span className="text-xs">Out of Limit</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-green-600">
-                                <CheckCircle className="h-3 w-3" />
-                                <span className="text-xs">OK</span>
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <CalibrationResultsTable parameters={certificate.parameters} />
       </CollapsibleSection>
 
       {/* Section 6: Remarks */}
@@ -664,76 +552,16 @@ export function ReviewerContent({
       </CollapsibleSection>
 
       {/* Feedback History - Grouped by Revision */}
-      {feedbacks.length > 0 && (
+      {(feedbacks.length > 0 || customerFeedback) && (
         <FeedbackTimeline
           feedbacks={feedbacks}
           currentRevision={certificate.currentRevision}
           title="Feedback History"
           groupBySection={true}
           showRevisionTransition={true}
+          customerFeedback={customerFeedback}
         />
       )}
-    </div>
-  )
-}
-
-// Helper Components
-function CollapsibleSection({
-  title,
-  isExpanded,
-  onToggle,
-  children,
-  badge,
-  feedbackSlot,
-}: {
-  title: string
-  isExpanded: boolean
-  onToggle: () => void
-  children: React.ReactNode
-  badge?: React.ReactNode
-  feedbackSlot?: React.ReactNode
-}) {
-  return (
-    <div className="bg-white rounded-lg border overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-700 text-sm">
-            {title}
-          </span>
-          {badge}
-        </div>
-        {isExpanded ? (
-          <ChevronUp className="h-5 w-5 text-gray-400" />
-        ) : (
-          <ChevronDown className="h-5 w-5 text-gray-400" />
-        )}
-      </button>
-      {isExpanded && (
-        <div className="p-4">
-          {feedbackSlot}
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function InfoField({
-  label,
-  value,
-}: {
-  label: string
-  value: string | null | undefined
-}) {
-  return (
-    <div>
-      <dt className="text-xs font-semibold text-gray-500  tracking-wider">
-        {label}
-      </dt>
-      <dd className="mt-1 text-xs text-gray-900">{value || '-'}</dd>
     </div>
   )
 }
@@ -768,17 +596,22 @@ function SectionFeedbackChain({
     (sf) => sf.section === sectionId
   )
 
-  // Get reviewer feedback for this section
+  // Get reviewer feedback for this section - filter by current revision
   const reviewerRequests = feedbacks.filter(
-    (f) => f.targetSection === sectionId && f.comment && isRevisionRequest(f.feedbackType)
+    (f) => f.targetSection === sectionId &&
+           f.comment &&
+           isRevisionRequest(f.feedbackType) &&
+           f.revisionNumber === currentRevision
   )
   const latestReviewerRequest = reviewerRequests
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
 
-  // Get engineer response for this section
+  // Get engineer response for this section - filter by current revision
   const engineerResponse = latestReviewerRequest
     ? feedbacks
-        .filter(f => isAssigneeResponse(f.feedbackType) && f.targetSection === sectionId)
+        .filter(f => isAssigneeResponse(f.feedbackType) &&
+                     f.targetSection === sectionId &&
+                     f.revisionNumber === currentRevision)
         .filter(f => new Date(f.createdAt).getTime() > new Date(latestReviewerRequest.createdAt).getTime())
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0]
     : undefined
@@ -788,30 +621,30 @@ function SectionFeedbackChain({
     certificateStatus === 'CUSTOMER_REVISION_REQUIRED' ||
     certificateStatus === 'REVISION_REQUIRED' ||
     certificateStatus === 'PENDING_REVIEW' ||
-    certificateStatus === 'PENDING_HOD_REVIEW'
+    certificateStatus === 'PENDING_REVIEW'
   )
 
   const showReviewer = latestReviewerRequest && (
     certificateStatus === 'REVISION_REQUIRED' ||
     certificateStatus === 'PENDING_REVIEW' ||
-    certificateStatus === 'PENDING_HOD_REVIEW'
+    certificateStatus === 'PENDING_REVIEW'
   )
 
   const showEngineer = engineerResponse && (
     certificateStatus === 'PENDING_REVIEW' ||
-    certificateStatus === 'PENDING_HOD_REVIEW'
+    certificateStatus === 'PENDING_REVIEW'
   )
 
   // If there's no feedback in the chain, check for non-customer-initiated reviewer feedback
   const showReviewerOnly = !customerSectionFeedback && latestReviewerRequest && (
     certificateStatus === 'REVISION_REQUIRED' ||
     certificateStatus === 'PENDING_REVIEW' ||
-    certificateStatus === 'PENDING_HOD_REVIEW'
+    certificateStatus === 'PENDING_REVIEW'
   )
 
   const showEngineerOnly = !customerSectionFeedback && engineerResponse && (
     certificateStatus === 'PENDING_REVIEW' ||
-    certificateStatus === 'PENDING_HOD_REVIEW'
+    certificateStatus === 'PENDING_REVIEW'
   )
 
   // Nothing to show

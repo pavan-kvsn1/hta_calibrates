@@ -5,9 +5,9 @@ export const TEST_USERS = {
     password: 'engineer123',
     name: 'Thiyagarajan',
   },
-  hod: {
+  reviewer: {
     email: 'kiran@htaipl.com',
-    password: 'hod123',
+    password: 'admin123',
     name: 'Kiran Kumar',
   },
   admin: {
@@ -23,6 +23,9 @@ export const TEST_USERS = {
   },
 }
 
+// Backwards compatibility alias
+export const { reviewer: hod } = TEST_USERS
+
 // Test certificate data
 export const TEST_CERTIFICATE = {
   customerName: 'Test Company Pvt Ltd',
@@ -36,10 +39,13 @@ export const TEST_CERTIFICATE = {
 // Status labels matching the application's StatusBadge component
 export const STATUS_LABELS = {
   DRAFT: 'Draft',
-  PENDING_HOD_REVIEW: 'Pending HoD Review',
+  PENDING_REVIEW: 'Pending Review',
+  PENDING_HOD_REVIEW: 'Pending Review', // Backwards compatibility
   REVISION_REQUIRED: 'Revision Required',
-  PENDING_CUSTOMER_APPROVAL: 'Pending Customer Approval',
+  PENDING_CUSTOMER_APPROVAL: 'Pending Customer',
   CUSTOMER_REVISION_REQUIRED: 'Customer Revision Required',
   APPROVED: 'Approved',
+  PENDING_ADMIN_AUTHORIZATION: 'Pending Authorization',
+  AUTHORIZED: 'Authorized',
   REJECTED: 'Rejected',
 }

@@ -10,18 +10,20 @@ interface RouteParams {
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Draft', className: 'bg-amber-50 text-amber-600 border-amber-100' },
   PENDING_REVIEW: { label: 'Pending Review', className: 'bg-blue-50 text-blue-600 border-blue-100' },
-  PENDING_HOD_REVIEW: { label: 'Pending Review', className: 'bg-blue-50 text-blue-600 border-blue-100' },
   REVISION_REQUIRED: { label: 'Revision Required', className: 'bg-orange-50 text-orange-600 border-orange-100' },
   PENDING_CUSTOMER_APPROVAL: { label: 'Pending Customer', className: 'bg-purple-50 text-purple-600 border-purple-100' },
   CUSTOMER_REVISION_REQUIRED: { label: 'Customer Revision', className: 'bg-pink-50 text-pink-600 border-pink-100' },
+  PENDING_ADMIN_AUTHORIZATION: { label: 'Pending Authorization', className: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
   APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-600 border-green-100' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-600 border-green-100' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-600 border-red-100' },
 }
 
 // Calculate TAT (Turn Around Time)
-function calculateTAT(createdAt: Date): { hours: number; status: 'ok' | 'warning' | 'overdue' } {
-  const now = new Date()
-  const diffMs = now.getTime() - createdAt.getTime()
+// If endDate is provided (for authorized certificates), calculate TAT up to that point
+function calculateTAT(createdAt: Date, endDate?: Date | null): { hours: number; status: 'ok' | 'warning' | 'overdue' } {
+  const end = endDate || new Date()
+  const diffMs = end.getTime() - createdAt.getTime()
   const hours = Math.floor(diffMs / (1000 * 60 * 60))
 
   if (hours > 48) {
@@ -101,8 +103,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
     }
 
-    // Calculate TAT
-    const tat = calculateTAT(certificate.createdAt)
+    // Calculate TAT: from first submission to admin authorization
+    // Start: first SUBMITTED_FOR_REVIEW event
+    // End: ADMIN_SIGNED event (if authorized) or now
+    const submissionEvents = certificate.events.filter(e => e.eventType === 'SUBMITTED_FOR_REVIEW')
+    const firstSubmission = submissionEvents.length > 0
+      ? submissionEvents.reduce((earliest, e) => e.createdAt < earliest.createdAt ? e : earliest)
+      : null
+    const authorizedEvent = certificate.status === 'AUTHORIZED'
+      ? certificate.events.find(e => e.eventType === 'ADMIN_AUTHORIZED')
+      : null
+    const tat = firstSubmission
+      ? calculateTAT(firstSubmission.createdAt, authorizedEvent?.createdAt)
+      : { hours: 0, status: 'ok' as const }
 
     // Parse JSON fields
     const conclusionStatements = certificate.selectedConclusionStatements
@@ -123,7 +136,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Get list of reviewers for reassignment dropdown
     const reviewers = await prisma.user.findMany({
       where: {
-        role: 'HOD',
+        role: 'ADMIN',
         id: { not: certificate.createdById },
       },
       select: {

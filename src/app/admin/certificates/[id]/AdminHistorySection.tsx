@@ -112,8 +112,8 @@ const EVENT_CONFIG: Record<string, {
     iconClass: 'text-green-600',
     borderClass: 'border-green-200',
   },
-  HOD_APPROVED: {
-    label: 'HoD Approved',
+  REVIEWER_APPROVED: {
+    label: 'Reviewer Approved',
     icon: CheckCircle2,
     bgClass: 'bg-green-100',
     iconClass: 'text-green-600',
@@ -160,6 +160,27 @@ const EVENT_CONFIG: Record<string, {
     bgClass: 'bg-green-100',
     iconClass: 'text-green-600',
     borderClass: 'border-green-200',
+  },
+  SECTION_UNLOCK_REQUESTED: {
+    label: 'Section Unlock Requested',
+    icon: RotateCcw,
+    bgClass: 'bg-indigo-100',
+    iconClass: 'text-indigo-600',
+    borderClass: 'border-indigo-200',
+  },
+  SECTION_UNLOCK_APPROVED: {
+    label: 'Section Unlock Approved',
+    icon: CheckCircle2,
+    bgClass: 'bg-green-100',
+    iconClass: 'text-green-600',
+    borderClass: 'border-green-200',
+  },
+  SECTION_UNLOCK_REJECTED: {
+    label: 'Section Unlock Rejected',
+    icon: XCircle,
+    bgClass: 'bg-red-100',
+    iconClass: 'text-red-600',
+    borderClass: 'border-red-200',
   },
 }
 
@@ -238,13 +259,16 @@ const INCLUDED_EVENTS = [
   'REVISION_SUBMITTED',
   'APPROVED',
   'REVIEWER_APPROVED_SENT_TO_CUSTOMER',
-  'HOD_APPROVED',
+  'REVIEWER_APPROVED',
   'REJECTED',
   'SENT_TO_CUSTOMER',
   'CUSTOMER_APPROVED',
   'CUSTOMER_REVISION_REQUESTED',
   'ADMIN_EDIT',
   'ADMIN_AUTHORIZED',
+  'SECTION_UNLOCK_REQUESTED',
+  'SECTION_UNLOCK_APPROVED',
+  'SECTION_UNLOCK_REJECTED',
 ]
 
 export function AdminHistorySection({
@@ -453,7 +477,7 @@ export function AdminHistorySection({
                       {/* Approval signature metadata */}
                       {(item.data.eventType === 'APPROVED' ||
                         item.data.eventType === 'REVIEWER_APPROVED_SENT_TO_CUSTOMER' ||
-                        item.data.eventType === 'HOD_APPROVED') &&
+                        item.data.eventType === 'REVIEWER_APPROVED') &&
                         item.data.metadata?.signerName ? (
                         <div className="mt-2 p-2.5 bg-green-50/80 rounded border border-green-100">
                           <div className="flex items-center gap-2">
@@ -492,6 +516,47 @@ export function AdminHistorySection({
                           {typeof item.data.metadata.reason === 'string' && item.data.metadata.reason && (
                             <p className="text-xs text-slate-600 mt-1">
                               <span className="font-medium">Reason:</span> {item.data.metadata.reason}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Section unlock metadata */}
+                      {(item.data.eventType === 'SECTION_UNLOCK_REQUESTED' ||
+                        item.data.eventType === 'SECTION_UNLOCK_APPROVED' ||
+                        item.data.eventType === 'SECTION_UNLOCK_REJECTED') &&
+                        item.data.metadata && (
+                        <div className={cn(
+                          'mt-2 p-2.5 rounded border',
+                          item.data.eventType === 'SECTION_UNLOCK_REQUESTED' && 'bg-indigo-50/80 border-indigo-100',
+                          item.data.eventType === 'SECTION_UNLOCK_APPROVED' && 'bg-green-50/80 border-green-100',
+                          item.data.eventType === 'SECTION_UNLOCK_REJECTED' && 'bg-red-50/80 border-red-100'
+                        )}>
+                          {Array.isArray(item.data.metadata.sections) && item.data.metadata.sections.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {(item.data.metadata.sections as string[]).map((sectionId: string) => (
+                                <span
+                                  key={sectionId}
+                                  className={cn(
+                                    'px-2 py-0.5 rounded text-[10px] font-medium',
+                                    item.data.eventType === 'SECTION_UNLOCK_REQUESTED' && 'bg-indigo-100 text-indigo-700',
+                                    item.data.eventType === 'SECTION_UNLOCK_APPROVED' && 'bg-green-100 text-green-700',
+                                    item.data.eventType === 'SECTION_UNLOCK_REJECTED' && 'bg-red-100 text-red-700'
+                                  )}
+                                >
+                                  {SECTION_LABELS[sectionId] || sectionId}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {typeof item.data.metadata.reason === 'string' && item.data.metadata.reason && (
+                            <p className="text-xs text-slate-600">
+                              <span className="font-medium">Reason:</span> {item.data.metadata.reason}
+                            </p>
+                          )}
+                          {typeof item.data.metadata.adminNote === 'string' && item.data.metadata.adminNote && (
+                            <p className="text-xs text-slate-600 mt-1">
+                              <span className="font-medium">Admin Note:</span> {item.data.metadata.adminNote}
                             </p>
                           )}
                         </div>

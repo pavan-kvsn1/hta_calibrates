@@ -61,14 +61,14 @@ export default function DashboardLayout({
       />
 
       {/* Main Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 h-full flex flex-col min-w-0">
         {/* Header */}
         <DashboardHeader
           onMobileMenuToggle={handleMobileMenuToggle}
         />
 
         {/* Main Content */}
-        <main className="flex-1 min-h-0 overflow-hidden">
+        <main className="flex-1 h-full min-h-0 overflow-hidden">
           {children}
         </main>
       </div>

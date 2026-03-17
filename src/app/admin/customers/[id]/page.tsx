@@ -53,7 +53,7 @@ interface CustomerAccount {
   contactEmail: string | null
   contactPhone: string | null
   isActive: boolean
-  assignedHod: { id: string; name: string; email: string } | null
+  assignedAdmin: { id: string; name: string; email: string } | null
   primaryPocId: string | null
   primaryPoc: {
     id: string
@@ -93,10 +93,11 @@ interface Certificate {
   createdAt: string
 }
 
-interface HoD {
+interface Admin {
   id: string
   name: string
   email: string
+  adminType: string | null
 }
 
 type TabType = 'info' | 'users' | 'requests' | 'certificates'
@@ -117,7 +118,7 @@ export default function CustomerDetailPage({
   const [pendingRequests, setPendingRequests] = useState<CustomerRequest[]>([])
   const [recentCertificates, setRecentCertificates] = useState<Certificate[]>([])
   const [certificateCount, setCertificateCount] = useState(0)
-  const [hods, setHods] = useState<HoD[]>([])
+  const [admins, setAdmins] = useState<Admin[]>([])
   const [isEditing, setIsEditing] = useState(false)
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [addingUser, setAddingUser] = useState(false)
@@ -128,14 +129,14 @@ export default function CustomerDetailPage({
     address: '',
     contactEmail: '',
     contactPhone: '',
-    assignedHodId: '',
+    assignedAdminId: '',
   })
 
   const fetchData = async () => {
     try {
-      const [accountRes, hodsRes] = await Promise.all([
+      const [accountRes, adminsRes] = await Promise.all([
         fetch(`/api/admin/customers/${id}`),
-        fetch('/api/admin/users/hods'),
+        fetch('/api/admin/users/admins'),
       ])
 
       if (accountRes.ok) {
@@ -150,13 +151,13 @@ export default function CustomerDetailPage({
           address: data.account.address || '',
           contactEmail: data.account.contactEmail || '',
           contactPhone: data.account.contactPhone || '',
-          assignedHodId: data.account.assignedHod?.id || '',
+          assignedAdminId: data.account.assignedAdmin?.id || '',
         })
       }
 
-      if (hodsRes.ok) {
-        const hodsData = await hodsRes.json()
-        setHods(hodsData.hods || [])
+      if (adminsRes.ok) {
+        const adminsData = await adminsRes.json()
+        setAdmins(adminsData.admins || [])
       }
     } catch (error) {
       console.error('Failed to fetch data:', error)
@@ -182,7 +183,7 @@ export default function CustomerDetailPage({
           address: formData.address || null,
           contactEmail: formData.contactEmail || null,
           contactPhone: formData.contactPhone || null,
-          assignedHodId: formData.assignedHodId || null,
+          assignedAdminId: formData.assignedAdminId || null,
         }),
       })
 
@@ -378,21 +379,21 @@ export default function CustomerDetailPage({
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label>Assigned HoD</Label>
+                        <Label>Assigned Admin</Label>
                         <Select
-                          value={formData.assignedHodId || 'none'}
+                          value={formData.assignedAdminId || 'none'}
                           onValueChange={(value) =>
-                            setFormData((prev) => ({ ...prev, assignedHodId: value === 'none' ? '' : value }))
+                            setFormData((prev) => ({ ...prev, assignedAdminId: value === 'none' ? '' : value }))
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select HoD..." />
+                            <SelectValue placeholder="Select Admin..." />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">No HoD assigned</SelectItem>
-                            {hods.map((hod) => (
-                              <SelectItem key={hod.id} value={hod.id}>
-                                {hod.name}
+                            <SelectItem value="none">No Admin assigned</SelectItem>
+                            {admins.map((admin) => (
+                              <SelectItem key={admin.id} value={admin.id}>
+                                {admin.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -457,8 +458,8 @@ export default function CustomerDetailPage({
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <dt className="text-sm font-semibold text-slate-700">Assigned HoD</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.assignedHod?.name || 'Not assigned'}</dd>
+                          <dt className="text-sm font-semibold text-slate-700">Assigned Admin</dt>
+                          <dd className="text-xs text-slate-600 mt-0.5">{account.assignedAdmin?.name || 'Not assigned'}</dd>
                         </div>
                         <div>
                           <dt className="text-sm font-semibold text-slate-700">Created</dt>

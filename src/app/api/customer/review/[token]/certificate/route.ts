@@ -174,8 +174,8 @@ async function getFullCertificateData(certificateId: string) {
     // Fallback: match by event type
     if (!evidence) {
       const eventTypeMap: Record<string, string> = {
-        'ENGINEER': 'ENGINEER_SIGNED',
-        'HOD': 'HOD_SIGNED',
+        'ASSIGNEE': 'ASSIGNEE_SIGNED',
+        'REVIEWER': 'REVIEWER_SIGNED',
         'ADMIN': 'ADMIN_SIGNED',
         'CUSTOMER': 'CUSTOMER_SIGNED',
       }
@@ -202,8 +202,8 @@ async function getFullCertificateData(certificateId: string) {
   // Helper to check if signature has evidence for current revision
   const hasEvidenceForCurrentRevision = (signatureId: string, signerType: string): boolean => {
     const eventTypeMap: Record<string, string> = {
-      'ENGINEER': 'ENGINEER_SIGNED',
-      'HOD': 'HOD_SIGNED',
+      'ASSIGNEE': 'ASSIGNEE_SIGNED',
+      'REVIEWER': 'REVIEWER_SIGNED',
       'ADMIN': 'ADMIN_SIGNED',
       'CUSTOMER': 'CUSTOMER_SIGNED',
     }
@@ -212,32 +212,32 @@ async function getFullCertificateData(certificateId: string) {
     )
   }
 
-  const engineerSig = dbSignatures.find(s => s.signerType === 'ENGINEER')
-  const hodSig = dbSignatures.find(s => s.signerType === 'HOD')
+  const assigneeSig = dbSignatures.find(s => s.signerType === 'ASSIGNEE')
+  const reviewerSig = dbSignatures.find(s => s.signerType === 'REVIEWER')
   const adminSig = dbSignatures.find(s => s.signerType === 'ADMIN')
   const customerSig = dbSignatures.find(s => s.signerType === 'CUSTOMER')
 
   // Only include signatures that have evidence for the current revision
-  const validEngineerSig = engineerSig && hasEvidenceForCurrentRevision(engineerSig.id, 'ENGINEER') ? engineerSig : null
-  const validHodSig = hodSig && hasEvidenceForCurrentRevision(hodSig.id, 'HOD') ? hodSig : null
+  const validAssigneeSig = assigneeSig && hasEvidenceForCurrentRevision(assigneeSig.id, 'ASSIGNEE') ? assigneeSig : null
+  const validReviewerSig = reviewerSig && hasEvidenceForCurrentRevision(reviewerSig.id, 'REVIEWER') ? reviewerSig : null
   const validAdminSig = adminSig && hasEvidenceForCurrentRevision(adminSig.id, 'ADMIN') ? adminSig : null
   const validCustomerSig = customerSig && hasEvidenceForCurrentRevision(customerSig.id, 'CUSTOMER') ? customerSig : null
 
-  const signatures = (validEngineerSig || validHodSig || validAdminSig || validCustomerSig) ? {
-    ...(validEngineerSig ? {
+  const signatures = (validAssigneeSig || validReviewerSig || validAdminSig || validCustomerSig) ? {
+    ...(validAssigneeSig ? {
       engineer: {
-        name: validEngineerSig.signerName.toUpperCase(),
-        image: validEngineerSig.signatureData,
-        signatureId: validEngineerSig.id,
-        metadata: getMetadataForSignature(validEngineerSig.id, 'ENGINEER'),
+        name: validAssigneeSig.signerName.toUpperCase(),
+        image: validAssigneeSig.signatureData,
+        signatureId: validAssigneeSig.id,
+        metadata: getMetadataForSignature(validAssigneeSig.id, 'ASSIGNEE'),
       }
     } : {}),
-    ...(validHodSig ? {
+    ...(validReviewerSig ? {
       hod: {
-        name: validHodSig.signerName.toUpperCase(),
-        image: validHodSig.signatureData,
-        signatureId: validHodSig.id,
-        metadata: getMetadataForSignature(validHodSig.id, 'HOD'),
+        name: validReviewerSig.signerName.toUpperCase(),
+        image: validReviewerSig.signatureData,
+        signatureId: validReviewerSig.id,
+        metadata: getMetadataForSignature(validReviewerSig.id, 'REVIEWER'),
       }
     } : {}),
     ...(validAdminSig ? {

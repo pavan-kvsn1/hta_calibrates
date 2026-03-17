@@ -25,8 +25,8 @@ export interface CustomerCertificateItem {
   tokenId: string | null
   hasToken: boolean
   // For awaiting response
-  hodResponse: string | null
-  hodName: string | null
+  adminResponse: string | null
+  adminName: string | null
   respondedAt: string | null
   // For approved
   approvedAt: string | null
@@ -168,7 +168,7 @@ export function CustomerCertificateTable({ certificates }: CustomerCertificateTa
                         )}
                         {cert.status === 'awaiting_response' && (
                           <>
-                            <span className="text-gray-400">HoD replied:</span>{' '}
+                            <span className="text-gray-400">Admin replied:</span>{' '}
                             {formatDate(cert.respondedAt)}
                           </>
                         )}

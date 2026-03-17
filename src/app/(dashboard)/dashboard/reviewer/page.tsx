@@ -56,7 +56,7 @@ async function getReviewCertificates(userId: string): Promise<ReviewCertificateI
 async function getReviewStats(userId: string) {
   const [pendingReview, revisionRequested, approved, total] = await Promise.all([
     prisma.certificate.count({
-      where: { reviewerId: userId, status: { in: ['PENDING_REVIEW', 'PENDING_HOD_REVIEW'] } },
+      where: { reviewerId: userId, status: 'PENDING_REVIEW' },
     }),
     prisma.certificate.count({
       where: { reviewerId: userId, status: 'REVISION_REQUIRED' },

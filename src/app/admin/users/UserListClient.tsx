@@ -40,7 +40,7 @@ interface User {
   role: string
   isActive: boolean
   authProvider: string
-  assignedHod: { id: string; name: string } | null
+  assignedAdmin: { id: string; name: string } | null
   certificateCount: number
   createdAt: string
 }
@@ -54,13 +54,11 @@ interface Pagination {
 
 const roleIcons: Record<string, typeof Users> = {
   ENGINEER: Users,
-  HOD: Shield,
   ADMIN: UserCog,
 }
 
 const roleColors: Record<string, string> = {
   ENGINEER: 'bg-blue-100 text-blue-800',
-  HOD: 'bg-purple-100 text-purple-800',
   ADMIN: 'bg-orange-100 text-orange-800',
 }
 
@@ -117,7 +115,7 @@ export function UserListClient() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Staff Users</h1>
           <p className="text-slate-500 mt-1">
-            Manage engineers, HoDs, and admin accounts
+            Manage engineers and admin accounts
           </p>
         </div>
         <Link href="/admin/users/new">
@@ -146,7 +144,6 @@ export function UserListClient() {
           <SelectContent>
             <SelectItem value="ALL">All Roles</SelectItem>
             <SelectItem value="ENGINEER">Engineer</SelectItem>
-            <SelectItem value="HOD">HoD</SelectItem>
             <SelectItem value="ADMIN">Admin</SelectItem>
           </SelectContent>
         </Select>
@@ -180,7 +177,7 @@ export function UserListClient() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>Assigned HoD</TableHead>
+                <TableHead>Assigned Admin</TableHead>
                 <TableHead>Auth</TableHead>
                 <TableHead>Certificates</TableHead>
                 <TableHead>Status</TableHead>
@@ -204,7 +201,7 @@ export function UserListClient() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-slate-500">
-                      {user.assignedHod?.name || '-'}
+                      {user.assignedAdmin?.name || '-'}
                     </TableCell>
                     <TableCell>
                       <span

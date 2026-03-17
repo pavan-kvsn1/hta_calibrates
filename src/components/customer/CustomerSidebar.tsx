@@ -53,7 +53,10 @@ export function CustomerSidebar({
     setIsCollapsed((prev) => {
       const next = !prev
       localStorage.setItem(STORAGE_KEY, String(next))
-      window.dispatchEvent(new CustomEvent('customer-sidebar-toggle'))
+      // Defer event dispatch to avoid state update during render
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('customer-sidebar-toggle'))
+      }, 0)
       return next
     })
   }, [])

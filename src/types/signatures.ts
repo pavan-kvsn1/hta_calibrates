@@ -16,4 +16,4 @@ export interface SignatureData {
   clientEvidence?: ClientEvidence // Optional for backwards compatibility
 }
 
-export type SignerType = 'ENGINEER' | 'HOD' | 'CUSTOMER'
+export type SignerType = 'ASSIGNEE' | 'REVIEWER' | 'CUSTOMER'

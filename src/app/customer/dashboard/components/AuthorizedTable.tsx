@@ -10,7 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Search, Download, AlertCircle } from 'lucide-react'
+import { Search, Eye, AlertCircle } from 'lucide-react'
+import Link from 'next/link'
 
 export interface AuthorizedCertificate {
   id: string
@@ -154,15 +155,12 @@ export function AuthorizedTable({ certificates, isLoading }: AuthorizedTableProp
                   <td className="px-4 py-3 text-gray-600 text-xs">{formatDate(cert.dateOfCalibration)}</td>
                   <td className="px-4 py-3 text-gray-600 text-xs">{formatDate(cert.calibrationDueDate)}</td>
                   <td className="px-4 py-3 text-center">
-                    <a
-                      href={`/api/certificates/${cert.id}/download-signed`}
-                      download
-                    >
+                    <Link href={`/customer/review/cert/${cert.id}`}>
                       <Button size="sm" variant="outline" className="text-xs">
-                        <Download className="h-4 w-4 mr-1" />
-                        PDF
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
                       </Button>
-                    </a>
+                    </Link>
                   </td>
                 </tr>
               ))}

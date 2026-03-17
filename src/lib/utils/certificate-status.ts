@@ -64,7 +64,7 @@ export function requiresCustomerAction(status: CertificateStatus): boolean {
 }
 
 /**
- * Check if a status requires staff (Engineer/HoD/Admin) action.
+ * Check if a status requires staff (Engineer/Reviewer/Admin) action.
  * @param status - Status to check
  * @returns true if staff must take action
  */
@@ -80,7 +80,7 @@ export function requiresStaffAction(status: CertificateStatus): boolean {
 export function getStatusLabel(status: CertificateStatus): string {
   const labels: Record<CertificateStatus, string> = {
     DRAFT: 'Draft',
-    PENDING_REVIEW: 'Pending HoD Review',
+    PENDING_REVIEW: 'Pending Review',
     REVISION_REQUIRED: 'Revision Required',
     PENDING_CUSTOMER_APPROVAL: 'Pending Customer Approval',
     CUSTOMER_REVISION_REQUIRED: 'Customer Revision Required',

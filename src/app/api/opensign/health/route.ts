@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma'
  *   - Configuration status (API key set?)
  *   - Recent document signing statistics
  *
- * Restricted to HOD and ADMIN roles.
+ * Restricted to ADMIN role.
  */
 export async function GET() {
   try {
@@ -21,7 +21,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

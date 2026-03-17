@@ -47,7 +47,7 @@ export async function GET(
       if (!customer || !customerCompanyName || certificate.customerName?.toLowerCase() !== customerCompanyName.toLowerCase()) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
-    } else if (userRole !== 'HOD' && userRole !== 'ADMIN') {
+    } else if (userRole !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

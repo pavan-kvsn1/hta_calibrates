@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only HOD and ADMIN can trigger OpenSign signing
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
+    // Only ADMIN can trigger OpenSign signing
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       mode = 'selfsign',
     } = body as {
       certificateId: string
-      signerType: 'HOD' | 'CUSTOMER'
+      signerType: 'REVIEWER' | 'CUSTOMER'
       signerEmail: string
       signerName: string
       mode?: 'create' | 'selfsign'

@@ -24,7 +24,7 @@ export async function createTestUser(
     role: string
     isAdmin: boolean
     passwordHash: string
-    assignedHodId: string | null
+    assignedAdminId: string | null
   }> = {}
 ) {
   const defaults = {
@@ -33,7 +33,7 @@ export async function createTestUser(
     role: 'ENGINEER',
     isAdmin: false,
     passwordHash: DEFAULT_PASSWORD_HASH,
-    assignedHodId: null,
+    assignedAdminId: null,
   }
 
   return prisma.user.create({
@@ -42,23 +42,28 @@ export async function createTestUser(
 }
 
 /**
- * Create an engineer with an assigned HoD
+ * Create an engineer with an assigned Admin/Reviewer
  */
-export async function createEngineerWithHod(prisma: PrismaClient) {
-  const hod = await createTestUser(prisma, {
-    name: 'Test HoD',
-    role: 'HOD',
+export async function createEngineerWithAdmin(prisma: PrismaClient) {
+  const admin = await createTestUser(prisma, {
+    name: 'Test Admin',
+    role: 'ADMIN',
     isAdmin: true,
   })
 
   const engineer = await createTestUser(prisma, {
     name: 'Test Engineer',
     role: 'ENGINEER',
-    assignedHodId: hod.id,
+    assignedAdminId: admin.id,
   })
 
-  return { engineer, hod }
+  return { engineer, admin }
 }
+
+/**
+ * @deprecated Use createEngineerWithAdmin instead
+ */
+export const createEngineerWithHod = createEngineerWithAdmin
 
 /**
  * Create a customer account
@@ -69,14 +74,14 @@ export async function createCustomerAccount(
     companyName: string
     address: string
     contactEmail: string
-    assignedHodId: string | null
+    assignedAdminId: string | null
   }> = {}
 ) {
   const defaults = {
     companyName: `Test Company ${randomUUID().slice(0, 8)}`,
     address: '123 Test Street, Test City',
     contactEmail: 'contact@testcompany.com',
-    assignedHodId: null,
+    assignedAdminId: null,
   }
 
   return prisma.customerAccount.create({
@@ -159,8 +164,8 @@ export async function createTestCertificate(
 export async function createCertificateWithHistory(
   prisma: PrismaClient,
   engineer: { id: string },
-  hod: { id: string },
-  status: string = 'PENDING_HOD_REVIEW'
+  admin: { id: string },
+  status: string = 'PENDING_REVIEW'
 ) {
   const certificate = await createTestCertificate(prisma, engineer.id, { status })
 
@@ -185,7 +190,7 @@ export async function createCertificateWithHistory(
         sequenceNumber: 2,
         revision: 1,
         eventType: 'SUBMITTED_FOR_REVIEW',
-        eventData: JSON.stringify({ submittedTo: hod.id }),
+        eventData: JSON.stringify({ submittedTo: admin.id }),
         userId: engineer.id,
         userRole: 'ENGINEER',
       },
@@ -326,16 +331,16 @@ export async function createMasterInstrument(
  */
 export async function createFullTestScenario(prisma: PrismaClient) {
   // Create users
-  const { engineer, hod } = await createEngineerWithHod(prisma)
+  const { engineer, admin } = await createEngineerWithAdmin(prisma)
 
   // Create customer
   const customerAccount = await createCustomerAccount(prisma, {
-    assignedHodId: hod.id,
+    assignedAdminId: admin.id,
   })
   const customerUser = await createCustomerUser(prisma, customerAccount.id)
 
   // Create certificate with parameters
-  const certificate = await createCertificateWithHistory(prisma, engineer, hod, 'PENDING_HOD_REVIEW')
+  const certificate = await createCertificateWithHistory(prisma, engineer, admin, 'PENDING_REVIEW')
   const parameter = await createTestParameter(prisma, certificate.id)
   const results = await createCalibrationResults(prisma, parameter.id)
 
@@ -344,7 +349,7 @@ export async function createFullTestScenario(prisma: PrismaClient) {
 
   return {
     engineer,
-    hod,
+    admin,
     customerAccount,
     customerUser,
     certificate,

@@ -68,7 +68,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Verify certificate is in a reviewable state
-    const reviewableStatuses = ['PENDING_REVIEW', 'PENDING_HOD_REVIEW', 'CUSTOMER_REVISION_REQUIRED']
+    const reviewableStatuses = ['PENDING_REVIEW', 'CUSTOMER_REVISION_REQUIRED']
     if (!reviewableStatuses.includes(certificate.status)) {
       return NextResponse.json(
         { error: `Certificate is not in a reviewable state. Current status: ${certificate.status}` },
@@ -342,13 +342,13 @@ async function handlePeerReview(
 
       // Store reviewer signature
       await tx.signature.deleteMany({
-        where: { certificateId: certificate.id, signerType: 'HOD' },
+        where: { certificateId: certificate.id, signerType: 'REVIEWER' },
       })
 
       const reviewerSignature = await tx.signature.create({
         data: {
           certificateId: certificate.id,
-          signerType: 'HOD',
+          signerType: 'REVIEWER',
           signerName: signerName!,
           signerEmail: session.user.email,
           signatureData: signatureData!,
@@ -428,13 +428,13 @@ async function handlePeerReview(
           clientEvidence,
           serverEvidence,
           {
-            signerType: 'HOD',
+            signerType: 'REVIEWER',
             signerName: signerName!,
             signerEmail: session.user.email,
             signerId: userId,
           }
         )
-        await appendSigningEvidence(certificate.id, result.reviewerSignature.id, 'HOD_SIGNED', evidencePayload, result.certificate.currentRevision)
+        await appendSigningEvidence(certificate.id, result.reviewerSignature.id, 'REVIEWER_SIGNED', evidencePayload, result.certificate.currentRevision)
       } catch (evidenceError) {
         console.error('Failed to capture reviewer signing evidence:', evidenceError)
       }

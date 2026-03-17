@@ -57,9 +57,10 @@ const DEFAULT_REQUIREMENTS = {
 
 interface EnvironmentalSectionProps {
   feedbackSlot?: React.ReactNode
+  disabled?: boolean
 }
 
-export function EnvironmentalSection({ feedbackSlot }: EnvironmentalSectionProps = {}) {
+export function EnvironmentalSection({ feedbackSlot, disabled }: EnvironmentalSectionProps = {}) {
   const { formData, setFormField } = useCertificateStore()
 
   // Get unique categories from selected master instruments
@@ -162,6 +163,7 @@ export function EnvironmentalSection({ feedbackSlot }: EnvironmentalSectionProps
       sectionNumber="Section 04"
       title="Environmental Conditions"
       feedbackSlot={feedbackSlot}
+      disabled={disabled}
     >
       <div className="space-y-6">
         {/* Category-based requirements info */}

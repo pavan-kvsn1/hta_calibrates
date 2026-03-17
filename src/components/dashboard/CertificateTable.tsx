@@ -23,21 +23,20 @@ export interface CertificateListItem {
   dateOfCalibration: string
   currentVersion: number
   createdAt: string
-  createdBy?: string // Engineer name (for HoD view)
+  createdBy?: string // Engineer name (for Admin view)
   reviewerName?: string // Reviewer name (for new workflow)
 }
 
 interface CertificateTableProps {
   certificates: CertificateListItem[]
-  userRole: 'ENGINEER' | 'HOD' | 'ADMIN'
+  userRole: 'ENGINEER' | 'ADMIN'
   showActions?: boolean
 }
 
 const statusFilters = [
   { value: 'all', label: 'All Status' },
   { value: 'DRAFT', label: 'Draft' },
-  { value: 'PENDING_REVIEW', label: 'Pending Peer Review' },
-  { value: 'PENDING_HOD_REVIEW', label: 'Pending HoD Review' },
+  { value: 'PENDING_REVIEW', label: 'Pending Review' },
   { value: 'REVISION_REQUIRED', label: 'Revision Required' },
   { value: 'PENDING_CUSTOMER_APPROVAL', label: 'Pending Customer' },
   { value: 'CUSTOMER_REVISION_REQUIRED', label: 'Customer Revision' },
@@ -112,7 +111,7 @@ export function CertificateTable({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <Input
-            placeholder={userRole === 'HOD' ? "Search by certificate no., customer, instrument, or engineer..." : "Search by certificate no., customer, or instrument..."}
+            placeholder="Search by certificate no., customer, or instrument..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -194,11 +193,6 @@ export function CertificateTable({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Instrument
                 </th>
-                {userRole === 'HOD' && (
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Engineer
-                  </th>
-                )}
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Cal. Date
                 </th>
@@ -219,7 +213,7 @@ export function CertificateTable({
               {filteredCertificates.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={showActions ? (userRole === 'HOD' ? 8 : 7) : (userRole === 'HOD' ? 7 : 6)}
+                    colSpan={showActions ? 7 : 6}
                     className="px-4 py-8 text-center text-gray-500"
                   >
                     No certificates found
@@ -241,11 +235,6 @@ export function CertificateTable({
                         {cert.uucDescription}
                       </span>
                     </td>
-                    {userRole === 'HOD' && (
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-gray-700 text-[13px]">{cert.createdBy || '-'}</span>
-                      </td>
-                    )}
                     <td className="px-4 py-3 whitespace-nowrap text-[13px]">
                       <span className="text-gray-600">
                         {cert.dateOfCalibration ? formatDate(cert.dateOfCalibration) : '-'}
@@ -274,38 +263,6 @@ export function CertificateTable({
                             cert.status !== 'REVISION_REQUIRED' && (
                               <Link href={`/dashboard/certificates/${cert.id}/view`}>
                                 <Button variant="ghost" size="sm" title="View Certificate">
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            )}
-                          {userRole === 'HOD' &&
-                            cert.status === 'PENDING_HOD_REVIEW' && (
-                              <Link href={`/hod/review/${cert.id}`}>
-                                <Button variant="ghost" size="sm" title="Review">
-                                  <FileText className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            )}
-                          {userRole === 'HOD' &&
-                            cert.status === 'PENDING_CUSTOMER_APPROVAL' && (
-                              <Link href={`/hod/review/${cert.id}`}>
-                                <Button variant="ghost" size="sm" title="Manage Customer Sharing">
-                                  <Send className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            )}
-                          {userRole === 'HOD' &&
-                            cert.status === 'CUSTOMER_REVISION_REQUIRED' && (
-                              <Link href={`/hod/review/${cert.id}`}>
-                                <Button variant="ghost" size="sm" title="View Customer Feedback">
-                                  <FileText className="h-4 w-4" />
-                                </Button>
-                              </Link>
-                            )}
-                          {userRole === 'HOD' &&
-                            cert.status === 'APPROVED' && (
-                              <Link href={`/hod/review/${cert.id}`}>
-                                <Button variant="ghost" size="sm" title="View">
                                   <Eye className="h-4 w-4" />
                                 </Button>
                               </Link>

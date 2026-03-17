@@ -1,22 +1,46 @@
 import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import {
   Building2,
-  UserCheck,
   Users,
   UserPlus,
   Wrench,
   FileText,
-  Clock,
   AlertTriangle,
-  AlertCircle,
-  CheckCircle,
   ArrowRight,
   ShieldCheck,
+  TrendingDown,
   TrendingUp,
+  Clock,
+  UserCheck,
+  RefreshCw,
+  Building,
+  MessageSquare,
+  CheckCircle2,
+  AlertCircle,
+  BadgeCheck,
 } from 'lucide-react'
 import Link from 'next/link'
+import {
+  calculateCertificateTAT,
+  aggregateTATMetrics,
+  compareWeeklyMetrics,
+} from '@/lib/utils/tat-calculator'
+
+// Format hours - show minutes if hours rounds to 0, seconds if minutes rounds to 0
+function formatTATHours(hours: number): string {
+  if (hours === 0) return '0h'
+  if (hours < 1) {
+    const minutes = Math.round(hours * 60)
+    if (minutes === 0) {
+      // Less than 30 seconds would round to 0 minutes, show seconds instead
+      const seconds = Math.round(hours * 3600)
+      return `${Math.max(1, seconds)}s`
+    }
+    return `${minutes}m`
+  }
+  return `${Math.round(hours)}h`
+}
 
 async function getAdminStats() {
   const today = new Date()
@@ -28,11 +52,11 @@ async function getAdminStats() {
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 
+  const fourteenDaysAgo = new Date(today)
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
+
   const fortyEightHoursAgo = new Date()
   fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48)
-
-  const twentyFourHoursAgo = new Date()
-  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
 
   const [
     // Overview stats (matching wireframe: Engineers, Customers, Certificates, Instruments)
@@ -48,8 +72,8 @@ async function getAdminStats() {
     staleCertificates,
     overdueCertificates,
 
-    // TAT metrics - certificates in active workflow states
-    activeCertificatesForTAT,
+    // Certificates with events for TAT calculation (last 2 weeks)
+    certificatesWithEvents,
 
     // Recent activity data
     recentCertificateEvents,
@@ -100,22 +124,34 @@ async function getAdminStats() {
     prisma.certificate.count({
       where: {
         status: {
-          in: ['PENDING_REVIEW', 'PENDING_HOD_REVIEW', 'PENDING_CUSTOMER_APPROVAL'],
+          in: ['PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'],
         },
         updatedAt: { lt: fortyEightHoursAgo },
       },
     }),
 
-    // Active certificates for TAT calculation
+    // Certificates with events in the last 2 weeks (for TAT calculation)
     prisma.certificate.findMany({
       where: {
-        status: {
-          notIn: ['DRAFT', 'APPROVED', 'REJECTED'],
+        events: {
+          some: {
+            createdAt: { gte: fourteenDaysAgo },
+          },
         },
       },
       select: {
-        updatedAt: true,
+        id: true,
         status: true,
+        currentRevision: true,
+        events: {
+          select: {
+            id: true,
+            eventType: true,
+            createdAt: true,
+            certificateId: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     }),
 
@@ -126,8 +162,8 @@ async function getAdminStats() {
           in: [
             'CREATED',
             'SUBMITTED_FOR_REVIEW',
-            'HOD_APPROVED',
-            'HOD_REJECTED',
+            'REVIEWER_APPROVED',
+            'REVIEWER_REJECTED',
             'CUSTOMER_APPROVED',
             'CUSTOMER_REJECTED',
           ],
@@ -162,33 +198,62 @@ async function getAdminStats() {
     }),
   ])
 
-  // Calculate TAT metrics
-  const now = new Date()
-  let totalTATHours = 0
-  let onTrackCount = 0
-  let warningCount = 0
-  let overdueCount = 0
+  // Calculate TAT metrics using event-based calculation
+  // Separate certificates by which week they were completed (authorized)
+  const thisWeekCerts: typeof certificatesWithEvents = []
+  const lastWeekCerts: typeof certificatesWithEvents = []
 
-  activeCertificatesForTAT.forEach((cert) => {
-    const hoursElapsed = Math.floor(
-      (now.getTime() - cert.updatedAt.getTime()) / (1000 * 60 * 60)
-    )
-    totalTATHours += hoursElapsed
+  certificatesWithEvents.forEach((cert) => {
+    // Find ADMIN_SIGNED event to determine completion date
+    const adminSignedEvent = cert.events.find(e => e.eventType === 'ADMIN_AUTHORIZED')
 
-    if (hoursElapsed <= 24) {
-      onTrackCount++
-    } else if (hoursElapsed <= 48) {
-      warningCount++
+    if (adminSignedEvent) {
+      const completedAt = new Date(adminSignedEvent.createdAt)
+      if (completedAt >= sevenDaysAgo) {
+        thisWeekCerts.push(cert)
+      } else if (completedAt >= fourteenDaysAgo) {
+        lastWeekCerts.push(cert)
+      }
     } else {
-      overdueCount++
+      // Not completed - include in this week's active metrics
+      // Check if it had activity this week
+      const hasThisWeekActivity = cert.events.some(
+        e => new Date(e.createdAt) >= sevenDaysAgo
+      )
+      if (hasThisWeekActivity) {
+        thisWeekCerts.push(cert)
+      }
     }
   })
 
-  const totalActive = activeCertificatesForTAT.length
-  const averageTAT = totalActive > 0 ? Math.round(totalTATHours / totalActive) : 0
-  const onTrackPercent = totalActive > 0 ? Math.round((onTrackCount / totalActive) * 100) : 100
-  const warningPercent = totalActive > 0 ? Math.round((warningCount / totalActive) * 100) : 0
-  const overduePercent = totalActive > 0 ? Math.round((overdueCount / totalActive) * 100) : 0
+  // Calculate metrics for each certificate
+  const thisWeekMetrics = thisWeekCerts
+    .map(cert => calculateCertificateTAT(cert.events))
+    .filter((m): m is NonNullable<typeof m> => m !== null)
+
+  const lastWeekMetrics = lastWeekCerts
+    .map(cert => calculateCertificateTAT(cert.events))
+    .filter((m): m is NonNullable<typeof m> => m !== null)
+
+  // Aggregate metrics
+  const thisWeekAggregated = aggregateTATMetrics(thisWeekMetrics)
+  const lastWeekAggregated = aggregateTATMetrics(lastWeekMetrics)
+
+  // Calculate week-over-week comparison
+  const tatComparison = compareWeeklyMetrics(thisWeekAggregated, lastWeekAggregated)
+
+  // Calculate revision-based cycles (simpler: currentRevision - 1 = number of revision cycles)
+  const thisWeekRevisionCycles = thisWeekCerts.reduce((sum, cert) => sum + Math.max(0, cert.currentRevision - 1), 0)
+  const lastWeekRevisionCycles = lastWeekCerts.reduce((sum, cert) => sum + Math.max(0, cert.currentRevision - 1), 0)
+  const thisWeekAvgRevisions = thisWeekCerts.length > 0
+    ? Math.round((thisWeekRevisionCycles / thisWeekCerts.length) * 10) / 10
+    : 0
+  const lastWeekAvgRevisions = lastWeekCerts.length > 0
+    ? Math.round((lastWeekRevisionCycles / lastWeekCerts.length) * 10) / 10
+    : 0
+  const revisionCycleChange = lastWeekAvgRevisions > 0
+    ? Math.round(((thisWeekAvgRevisions - lastWeekAvgRevisions) / lastWeekAvgRevisions) * 100)
+    : 0
 
   return {
     // Overview stats
@@ -204,13 +269,15 @@ async function getAdminStats() {
     staleCertificates,
     overdueCertificates,
 
-    // TAT metrics
-    tatMetrics: {
-      averageTAT,
-      onTrackPercent,
-      warningPercent,
-      overduePercent,
-      totalActive,
+    // TAT metrics with week-over-week comparison
+    tatComparison,
+
+    // Revision-based cycle stats (simpler calculation)
+    revisionStats: {
+      thisWeekAvg: thisWeekAvgRevisions,
+      lastWeekAvg: lastWeekAvgRevisions,
+      totalThisWeek: thisWeekRevisionCycles,
+      changePercent: revisionCycleChange,
     },
 
     // Recent activity
@@ -232,9 +299,9 @@ function formatEventDescription(event: {
       return `${userName} created ${certNumber}`
     case 'SUBMITTED_FOR_REVIEW':
       return `${userName} submitted ${certNumber}`
-    case 'HOD_APPROVED':
+    case 'REVIEWER_APPROVED':
       return `${userName} approved ${certNumber}`
-    case 'HOD_REJECTED':
+    case 'REVIEWER_REJECTED':
       return `${userName} returned ${certNumber} for revision`
     case 'CUSTOMER_APPROVED':
       return `Customer approved ${certNumber}`
@@ -368,7 +435,7 @@ export default async function AdminDashboard() {
     {
       count: stats.pendingRequests,
       label: 'Pending customer requests',
-      href: '/admin/customers/requests',
+      href: '/admin/requests',
       action: 'Review',
       severity: 'critical' as const,
       show: stats.pendingRequests > 0,
@@ -439,39 +506,316 @@ export default async function AdminDashboard() {
             ))}
           </div>
 
-          {/* TAT Metrics */}
+          {/* TAT Metrics - Week over Week */}
           <Card className="mb-6">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider">TAT Metrics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap items-center gap-8 mb-3">
+            {/* Header with week-over-week trend summary */}
+            <CardHeader className="pb-0">
+              <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-slate-600">Average TAT: </span>
-                  <span className="font-bold text-slate-900">{stats.tatMetrics.averageTAT}h</span>
+                  <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-slate-500" />
+                    Turn Around Time
+                  </CardTitle>
+                  <p className="text-slate-500 text-sm mt-0.5">This week&apos;s performance vs last week</p>
                 </div>
-                <div>
-                  <span className="text-slate-600">On Track: </span>
-                  <span className="font-bold text-green-600">{stats.tatMetrics.onTrackPercent}%</span>
-                </div>
-                <div>
-                  <span className="text-slate-600">Overdue: </span>
-                  <span className="font-bold text-red-600">{stats.tatMetrics.overduePercent}%</span>
+                <div className="flex items-center gap-3">
+                  {/* TAT Trend Badge */}
+                  {(() => {
+                    const change = stats.tatComparison.changes.totalTAT
+                    const isImproved = change.hours < 0
+                    const isWorse = change.hours > 0
+                    return (
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
+                        isImproved ? 'bg-green-50 text-green-700 border-green-200' :
+                        isWorse ? 'bg-red-50 text-red-700 border-red-200' :
+                        'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}>
+                        {isImproved ? <TrendingDown className="h-4 w-4" /> :
+                         isWorse ? <TrendingUp className="h-4 w-4" /> :
+                         <span className="text-xs">—</span>}
+                        <span>TAT {isImproved ? `${Math.abs(change.percent)}% faster` :
+                                   isWorse ? `${Math.abs(change.percent)}% slower` :
+                                   'No change'}</span>
+                      </div>
+                    )
+                  })()}
+                  {/* Cycles Trend Badge */}
+                  {(() => {
+                    const change = stats.revisionStats.changePercent
+                    const isImproved = change < 0
+                    const isWorse = change > 0
+                    return (
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
+                        isImproved ? 'bg-green-50 text-green-700 border-green-200' :
+                        isWorse ? 'bg-red-50 text-red-700 border-red-200' :
+                        'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}>
+                        {isImproved ? <TrendingDown className="h-4 w-4" /> :
+                         isWorse ? <TrendingUp className="h-4 w-4" /> :
+                         <span className="text-xs">—</span>}
+                        <span>Revisions {isImproved ? `${Math.abs(change)}% fewer` :
+                                        isWorse ? `${Math.abs(change)}% more` :
+                                        'No change'}</span>
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
-              <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                <div
-                  className="bg-green-500 h-full"
-                  style={{ width: `${stats.tatMetrics.onTrackPercent}%` }}
-                />
-                <div
-                  className="bg-amber-500 h-full"
-                  style={{ width: `${stats.tatMetrics.warningPercent}%` }}
-                />
-                <div
-                  className="bg-red-500 h-full"
-                  style={{ width: `${stats.tatMetrics.overduePercent}%` }}
-                />
+            </CardHeader>
+
+            <CardContent className="p-0">
+              {/* Summary Stats Row */}
+              <div className="grid grid-cols-4 divide-x divide-slate-100 bg-slate-50/50 border-b border-slate-100">
+                <div className="py-3 px-4 text-center">
+                  <div className="text-xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.totalTAT.avgHours)}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Avg Total TAT</div>
+                </div>
+                <div className="py-3 px-4 text-center">
+                  <div className="text-xl font-bold text-slate-900">{stats.revisionStats.thisWeekAvg}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">Avg Revisions</div>
+                </div>
+                <div className="py-3 px-4 text-center">
+                  <div className="text-xl font-bold text-green-600 flex items-center justify-center gap-1">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {stats.tatComparison.thisWeek.totalTAT.completedCount}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">Completed</div>
+                </div>
+                <div className="py-3 px-4 text-center">
+                  <div className={`text-xl font-bold flex items-center justify-center gap-1 ${
+                    stats.tatComparison.thisWeek.totalTAT.overdueCount > 0 ? 'text-red-600' : 'text-slate-400'
+                  }`}>
+                    {stats.tatComparison.thisWeek.totalTAT.overdueCount > 0 && <AlertCircle className="h-4 w-4" />}
+                    {stats.tatComparison.thisWeek.totalTAT.overdueCount}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">Overdue</div>
+                </div>
+              </div>
+
+              {/* Stage Breakdown */}
+              <div className="p-4">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Stage Breakdown</div>
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                  {/* Reviewer Stage */}
+                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1.5 rounded-lg bg-amber-100">
+                        <UserCheck className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">Reviewer</span>
+                    </div>
+                    {/* TAT */}
+                    <div className="mb-3">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.reviewer.avgHours)}</span>
+                        {stats.tatComparison.changes.reviewer.hours !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.reviewer.hours < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.reviewer.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.reviewer.hoursPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">avg response time</div>
+                    </div>
+                    {/* Cycles */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.reviewer.avgCycles}</span>
+                        {stats.tatComparison.changes.reviewer.cyclesPercent !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.reviewer.cyclesPercent < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.reviewer.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.reviewer.cyclesPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">review cycles</div>
+                    </div>
+                  </div>
+
+                  {/* Engineer Revision Stage */}
+                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1.5 rounded-lg bg-orange-100">
+                        <RefreshCw className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">Engineer Rev.</span>
+                    </div>
+                    {/* TAT */}
+                    <div className="mb-3">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.engineerRevision.avgHours)}</span>
+                        {stats.tatComparison.changes.engineerRevision.hours !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.engineerRevision.hours < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.engineerRevision.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.engineerRevision.hoursPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">avg revision time</div>
+                    </div>
+                    {/* Cycles */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.engineerRevision.avgCycles}</span>
+                        {stats.tatComparison.changes.engineerRevision.cyclesPercent !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.engineerRevision.cyclesPercent < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.engineerRevision.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.engineerRevision.cyclesPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">revision cycles</div>
+                    </div>
+                  </div>
+
+                  {/* Customer Stage */}
+                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1.5 rounded-lg bg-blue-100">
+                        <Building className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">Customer</span>
+                    </div>
+                    {/* TAT */}
+                    <div className="mb-3">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.customer.avgHours)}</span>
+                        {stats.tatComparison.changes.customer.hours !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.customer.hours < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.customer.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.customer.hoursPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">avg approval time</div>
+                    </div>
+                    {/* Cycles */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.customer.avgCycles}</span>
+                        {stats.tatComparison.changes.customer.cyclesPercent !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.customer.cyclesPercent < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.customer.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.customer.cyclesPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">approval cycles</div>
+                    </div>
+                  </div>
+
+                  {/* Customer Revision Stage */}
+                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1.5 rounded-lg bg-purple-100">
+                        <MessageSquare className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">Cust. Revision</span>
+                    </div>
+                    {/* TAT */}
+                    <div className="mb-3">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.customerRevision.avgHours)}</span>
+                        {stats.tatComparison.changes.customerRevision.hours !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.customerRevision.hours < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.customerRevision.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.customerRevision.hoursPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">avg response time</div>
+                    </div>
+                    {/* Cycles */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.customerRevision.avgCycles}</span>
+                        {stats.tatComparison.changes.customerRevision.cyclesPercent !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.customerRevision.cyclesPercent < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.customerRevision.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.customerRevision.cyclesPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">revision cycles</div>
+                    </div>
+                  </div>
+
+                  {/* Admin Approval Stage */}
+                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1.5 rounded-lg bg-green-100">
+                        <BadgeCheck className="h-4 w-4 text-green-600" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">Admin</span>
+                    </div>
+                    {/* TAT */}
+                    <div className="mb-3">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.adminApproval.avgHours)}</span>
+                        {stats.tatComparison.changes.adminApproval.hours !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.adminApproval.hours < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.adminApproval.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.adminApproval.hoursPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">avg approval time</div>
+                    </div>
+                    {/* Cycles */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.adminApproval.avgCycles}</span>
+                        {stats.tatComparison.changes.adminApproval.cyclesPercent !== 0 && (
+                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                            stats.tatComparison.changes.adminApproval.cyclesPercent < 0
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {stats.tatComparison.changes.adminApproval.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            {Math.abs(stats.tatComparison.changes.adminApproval.cyclesPercent)}%
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">approvals</div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

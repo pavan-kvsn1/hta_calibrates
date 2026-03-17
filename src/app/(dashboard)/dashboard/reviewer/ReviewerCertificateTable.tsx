@@ -27,16 +27,12 @@ const statusFilters = [
   { value: 'APPROVED', label: 'Approved' },
 ]
 
-// Map PENDING_HOD_REVIEW to PENDING_REVIEW for filtering
-const normalizeStatus = (status: string) =>
-  status === 'PENDING_HOD_REVIEW' ? 'PENDING_REVIEW' : status
-
 export function ReviewerCertificateTable({ certificates }: ReviewerCertificateTableProps) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   const filteredCertificates = certificates.filter((cert) => {
-    const matchesStatus = statusFilter === 'all' || normalizeStatus(cert.status) === statusFilter
+    const matchesStatus = statusFilter === 'all' || cert.status === statusFilter
     const matchesSearch =
       searchQuery === '' ||
       cert.certificateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -160,7 +156,7 @@ export function ReviewerCertificateTable({ certificates }: ReviewerCertificateTa
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-right">
                       <div className="flex justify-end gap-2">
-                        {(cert.status === 'PENDING_REVIEW' || cert.status === 'PENDING_HOD_REVIEW') ? (
+                        {cert.status === 'PENDING_REVIEW' ? (
                           <Link href={`/dashboard/reviewer/${cert.id}`}>
                             <Button variant="default" size="sm" title="Review Certificate">
                               <FileText className="h-4 w-4 mr-1" />

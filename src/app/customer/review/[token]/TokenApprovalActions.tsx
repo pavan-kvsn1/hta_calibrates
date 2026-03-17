@@ -18,18 +18,8 @@ import {
   Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { REVISION_SECTIONS } from '@/components/feedback/shared/feedback-utils'
 import type { CertificateData, CustomerData, Signature } from './TokenReviewClient'
-
-// Certificate sections for targeted feedback
-const REVISION_SECTIONS = [
-  { id: 'summary', label: 'Section 1: Summary' },
-  { id: 'uuc-details', label: 'Section 2: UUC Details' },
-  { id: 'master-inst', label: 'Section 3: Master Instruments' },
-  { id: 'environment', label: 'Section 4: Environmental Conditions' },
-  { id: 'results', label: 'Section 5: Calibration Results' },
-  { id: 'remarks', label: 'Section 6: Remarks' },
-  { id: 'conclusion', label: 'Section 7: Conclusion' },
-]
 
 interface TokenApprovalActionsProps {
   token: string
@@ -115,14 +105,14 @@ export function TokenApprovalActions({
   }, [token, customer.email, router])
 
   const handleRequestRevision = async () => {
-    // Validate at least one feedback entry has content
+    // Validate at least one feedback entry has a section and comment
     const validSectionFeedbacks = sectionFeedbackEntries.filter(
       e => e.section && e.comment.trim()
     )
-    const hasGeneralNotes = generalNotes.trim().length > 0
 
-    if (validSectionFeedbacks.length === 0 && !hasGeneralNotes) {
-      setError('Please provide at least one section feedback or general notes')
+    // Section feedback is required - general notes alone are not sufficient
+    if (validSectionFeedbacks.length === 0) {
+      setError('Please select at least one section and provide feedback for it')
       return
     }
 
@@ -338,7 +328,7 @@ export function TokenApprovalActions({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-semibold text-gray-700">
-                    Section Feedback
+                    Section Feedback <span className="text-red-500">*</span>
                   </label>
                   <span className="text-[10px] text-gray-500">
                     {sectionFeedbackEntries.filter(e => e.section && e.comment.trim()).length} of {sectionFeedbackEntries.length} complete
@@ -472,10 +462,7 @@ export function TokenApprovalActions({
               <Button
                 size="sm"
                 onClick={handleRequestRevision}
-                disabled={isRequestingRevision || (
-                  sectionFeedbackEntries.every(e => !e.section || !e.comment.trim()) &&
-                  !generalNotes.trim()
-                )}
+                disabled={isRequestingRevision || sectionFeedbackEntries.every(e => !e.section || !e.comment.trim())}
                 className="bg-amber-600 hover:bg-amber-700 text-white text-xs"
               >
                 {isRequestingRevision ? (

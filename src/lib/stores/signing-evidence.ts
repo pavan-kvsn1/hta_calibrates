@@ -39,7 +39,7 @@ export interface SigningEvidencePayload {
   documentHash?: string
 
   // Signer info
-  signerType: 'ENGINEER' | 'HOD' | 'CUSTOMER' | 'ADMIN'
+  signerType: 'ASSIGNEE' | 'REVIEWER' | 'CUSTOMER' | 'ADMIN'
   signerName: string
   signerEmail: string
   signerId?: string
@@ -188,7 +188,7 @@ export function buildSigningEvidencePayload(
   clientEvidence: ClientEvidence,
   serverEvidence: Pick<SigningEvidencePayload, 'ipAddress' | 'userAgent' | 'sessionMethod'>,
   signerInfo: {
-    signerType: 'ENGINEER' | 'HOD' | 'CUSTOMER' | 'ADMIN'
+    signerType: 'ASSIGNEE' | 'REVIEWER' | 'CUSTOMER' | 'ADMIN'
     signerName: string
     signerEmail: string
     signerId?: string

@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils'
 
 interface TATBadgeProps {
   createdAt: Date | string
-  customerApprovedAt?: Date | string | null
+  /** Date when the certificate was completed/authorized - TAT stops counting at this point */
+  completedAt?: Date | string | null
   targetHours?: number
   variant?: 'default' | 'compact' | 'detailed'
   className?: string
@@ -26,20 +27,20 @@ interface TATInfo {
 
 function calculateTAT(
   createdAt: Date | string,
-  customerApprovedAt: Date | string | null | undefined,
+  completedAt: Date | string | null | undefined,
   targetHours: number
 ): TATInfo {
   const startTime = new Date(createdAt).getTime()
-  const endTime = customerApprovedAt
-    ? new Date(customerApprovedAt).getTime()
+  const endTime = completedAt
+    ? new Date(completedAt).getTime()
     : Date.now()
 
   const elapsedMs = endTime - startTime
   const elapsedHours = elapsedMs / (1000 * 60 * 60)
   const remainingHours = targetHours - elapsedHours
 
-  // If completed (customer approved)
-  if (customerApprovedAt) {
+  // If completed (authorized)
+  if (completedAt) {
     const wasOnTime = elapsedHours <= targetHours
     return {
       status: 'completed',
@@ -115,12 +116,12 @@ function formatHours(hours: number): string {
 
 export function TATBadge({
   createdAt,
-  customerApprovedAt,
+  completedAt,
   targetHours = 48,
   variant = 'default',
   className,
 }: TATBadgeProps) {
-  const tat = calculateTAT(createdAt, customerApprovedAt, targetHours)
+  const tat = calculateTAT(createdAt, completedAt, targetHours)
   const Icon = tat.icon
 
   if (variant === 'compact') {

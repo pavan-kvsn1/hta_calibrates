@@ -199,8 +199,6 @@ export function getRoleDisplayName(user: SessionUser): string {
   }
   if (user.role === 'ENGINEER') return 'Engineer'
   if (user.role === 'CUSTOMER') return 'Customer'
-  // Legacy
-  if (user.role === 'HOD') return 'Engineer' // HOD users are now engineers
   return user.role
 }
 

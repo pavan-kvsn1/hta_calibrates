@@ -69,7 +69,7 @@ export async function POST(
       )
     }
 
-    // Allow approval for both PENDING_CUSTOMER_APPROVAL and CUSTOMER_REVISION_REQUIRED (after HoD reply)
+    // Allow approval for both PENDING_CUSTOMER_APPROVAL and CUSTOMER_REVISION_REQUIRED (after Admin reply)
     if (tokenRecord.certificate.status !== 'PENDING_CUSTOMER_APPROVAL' && tokenRecord.certificate.status !== 'CUSTOMER_REVISION_REQUIRED') {
       return NextResponse.json(
         { error: 'Certificate is not available for approval' },
@@ -267,7 +267,7 @@ async function handleSessionBasedApproval(
     )
   }
 
-  // Allow approval for both PENDING_CUSTOMER_APPROVAL and CUSTOMER_REVISION_REQUIRED (after HoD reply)
+  // Allow approval for both PENDING_CUSTOMER_APPROVAL and CUSTOMER_REVISION_REQUIRED (after Admin reply)
   if (certificate.status !== 'PENDING_CUSTOMER_APPROVAL' && certificate.status !== 'CUSTOMER_REVISION_REQUIRED') {
     return NextResponse.json(
       { error: 'Certificate is not available for approval' },

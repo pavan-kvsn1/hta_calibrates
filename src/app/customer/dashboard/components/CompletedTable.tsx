@@ -15,7 +15,7 @@ export interface CompletedCertificate {
   signedAt: string
   signerName: string
   hasEngineerSig: boolean
-  hasHodSig: boolean
+  hasReviewerSig: boolean
   hasCustomerSig: boolean
   hasAdminSig: boolean
 }
@@ -166,7 +166,7 @@ export function CompletedTable({ certificates, isLoading }: CompletedTableProps)
                                   completed={cert.hasEngineerSig}
                                 />
                                 <div className="w-8 h-0.5 bg-gray-200" />
-                                <SignatureStep label="HoD" completed={cert.hasHodSig} />
+                                <SignatureStep label="Reviewer" completed={cert.hasReviewerSig} />
                                 <div className="w-8 h-0.5 bg-gray-200" />
                                 <SignatureStep label="Customer" completed={cert.hasCustomerSig} />
                                 <div className="w-8 h-0.5 bg-gray-200" />

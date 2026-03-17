@@ -20,7 +20,7 @@ import {
 // TYPES
 // ============================================================================
 
-export interface HoDEdit {
+export interface ReviewerEdit {
   field: string
   fieldLabel: string
   previousValue: string | null
@@ -40,7 +40,7 @@ export interface Feedback {
     name: string | null
     role: string | null
   }
-  hodEdits?: HoDEdit[] | null
+  reviewerEdits?: ReviewerEdit[] | null
 }
 
 export interface CustomerEvent {
@@ -95,6 +95,22 @@ export const SECTION_CONFIG: Record<string, SectionConfig> = {
   'general': { label: 'General', icon: AlertCircle, bgClass: 'bg-slate-100', iconClass: 'text-slate-600' },
 }
 
+/**
+ * Revision sections for dropdown selection in revision request forms.
+ * Used by AdminReviewActions, ReviewerPageClient, TokenApprovalActions.
+ */
+export const REVISION_SECTIONS = [
+  { id: 'summary', label: 'Section 1: Summary' },
+  { id: 'uuc-details', label: 'Section 2: UUC Details' },
+  { id: 'master-inst', label: 'Section 3: Master Instruments' },
+  { id: 'environment', label: 'Section 4: Environmental Conditions' },
+  { id: 'results', label: 'Section 5: Calibration Results' },
+  { id: 'remarks', label: 'Section 6: Remarks' },
+  { id: 'conclusion', label: 'Section 7: Conclusion' },
+] as const
+
+export type RevisionSectionId = typeof REVISION_SECTIONS[number]['id']
+
 // ============================================================================
 // FEEDBACK TYPE HELPERS
 // ============================================================================
@@ -116,7 +132,7 @@ export function isRejection(feedbackType: string): boolean {
 }
 
 export function isCustomerFeedback(feedbackType: string): boolean {
-  return feedbackType === 'CUSTOMER_REVISION_FORWARDED'
+  return feedbackType === 'CUSTOMER_REVISION_REQUEST'
 }
 
 // ============================================================================
@@ -137,10 +153,18 @@ export function getFeedbackStyle(feedbackType: string): FeedbackStyle {
     case 'CUSTOMER_REVISION_FORWARDED':
       return {
         icon: AlertTriangle,
+        bgColor: 'bg-orange-100',
+        textColor: 'text-orange-600',
+        borderColor: 'border-orange-200',
+        label: 'Revision Request',
+      }
+    case 'CUSTOMER_REVISION_REQUEST':
+      return {
+        icon: AlertTriangle,
         bgColor: 'bg-purple-100',
         textColor: 'text-purple-600',
         borderColor: 'border-purple-200',
-        label: 'Customer Feedback',
+        label: 'Customer Revision Request',
       }
     case 'APPROVED':
     case 'APPROVAL':
@@ -216,13 +240,13 @@ export function getCustomerEventStyle(eventType: string): FeedbackStyle {
         borderColor: 'border-orange-200',
         label: 'Forwarded to Engineer',
       }
-    case 'HOD_REPLIED_TO_CUSTOMER':
+    case 'ADMIN_REPLIED_TO_CUSTOMER':
       return {
         icon: MessageSquare,
         bgColor: 'bg-amber-100',
         textColor: 'text-amber-600',
         borderColor: 'border-amber-200',
-        label: 'HoD Response',
+        label: 'Admin Response',
       }
     default:
       return {
@@ -306,7 +330,7 @@ export function groupFeedbacksBySection(feedbacks: Feedback[]): SectionGroup[] {
     .map(section => ({
       section,
       feedbacks: groups[section].sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       ),
     }))
 }

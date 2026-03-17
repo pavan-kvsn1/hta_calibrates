@@ -40,7 +40,7 @@ interface CustomerAccount {
   companyName: string
   contactEmail: string | null
   isActive: boolean
-  assignedHod: { id: string; name: string } | null
+  assignedAdmin: { id: string; name: string } | null
   primaryPoc: { id: string; name: string; email: string; isActive: boolean } | null
   userCount: number
   pendingRequests: number

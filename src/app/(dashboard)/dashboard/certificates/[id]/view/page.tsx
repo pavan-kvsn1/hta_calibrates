@@ -31,11 +31,12 @@ import { FeedbackTimeline } from '@/components/feedback/shared'
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Draft', className: 'bg-slate-50 text-slate-700 border-slate-200' },
   PENDING_REVIEW: { label: 'Pending Review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  PENDING_HOD_REVIEW: { label: 'Pending Review', className: 'bg-amber-50 text-amber-700 border-amber-200' },
   REVISION_REQUIRED: { label: 'Revision Required', className: 'bg-orange-50 text-orange-700 border-orange-200' },
   PENDING_CUSTOMER_APPROVAL: { label: 'Pending Customer', className: 'bg-blue-50 text-blue-700 border-blue-200' },
   CUSTOMER_REVISION_REQUIRED: { label: 'Customer Revision', className: 'bg-orange-50 text-orange-700 border-orange-200' },
+  PENDING_ADMIN_AUTHORIZATION: { label: 'Pending Authorization', className: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
   APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-700 border-green-200' },
+  AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-700 border-green-200' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
 }
 
@@ -61,6 +62,14 @@ interface Feedback {
     name: string | null
     role: string
   }
+}
+
+interface ApiEvent {
+  id: string
+  eventType: string
+  eventData: string
+  createdAt: string
+  revision: number
 }
 
 interface ApiCertificate {
@@ -118,6 +127,7 @@ interface ApiCertificate {
     calibrationDueDate: string | null
   }[]
   feedbacks?: Feedback[]
+  events?: ApiEvent[]
 }
 
 export default function CertificateViewPage() {
@@ -140,12 +150,21 @@ export default function CertificateViewPage() {
 
   // Chat panel state
   const [isChatExpanded, setIsChatExpanded] = useState(true)
+  const [customerFeedback, setCustomerFeedback] = useState<{
+    notes: string
+    sectionFeedbacks: { section: string; comment: string }[] | null
+    generalNotes: string | null
+    customerName: string
+    customerEmail: string
+    requestedAt: string
+    revision?: number
+  } | null>(null)
 
   useEffect(() => {
     async function fetchCertificate() {
       try {
         setIsLoading(true)
-        const response = await fetch(`/api/certificates/${certificateId}?include=feedbacks`)
+        const response = await fetch(`/api/certificates/${certificateId}?include=feedbacks,events`)
 
         if (!response.ok) {
           if (response.status === 404) {
@@ -160,6 +179,30 @@ export default function CertificateViewPage() {
 
         const data = await response.json()
         setCertificate(data)
+
+        // Extract customer feedback from events
+        if (data.events) {
+          const customerEvent = data.events
+            .filter((e: ApiEvent) => e.eventType === 'CUSTOMER_REVISION_REQUESTED')
+            .sort((a: ApiEvent, b: ApiEvent) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+          if (customerEvent) {
+            try {
+              const eventData = JSON.parse(customerEvent.eventData)
+              setCustomerFeedback({
+                notes: eventData.notes || '',
+                sectionFeedbacks: eventData.sectionFeedbacks || null,
+                generalNotes: eventData.generalNotes || null,
+                customerName: eventData.customerName || 'Customer',
+                customerEmail: eventData.customerEmail || '',
+                requestedAt: eventData.requestedAt || customerEvent.createdAt,
+                revision: customerEvent.revision,
+              })
+            } catch {
+              // If parsing fails, ignore
+            }
+          }
+        }
       } catch (err) {
         console.error('Error fetching certificate:', err)
         setError('Failed to load certificate')
@@ -263,7 +306,7 @@ export default function CertificateViewPage() {
                 </Badge>
               </div>
               <div className="flex items-center gap-3">
-                {certificate.status === 'APPROVED' && (
+                {(certificate.status === 'APPROVED' || certificate.status === 'AUTHORIZED') && (
                   <a href={`/api/certificates/${certificate.id}/download-signed`} download>
                     <Button size="sm" className="bg-blue-600 hover:bg-blue-700 h-8 text-xs">
                       <Download className="h-3.5 w-3.5 mr-1.5" />
@@ -599,13 +642,14 @@ export default function CertificateViewPage() {
               </CollapsibleSection>
 
               {/* Feedback History */}
-              {feedbacks.length > 0 && (
+              {(feedbacks.length > 0 || customerFeedback) && (
                 <FeedbackTimeline
                   feedbacks={feedbacks}
                   currentRevision={certificate.currentRevision}
                   title="Feedback History"
                   groupBySection={true}
                   showRevisionTransition={true}
+                  customerFeedback={customerFeedback}
                 />
               )}
             </div>

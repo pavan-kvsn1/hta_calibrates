@@ -23,112 +23,24 @@ import {
   User,
   Building2,
   MapPin,
-  Clock,
-  FileText,
-  Eye,
   Plus,
   Trash2,
+  Clock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ViewToggleButton } from '@/components/certificate/ViewToggleButton'
+import { MetaInfoItem } from '@/components/certificate/MetaInfoItem'
+import { TATBadge } from '@/components/certificate/TATBadge'
+import { REVISION_SECTIONS } from '@/components/feedback/shared/feedback-utils'
 import type { ClientEvidence } from '@/types/signatures'
+import type {
+  CertificateData,
+  Assignee,
+  Feedback,
+  AdminHeaderData,
+} from '@/types/certificate'
 
-interface Parameter {
-  id: string
-  parameterName: string
-  parameterUnit: string | null
-  rangeMin: string | null
-  rangeMax: string | null
-  rangeUnit: string | null
-  operatingMin: string | null
-  operatingMax: string | null
-  operatingUnit: string | null
-  leastCountValue: string | null
-  leastCountUnit: string | null
-  accuracyValue: string | null
-  accuracyUnit: string | null
-  accuracyType: string
-  errorFormula: string
-  showAfterAdjustment: boolean
-  requiresBinning: boolean
-  bins: string | null
-  sopReference: string | null
-  results: {
-    id: string
-    pointNumber: number
-    standardReading: string | null
-    beforeAdjustment: string | null
-    afterAdjustment: string | null
-    errorObserved: number | null
-    isOutOfLimit: boolean
-  }[]
-}
-
-interface MasterInstrument {
-  id: string
-  description: string | null
-  make: string | null
-  model: string | null
-  serialNumber: string | null
-  calibrationDueDate: string | null
-}
-
-interface CertificateData {
-  id: string
-  certificateNumber: string
-  status: string
-  customerName: string | null
-  customerAddress: string | null
-  calibratedAt: string | null
-  srfNumber: string | null
-  srfDate: string | null
-  dateOfCalibration: string | null
-  calibrationDueDate: string | null
-  dueDateNotApplicable: boolean
-  uucDescription: string | null
-  uucMake: string | null
-  uucModel: string | null
-  uucSerialNumber: string | null
-  uucLocationName: string | null
-  ambientTemperature: string | null
-  relativeHumidity: string | null
-  calibrationStatus: string[]
-  conclusionStatements: string[]
-  additionalConclusionStatement: string | null
-  currentRevision: number
-  parameters: Parameter[]
-  masterInstruments: MasterInstrument[]
-}
-
-interface Assignee {
-  id: string
-  name: string
-  email: string
-}
-
-interface Feedback {
-  id: string
-  feedbackType: string
-  comment: string | null
-  createdAt: string
-  revisionNumber: number
-  targetSection: string | null
-  user: {
-    name: string | null
-    role: string
-  }
-}
-
-interface HeaderData {
-  certificateNumber: string
-  status: string
-  statusLabel: string
-  statusClassName: string
-  tat: { hours: number; status: 'ok' | 'warning' | 'overdue' }
-  assigneeName: string
-  customerName: string
-  calibratedAt: string | null
-  currentRevision: number
-}
+type HeaderData = AdminHeaderData
 
 interface CustomerFeedback {
   notes: string
@@ -149,27 +61,6 @@ interface ReviewerPageClientProps {
   customerFeedback: CustomerFeedback | null
 }
 
-const REVISION_SECTIONS = [
-  { id: 'summary', label: 'Section 1: Summary' },
-  { id: 'uuc-details', label: 'Section 2: UUC Details' },
-  { id: 'master-inst', label: 'Section 3: Master Instruments' },
-  { id: 'environment', label: 'Section 4: Environmental Conditions' },
-  { id: 'results', label: 'Section 5: Calibration Results' },
-  { id: 'remarks', label: 'Section 6: Remarks' },
-  { id: 'conclusion', label: 'Section 7: Conclusion' },
-]
-
-function formatTAT(hours: number): string {
-  if (hours < 24) {
-    return `${hours}h`
-  }
-  const days = Math.floor(hours / 24)
-  const remainingHours = hours % 24
-  if (remainingHours === 0) {
-    return `${days}d`
-  }
-  return `${days}d ${remainingHours}h`
-}
 
 export function ReviewerPageClient({
   certificate,
@@ -210,16 +101,19 @@ export function ReviewerPageClient({
 
   // View mode state: 'details' shows certificate content, 'pdf' shows PDF preview
   const [viewMode, setViewMode] = useState<'details' | 'pdf'>('details')
+  const [isDownloading, setIsDownloading] = useState(false)
 
-  const canReview = certificate.status === 'PENDING_REVIEW' || certificate.status === 'PENDING_HOD_REVIEW' || certificate.status === 'CUSTOMER_REVISION_REQUIRED'
+  const canReview = certificate.status === 'PENDING_REVIEW' || certificate.status === 'CUSTOMER_REVISION_REQUIRED'
   const isRevisionRequired = certificate.status === 'REVISION_REQUIRED'
   const isCustomerRevisionRequired = certificate.status === 'CUSTOMER_REVISION_REQUIRED'
   const isPendingCustomer = certificate.status === 'PENDING_CUSTOMER_APPROVAL'
+  const isPendingAdminAuth = certificate.status === 'PENDING_ADMIN_AUTHORIZATION'
   const isApproved = certificate.status === 'APPROVED'
+  const isAuthorized = certificate.status === 'AUTHORIZED'
   const isRejected = certificate.status === 'REJECTED'
 
   // Customer chat only available when sent to customer or customer has responded
-  const canAccessCustomerChat = isPendingCustomer || isApproved || isCustomerRevisionRequired
+  const canAccessCustomerChat = isPendingCustomer || isPendingAdminAuth || isApproved || isAuthorized || isCustomerRevisionRequired
 
   // Approval data type for the modal
   interface ApprovalData {
@@ -270,14 +164,14 @@ export function ReviewerPageClient({
   }, [certificate.id, router])
 
   const handleRequestRevision = async () => {
-    // Validate at least one feedback entry has content
+    // Validate at least one feedback entry has a section and comment
     const validSectionFeedbacks = sectionFeedbackEntries.filter(
       e => e.section && e.comment.trim()
     )
-    const hasGeneralNotes = generalNotes.trim().length > 0
 
-    if (validSectionFeedbacks.length === 0 && !hasGeneralNotes) {
-      setError('Please provide at least one section feedback or general notes')
+    // Section feedback is required - general notes alone are not sufficient
+    if (validSectionFeedbacks.length === 0) {
+      setError('Please select at least one section and provide feedback for it')
       return
     }
 
@@ -380,6 +274,32 @@ export function ReviewerPageClient({
     }
   }
 
+  // Handle download PDF (only for authorized certificates)
+  const handleDownload = useCallback(async () => {
+    setIsDownloading(true)
+    try {
+      const response = await fetch(`/api/certificates/${certificate.id}/download-signed`)
+      if (!response.ok) {
+        throw new Error('Failed to download PDF')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const fileName = `${certificate.certificateNumber.replace(/\//g, '-')}.pdf`
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading PDF:', err)
+      alert('Failed to download PDF')
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [certificate.id, certificate.certificateNumber])
+
   return (
     <div className="flex h-full bg-slate-100 p-3 gap-3">
       {/* Left Side - Header + Content (Scrollable) */}
@@ -413,61 +333,24 @@ export function ReviewerPageClient({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* TAT Badge */}
-              <div
-                className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold',
-                  headerData.tat.status === 'ok' && 'bg-green-50 text-green-700 border border-green-200',
-                  headerData.tat.status === 'warning' && 'bg-amber-50 text-amber-700 border border-amber-200',
-                  headerData.tat.status === 'overdue' && 'bg-red-50 text-red-700 border border-red-200'
-                )}
-              >
-                <Clock className="size-4" />
-                <span>TAT: {formatTAT(headerData.tat.hours)}</span>
-                {headerData.tat.status === 'overdue' && <span className="text-[10px] uppercase">Overdue</span>}
-              </div>
-              {/* View Toggle Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setViewMode(viewMode === 'details' ? 'pdf' : 'details')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700"
-              >
-                {viewMode === 'details' ? (
-                  <>
-                    <Eye className="h-4 w-4" />
-                    Preview PDF
-                  </>
-                ) : (
-                  <>
-                    <FileText className="h-4 w-4" />
-                    View Details
-                  </>
-                )}
-              </Button>
+              <TATBadge tat={headerData.tat} />
+              <ViewToggleButton
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                isAuthorized={isAuthorized}
+                onDownload={isAuthorized ? handleDownload : undefined}
+                isDownloading={isDownloading}
+              />
             </div>
           </div>
 
           {/* Meta Info Row */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm mt-3">
-            <div className="flex items-center gap-2 text-slate-600">
-              <div className="p-1 rounded bg-slate-100">
-                <User className="size-3 text-slate-500" />
-              </div>
-              <span className="font-medium text-slate-700">{headerData.assigneeName}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <div className="p-1 rounded bg-slate-100">
-                <Building2 className="size-3 text-slate-500" />
-              </div>
-              <span>{headerData.customerName}</span>
-            </div>
-            <div className="flex items-center gap-2 text-slate-600">
-              <div className="p-1 rounded bg-slate-100">
-                <MapPin className="size-3 text-slate-500" />
-              </div>
-              <span>{headerData.calibratedAt === 'LAB' ? 'Laboratory' : 'Site'}</span>
-            </div>
+            <MetaInfoItem icon={User} emphasized>{headerData.assigneeName}</MetaInfoItem>
+            <MetaInfoItem icon={Building2}>{headerData.customerName}</MetaInfoItem>
+            <MetaInfoItem icon={MapPin}>
+              {headerData.calibratedAt === 'LAB' ? 'Laboratory' : 'Site'}
+            </MetaInfoItem>
             <div className="flex items-center gap-2 text-slate-500">
               <span className="text-slate-300">|</span>
               <span>Revision {headerData.currentRevision}</span>
@@ -728,6 +611,18 @@ export function ReviewerPageClient({
                 </div>
               )}
 
+              {isPendingAdminAuth && (
+                <div className="flex items-center gap-3 py-3 px-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <div className="size-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                    <Clock className="h-4 w-4 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-indigo-800">Pending Admin Authorization</p>
+                    <p className="text-xs text-indigo-600">Awaiting final admin approval</p>
+                  </div>
+                </div>
+              )}
+
               {isApproved && (
                 <div className="flex items-center gap-3 py-3 px-4 bg-green-50 rounded-xl border border-green-100">
                   <div className="size-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
@@ -736,6 +631,18 @@ export function ReviewerPageClient({
                   <div>
                     <p className="text-sm font-medium text-green-800">Certificate Approved</p>
                     <p className="text-xs text-green-600">Finalized and complete</p>
+                  </div>
+                </div>
+              )}
+
+              {isAuthorized && (
+                <div className="flex items-center gap-3 py-3 px-4 bg-green-50 rounded-xl border border-green-100">
+                  <div className="size-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Certificate Authorized</p>
+                    <p className="text-xs text-green-600">Fully authorized and complete</p>
                   </div>
                 </div>
               )}
@@ -799,7 +706,7 @@ export function ReviewerPageClient({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-semibold text-gray-700">
-                    Section Feedback
+                    Section Feedback <span className="text-red-500">*</span>
                   </label>
                   <span className="text-[10px] text-gray-500">
                     {sectionFeedbackEntries.filter(e => e.section && e.comment.trim()).length} of {sectionFeedbackEntries.length} complete
@@ -927,10 +834,7 @@ export function ReviewerPageClient({
               <Button
                 size="sm"
                 onClick={handleRequestRevision}
-                disabled={isRequestingRevision || (
-                  sectionFeedbackEntries.every(e => !e.section || !e.comment.trim()) &&
-                  !generalNotes.trim()
-                )}
+                disabled={isRequestingRevision || sectionFeedbackEntries.every(e => !e.section || !e.comment.trim())}
                 className="bg-orange-600 hover:bg-orange-700 text-white text-xs"
               >
                 {isRequestingRevision ? (

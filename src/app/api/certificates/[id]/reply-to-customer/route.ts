@@ -15,8 +15,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only HoD and Admin can reply to customer
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
+    // Only Admin can reply to customer
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -96,11 +96,11 @@ export async function POST(
       })
       const nextSeq = (lastEvent?.sequenceNumber || 0) + 1
 
-      // 1. Create HOD_REPLIED_TO_CUSTOMER event
+      // 1. Create ADMIN_REPLIED_TO_CUSTOMER event
       const replyEventData: Record<string, unknown> = {
         response: response.trim(),
-        hodId: session.user.id,
-        hodName: session.user.name,
+        adminId: session.user.id,
+        adminName: session.user.name,
         timestamp: now.toISOString(),
         resendCertificate: !!resendCertificate,
       }
@@ -110,7 +110,7 @@ export async function POST(
           certificateId,
           sequenceNumber: nextSeq,
           revision: certificate.currentRevision,
-          eventType: 'HOD_REPLIED_TO_CUSTOMER',
+          eventType: 'ADMIN_REPLIED_TO_CUSTOMER',
           eventData: JSON.stringify(replyEventData),
           userId: session.user.id,
           userRole: session.user.role,

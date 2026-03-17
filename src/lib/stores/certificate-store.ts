@@ -90,7 +90,7 @@ export interface SelectedMasterInstrument {
 export interface CertificateFormData {
   // Meta
   certificateNumber: string
-  status: 'DRAFT' | 'PENDING_REVIEW' | 'PENDING_HOD_REVIEW' | 'REVISION_REQUIRED' | 'PENDING_CUSTOMER_APPROVAL' | 'CUSTOMER_REVISION_REQUIRED' | 'PENDING_ADMIN_AUTHORIZATION' | 'AUTHORIZED' | 'APPROVED' | 'REJECTED'
+  status: 'DRAFT' | 'PENDING_REVIEW' | 'REVISION_REQUIRED' | 'PENDING_CUSTOMER_APPROVAL' | 'CUSTOMER_REVISION_REQUIRED' | 'PENDING_ADMIN_AUTHORIZATION' | 'AUTHORIZED' | 'APPROVED' | 'REJECTED'
   lastSaved: Date | null
 
   // Reviewer assignment (peer review model)
@@ -135,7 +135,7 @@ export interface CertificateFormData {
   selectedConclusionStatements: string[]
   additionalConclusionStatement: string // Custom user-entered conclusion statement
 
-  // Engineer notes (for responding to HoD feedback)
+  // Engineer notes (for responding to reviewer feedback)
   engineerNotes: string
 
   // Section-specific responses to reviewer feedback (stored locally until submission)
@@ -385,7 +385,7 @@ const initialFormData: CertificateFormData = {
   selectedConclusionStatements: [],
   additionalConclusionStatement: '',
 
-  // Engineer notes (for responding to HoD feedback)
+  // Engineer notes (for responding to reviewer feedback)
   engineerNotes: '',
 
   // Section-specific responses to reviewer feedback

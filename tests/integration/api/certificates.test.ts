@@ -13,7 +13,7 @@ import {
 } from '../setup/test-db'
 import {
   createTestUser,
-  createEngineerWithHod,
+  createEngineerWithAdmin,
   createTestCertificate,
   createTestParameter,
   createCalibrationResults,
@@ -36,7 +36,7 @@ describe('Certificate API Integration', () => {
 
   describe('Certificate CRUD Operations', () => {
     it('should create a certificate with all required fields', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       const certificate = await createTestCertificate(prisma, engineer.id, {
         customerName: 'Integration Test Company',
@@ -51,7 +51,7 @@ describe('Certificate API Integration', () => {
     })
 
     it('should retrieve a certificate with all relations', async () => {
-      const { engineer, hod } = await createEngineerWithHod(prisma)
+      const { engineer, admin } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
       const parameter = await createTestParameter(prisma, certificate.id)
       await createCalibrationResults(prisma, parameter.id, 3)
@@ -73,19 +73,19 @@ describe('Certificate API Integration', () => {
     })
 
     it('should update certificate status', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       const updated = await prisma.certificate.update({
         where: { id: certificate.id },
-        data: { status: 'PENDING_HOD_REVIEW' },
+        data: { status: 'PENDING_REVIEW' },
       })
 
-      expect(updated.status).toBe('PENDING_HOD_REVIEW')
+      expect(updated.status).toBe('PENDING_REVIEW')
     })
 
     it('should cascade delete certificate relations', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
       const parameter = await createTestParameter(prisma, certificate.id)
       await createCalibrationResults(prisma, parameter.id, 3)
@@ -108,7 +108,7 @@ describe('Certificate API Integration', () => {
     })
 
     it('should enforce unique certificate numbers', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certNumber = `HTA/CAL/TEST/UNIQUE-001`
 
       await createTestCertificate(prisma, engineer.id, {
@@ -126,11 +126,11 @@ describe('Certificate API Integration', () => {
 
   describe('Certificate Query Operations', () => {
     it('should filter certificates by status', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       await createTestCertificate(prisma, engineer.id, { status: 'DRAFT' })
       await createTestCertificate(prisma, engineer.id, { status: 'DRAFT' })
-      await createTestCertificate(prisma, engineer.id, { status: 'PENDING_HOD_REVIEW' })
+      await createTestCertificate(prisma, engineer.id, { status: 'PENDING_REVIEW' })
 
       const drafts = await prisma.certificate.findMany({
         where: { status: 'DRAFT' },
@@ -140,11 +140,11 @@ describe('Certificate API Integration', () => {
     })
 
     it('should filter certificates by creator', async () => {
-      const { engineer: engineer1, hod } = await createEngineerWithHod(prisma)
+      const { engineer: engineer1, admin } = await createEngineerWithAdmin(prisma)
       const engineer2 = await createTestUser(prisma, {
         name: 'Engineer 2',
         role: 'ENGINEER',
-        assignedHodId: hod.id,
+        assignedAdminId: admin.id,
       })
 
       await createTestCertificate(prisma, engineer1.id)
@@ -159,7 +159,7 @@ describe('Certificate API Integration', () => {
     })
 
     it('should order certificates by date', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
 
       const cert1 = await createTestCertificate(prisma, engineer.id)
       // Small delay to ensure different timestamps
@@ -177,7 +177,7 @@ describe('Certificate API Integration', () => {
 
   describe('Certificate with Parameters', () => {
     it('should add multiple parameters to a certificate', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       await createTestParameter(prisma, certificate.id, {
@@ -201,7 +201,7 @@ describe('Certificate API Integration', () => {
     })
 
     it('should calculate total calibration points', async () => {
-      const { engineer } = await createEngineerWithHod(prisma)
+      const { engineer } = await createEngineerWithAdmin(prisma)
       const certificate = await createTestCertificate(prisma, engineer.id)
 
       const param1 = await createTestParameter(prisma, certificate.id)

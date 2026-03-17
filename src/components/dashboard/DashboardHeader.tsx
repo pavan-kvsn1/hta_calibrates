@@ -22,8 +22,6 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
     switch (role) {
       case 'ENGINEER':
         return 'Engineer'
-      case 'HOD':
-        return 'Head of Department'
       case 'ADMIN':
         return 'Administrator'
       case 'CUSTOMER':
@@ -35,8 +33,6 @@ export function DashboardHeader({ title }: DashboardHeaderProps) {
 
   const getDashboardLink = (role: string) => {
     switch (role) {
-      case 'HOD':
-        return '/hod/dashboard'
       case 'CUSTOMER':
         return '/customer/dashboard'
       default:

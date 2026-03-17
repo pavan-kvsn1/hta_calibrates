@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { REVISION_SECTIONS } from '@/components/feedback/shared/feedback-utils'
 import type { CertificateData, Assignee } from './AdminCertificateClient'
 import type { ClientEvidence } from '@/types/signatures'
 
@@ -26,16 +27,6 @@ interface AdminReviewActionsProps {
   certificate: CertificateData
   assignee: Assignee
 }
-
-const REVISION_SECTIONS = [
-  { id: 'summary', label: 'Section 1: Summary' },
-  { id: 'uuc-details', label: 'Section 2: UUC Details' },
-  { id: 'master-inst', label: 'Section 3: Master Instruments' },
-  { id: 'environment', label: 'Section 4: Environmental Conditions' },
-  { id: 'results', label: 'Section 5: Calibration Results' },
-  { id: 'remarks', label: 'Section 6: Remarks' },
-  { id: 'conclusion', label: 'Section 7: Conclusion' },
-]
 
 export function AdminReviewActions({
   certificate,
@@ -62,7 +53,7 @@ export function AdminReviewActions({
   const [rejectReason, setRejectReason] = useState('')
 
   // Determine reviewability based on status
-  const canReview = certificate.status === 'PENDING_REVIEW' || certificate.status === 'PENDING_HOD_REVIEW'
+  const canReview = certificate.status === 'PENDING_REVIEW'
   const isRevisionRequired = certificate.status === 'REVISION_REQUIRED'
   const isPendingCustomer = certificate.status === 'PENDING_CUSTOMER_APPROVAL'
   const isCustomerRevisionRequired = certificate.status === 'CUSTOMER_REVISION_REQUIRED'

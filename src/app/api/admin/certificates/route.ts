@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
               id: true,
               name: true,
               email: true,
-              assignedHod: {
+              assignedAdmin: {
                 select: { id: true, name: true, email: true },
               },
             },
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
           name: cert.createdBy.name,
           email: cert.createdBy.email,
         },
-        assignedHod: cert.createdBy.assignedHod || null,
+        assignedAdmin: cert.createdBy.assignedAdmin || null,
         lastModifiedBy: cert.lastModifiedBy,
       })),
       pagination: {
@@ -110,16 +110,18 @@ async function getCertificateStats() {
     revisionRequired,
     pendingCustomerApproval,
     customerRevisionRequired,
-    approved,
+    pendingAdminAuthorization,
+    authorized,
     rejected,
   ] = await Promise.all([
     prisma.certificate.count(),
     prisma.certificate.count({ where: { status: 'DRAFT' } }),
-    prisma.certificate.count({ where: { status: 'PENDING_HOD_REVIEW' } }),
+    prisma.certificate.count({ where: { status: 'PENDING_REVIEW' } }),
     prisma.certificate.count({ where: { status: 'REVISION_REQUIRED' } }),
     prisma.certificate.count({ where: { status: 'PENDING_CUSTOMER_APPROVAL' } }),
     prisma.certificate.count({ where: { status: 'CUSTOMER_REVISION_REQUIRED' } }),
-    prisma.certificate.count({ where: { status: 'APPROVED' } }),
+    prisma.certificate.count({ where: { status: 'PENDING_ADMIN_AUTHORIZATION' } }),
+    prisma.certificate.count({ where: { status: 'AUTHORIZED' } }),
     prisma.certificate.count({ where: { status: 'REJECTED' } }),
   ])
 
@@ -130,11 +132,8 @@ async function getCertificateStats() {
     revisionRequired,
     pendingCustomerApproval,
     customerRevisionRequired,
-    approved,
+    pendingAdminAuthorization,
+    authorized,
     rejected,
-    // Grouped counts
-    inProgress: draft + pendingHodReview + revisionRequired,
-    withCustomer: pendingCustomerApproval + customerRevisionRequired,
-    completed: approved + rejected,
   }
 }

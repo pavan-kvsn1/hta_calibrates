@@ -2,16 +2,18 @@
 
 import { useState } from 'react'
 import {
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
   CheckCircle,
-  Clock,
   User,
   Shield,
   Building2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CollapsibleSection } from '@/components/certificate/CollapsibleSection'
+import { InfoField } from '@/components/certificate/InfoField'
+import { SignatureStatusCard } from '@/components/certificate/SignatureStatusCard'
+import { MasterInstrumentsTable } from '@/components/certificate/MasterInstrumentsTable'
+import { CalibrationResultsTable } from '@/components/certificate/CalibrationResultsTable'
 import { getConclusionText } from '@/components/pdf/pdf-utils'
 import { CALIBRATION_STATUS_OPTIONS } from '@/components/forms/RemarksSection'
 import type { CertificateData, Signature } from './TokenReviewClient'
@@ -260,34 +262,7 @@ export function TokenReviewContent({
         isExpanded={expandedSections.section3}
         onToggle={() => toggleSection('section3')}
       >
-        {certificate.masterInstruments.length === 0 ? (
-          <p className="text-gray-500 text-sm">No master instruments listed.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Make</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Model</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Serial No.</th>
-                  <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Cal. Due Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {certificate.masterInstruments.map((mi) => (
-                  <tr key={mi.id}>
-                    <td className="px-4 py-2 text-gray-900 text-xs">{mi.description}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.make || '-'}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.model || '-'}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.serialNumber || '-'}</td>
-                    <td className="px-4 py-2 text-gray-700 text-xs">{mi.calibrationDueDate || '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <MasterInstrumentsTable instruments={certificate.masterInstruments} />
       </CollapsibleSection>
 
       {/* Section 4: Environmental Conditions */}
@@ -319,66 +294,7 @@ export function TokenReviewContent({
           ) : undefined
         }
       >
-        {certificate.parameters.length === 0 ? (
-          <p className="text-gray-500 text-sm">No results recorded.</p>
-        ) : (
-          <div className="space-y-6">
-            {certificate.parameters.map((param) => (
-              <div key={param.id} className="border rounded-lg overflow-hidden">
-                <div className="bg-gray-50 px-4 py-2 border-b">
-                  <span className="font-medium text-gray-900 text-sm">
-                    {param.parameterName}
-                    {param.parameterUnit && (
-                      <span className="text-gray-500 font-normal ml-1 text-sm">({param.parameterUnit})</span>
-                    )}
-                  </span>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Point</th>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Standard Reading</th>
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">UUC Reading</th>
-                        {param.showAfterAdjustment && (
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">After Adjustment</th>
-                        )}
-                        <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500">Error</th>
-                        <th className="px-4 py-2 text-center text-xs font-semibold text-gray-500">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {param.results.map((result) => (
-                        <tr key={result.id} className={cn(result.isOutOfLimit && 'bg-red-50')}>
-                          <td className="px-4 py-2 text-gray-900 text-xs">{result.pointNumber}</td>
-                          <td className="px-4 py-2 text-gray-700 text-xs">{result.standardReading || '-'}</td>
-                          <td className="px-4 py-2 text-gray-700 text-xs">{result.beforeAdjustment || '-'}</td>
-                          {param.showAfterAdjustment && (
-                            <td className="px-4 py-2 text-gray-700 text-xs">{result.afterAdjustment || '-'}</td>
-                          )}
-                          <td className="px-4 py-2 text-gray-700 text-xs">{result.errorObserved ?? '-'}</td>
-                          <td className="px-4 py-2 text-center">
-                            {result.isOutOfLimit ? (
-                              <span className="inline-flex items-center gap-1 text-red-600">
-                                <AlertCircle className="h-3 w-3" />
-                                <span className="text-xs">Out of Limit</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-green-600">
-                                <CheckCircle className="h-3 w-3" />
-                                <span className="text-xs">OK</span>
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <CalibrationResultsTable parameters={certificate.parameters} />
       </CollapsibleSection>
 
       {/* Section 6: Remarks */}
@@ -444,110 +360,3 @@ export function TokenReviewContent({
   )
 }
 
-// Helper Components
-function CollapsibleSection({
-  title,
-  isExpanded,
-  onToggle,
-  children,
-  badge,
-}: {
-  title: string
-  isExpanded: boolean
-  onToggle: () => void
-  children: React.ReactNode
-  badge?: React.ReactNode
-}) {
-  return (
-    <div className="bg-white rounded-lg border overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-gray-700 text-sm">{title}</span>
-          {badge}
-        </div>
-        {isExpanded ? (
-          <ChevronUp className="h-5 w-5 text-gray-400" />
-        ) : (
-          <ChevronDown className="h-5 w-5 text-gray-400" />
-        )}
-      </button>
-      {isExpanded && <div className="p-4">{children}</div>}
-    </div>
-  )
-}
-
-function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
-  return (
-    <div>
-      <dt className="text-xs font-semibold text-gray-500 tracking-wider">{label}</dt>
-      <dd className="mt-1 text-xs text-gray-900">{value || '-'}</dd>
-    </div>
-  )
-}
-
-function SignatureStatusCard({
-  title,
-  icon: Icon,
-  signature,
-  isYours,
-}: {
-  title: string
-  icon: React.ComponentType<{ className?: string }>
-  signature?: { signerName: string; signedAt: string | null }
-  isYours?: boolean
-}) {
-  const isSigned = !!signature
-
-  return (
-    <div className={cn(
-      'rounded-lg border p-4',
-      isSigned ? 'bg-green-50 border-green-200' : 'bg-slate-50 border-slate-200'
-    )}>
-      <div className="flex items-start gap-3">
-        <div className={cn(
-          'size-10 rounded-full flex items-center justify-center flex-shrink-0',
-          isSigned ? 'bg-green-100' : 'bg-slate-200'
-        )}>
-          {isSigned ? (
-            <CheckCircle className="h-5 w-5 text-green-600" />
-          ) : (
-            <Clock className="h-5 w-5 text-slate-400" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className={cn('text-sm font-medium', isSigned ? 'text-green-800' : 'text-slate-700')}>
-              {title}
-            </p>
-            {isYours && (
-              <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">You</span>
-            )}
-          </div>
-          {isSigned ? (
-            <>
-              <p className="text-xs text-green-700 truncate">{signature.signerName}</p>
-              {signature.signedAt && (
-                <p className="text-[10px] text-green-600 mt-1">
-                  {new Date(signature.signedAt).toLocaleDateString('en-GB', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </p>
-              )}
-            </>
-          ) : (
-            <p className="text-xs text-slate-500">
-              {isYours ? 'Awaiting your signature' : 'Pending'}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}

@@ -68,7 +68,7 @@ export default function Home() {
             </div>
             <h3 className="font-bold text-slate-900 mb-2">Approval Workflow</h3>
             <p className="text-sm text-slate-600">
-              Multi-stage approval process with HoD review and customer sign-off.
+              Multi-stage approval process with peer review and customer sign-off.
             </p>
           </div>
 

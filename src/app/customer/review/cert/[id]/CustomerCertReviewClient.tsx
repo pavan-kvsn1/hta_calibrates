@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { CustomerCertificateHeader } from './CustomerCertificateHeader'
 import { CustomerCertificateContent } from './CustomerCertificateContent'
 import { CustomerApprovalActions } from './CustomerApprovalActions'
@@ -8,97 +8,17 @@ import { ChatSidebar } from '@/components/chat/ChatSidebar'
 import { InlinePDFViewer } from '@/app/(dashboard)/dashboard/reviewer/[id]/InlinePDFViewer'
 import { cn } from '@/lib/utils'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import type {
+  CertificateData,
+  CertificateSignature,
+  CustomerData,
+  CustomerHeaderData,
+} from '@/types/certificate'
 
-interface Parameter {
-  id: string
-  parameterName: string
-  parameterUnit: string | null
-  rangeMin: string | null
-  rangeMax: string | null
-  rangeUnit: string | null
-  operatingMin: string | null
-  operatingMax: string | null
-  operatingUnit: string | null
-  leastCountValue: string | null
-  leastCountUnit: string | null
-  accuracyValue: string | null
-  accuracyUnit: string | null
-  accuracyType: string
-  errorFormula: string
-  showAfterAdjustment: boolean
-  requiresBinning: boolean
-  bins: string | null
-  sopReference: string | null
-  results: {
-    id: string
-    pointNumber: number
-    standardReading: string | null
-    beforeAdjustment: string | null
-    afterAdjustment: string | null
-    errorObserved: number | null
-    isOutOfLimit: boolean
-  }[]
-}
-
-interface MasterInstrument {
-  id: string
-  description: string | null
-  make: string | null
-  model: string | null
-  serialNumber: string | null
-  calibrationDueDate: string | null
-}
-
-export interface CertificateData {
-  id: string
-  certificateNumber: string
-  status: string
-  customerName: string | null
-  customerAddress: string | null
-  calibratedAt: string | null
-  srfNumber: string | null
-  srfDate: string | null
-  dateOfCalibration: string | null
-  calibrationDueDate: string | null
-  dueDateNotApplicable: boolean
-  uucDescription: string | null
-  uucMake: string | null
-  uucModel: string | null
-  uucSerialNumber: string | null
-  uucLocationName: string | null
-  ambientTemperature: string | null
-  relativeHumidity: string | null
-  calibrationStatus: string[]
-  conclusionStatements: string[]
-  additionalConclusionStatement: string | null
-  currentRevision: number
-  parameters: Parameter[]
-  masterInstruments: MasterInstrument[]
-}
-
-export interface Signature {
-  id: string
-  signerType: string
-  signerName: string
-  signedAt: string | null
-}
-
-export interface CustomerData {
-  id: string
-  name: string
-  email: string
-  companyName: string
-}
-
-export interface HeaderData {
-  certificateNumber: string
-  status: string
-  statusLabel: string
-  statusClassName: string
-  customerName: string
-  currentRevision: number
-  dateOfCalibration: string | null
-}
+// Re-export types for components that import from this file
+export type { CertificateData, CustomerData }
+export type Signature = CertificateSignature
+export type HeaderData = CustomerHeaderData
 
 interface CustomerCertReviewClientProps {
   certificate: CertificateData
@@ -117,6 +37,7 @@ export function CustomerCertReviewClient({
 }: CustomerCertReviewClientProps) {
   // View mode state: 'details' shows certificate content, 'pdf' shows PDF preview
   const [viewMode, setViewMode] = useState<'details' | 'pdf'>('details')
+  const [isDownloading, setIsDownloading] = useState(false)
 
   // Collapsible panel states
   const [isChatExpanded, setIsChatExpanded] = useState(true)
@@ -124,6 +45,33 @@ export function CustomerCertReviewClient({
 
   // Check if customer can take action
   const canApprove = certificate.status === 'PENDING_CUSTOMER_APPROVAL' || certificate.status === 'CUSTOMER_REVISION_REQUIRED'
+  const isAuthorized = certificate.status === 'AUTHORIZED'
+
+  // Handle download PDF (only for authorized certificates)
+  const handleDownload = useCallback(async () => {
+    setIsDownloading(true)
+    try {
+      const response = await fetch(`/api/certificates/${certificate.id}/download-signed`)
+      if (!response.ok) {
+        throw new Error('Failed to download PDF')
+      }
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const fileName = `${certificate.certificateNumber.replace(/\//g, '-')}.pdf`
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Error downloading PDF:', err)
+      alert('Failed to download PDF')
+    } finally {
+      setIsDownloading(false)
+    }
+  }, [certificate.id, certificate.certificateNumber])
 
   return (
     <div className="flex h-full bg-slate-100 p-3 gap-3">
@@ -136,6 +84,9 @@ export function CustomerCertReviewClient({
             headerData={headerData}
             viewMode={viewMode}
             onViewModeChange={setViewMode}
+            isAuthorized={isAuthorized}
+            onDownload={isAuthorized ? handleDownload : undefined}
+            isDownloading={isDownloading}
           />
 
           {/* Content Area - Scrollable */}

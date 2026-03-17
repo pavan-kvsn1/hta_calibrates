@@ -1160,7 +1160,7 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
         </View>
 
         {/* ================================================================ */}
-        {/* SECTION K: SIGNATURE BLOCK - 3 columns: Engineer, HoD, Admin */}
+        {/* SECTION K: SIGNATURE BLOCK - 3 columns: Engineer, Reviewer, Admin */}
         {/* ================================================================ */}
         <View style={[styles.signatureSection, { marginTop: dynamicMargin(4) }]} wrap={false}>
           <View style={styles.signatureRow}>
@@ -1204,7 +1204,7 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
               )}
             </View>
 
-            {/* Column 2: Checked By (HoD) */}
+            {/* Column 2: Checked By (Reviewer) */}
             <View style={styles.signatureColumn}>
               <Text style={styles.signatureLabel}>CHECKED BY:</Text>
               {signatures?.hod?.image ? (

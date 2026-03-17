@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Check if certificate is in a status that allows reviewer change
-    const allowedStatuses = ['PENDING_REVIEW', 'PENDING_HOD_REVIEW']
+    const allowedStatuses = ['PENDING_REVIEW']
     if (!allowedStatuses.includes(certificate.status)) {
       return NextResponse.json(
         { error: `Cannot change reviewer for certificate with status: ${certificate.status}` },

@@ -13,8 +13,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only HoD and Admin can assign for revision
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
+    // Only Admin can assign for revision
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -72,17 +72,17 @@ export async function POST(
     // Build the feedback comment based on what's provided
     let feedbackComment = ''
     if (customerFeedback && additionalNotes) {
-      // Both customer feedback and HoD notes
-      feedbackComment = `Customer Revision Request:\n${customerFeedback}\n\nHoD Notes:\n${additionalNotes}`
+      // Both customer feedback and Admin notes
+      feedbackComment = `Customer Revision Request:\n${customerFeedback}\n\nAdmin Notes:\n${additionalNotes}`
     } else if (customerFeedback) {
       // Only customer feedback
       feedbackComment = `Customer Revision Request:\n${customerFeedback}`
     } else if (additionalNotes) {
-      // Only HoD notes (customer feedback not forwarded)
+      // Only Admin notes (customer feedback not forwarded)
       feedbackComment = additionalNotes
     } else {
       // Fallback - should rarely happen
-      feedbackComment = 'Revision requested by HoD'
+      feedbackComment = 'Revision requested by Admin'
     }
 
     // Build certificate update data
@@ -149,13 +149,13 @@ export async function POST(
         })
       }
 
-      // Create HoD additional notes as separate entry if provided
+      // Create Admin additional notes as separate entry if provided
       if (additionalNotes?.trim() && sectionFeedbacks?.length) {
         await tx.reviewFeedback.create({
           data: {
             certificateId: id,
             revisionNumber: certificate.currentRevision,
-            feedbackType: 'REVISION_REQUESTED', // HoD's own note, not customer
+            feedbackType: 'REVISION_REQUESTED', // Admin's own note, not customer
             comment: additionalNotes.trim(),
             targetSection: null,
             userId: session.user.id,
@@ -192,14 +192,14 @@ export async function POST(
         },
       })
 
-      // 4. If edits were applied, also log HOD_DATE_OVERRIDE event
+      // 4. If edits were applied, also log ADMIN_DATE_OVERRIDE event
       if (pendingEdits.length > 0) {
         await tx.certificateEvent.create({
           data: {
             certificateId: id,
             sequenceNumber: (lastEvent?.sequenceNumber || 0) + 2,
             revision: certificate.currentRevision,
-            eventType: 'HOD_DATE_OVERRIDE',
+            eventType: 'ADMIN_DATE_OVERRIDE',
             eventData: JSON.stringify({
               edits: pendingEdits,
               reason: 'Applied during customer revision forwarding',

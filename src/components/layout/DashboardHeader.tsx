@@ -23,13 +23,13 @@ export function DashboardHeader({ onMobileMenuToggle }: DashboardHeaderProps) {
           <Menu className="h-5 w-5" />
         </button>
 
-        <h1 className="text-base font-semibold text-white">
+        <h1 className="text-base font-semibold text-white uppercase">
           Calibration Engineer Portal
         </h1>
       </div>
 
       <div className="flex flex-1 justify-end gap-3 items-center">
-        {/* Admin Link (for Admin users or HoD with isAdmin) */}
+        {/* Admin Link (for Admin users or users with isAdmin flag) */}
         {(session?.user?.role === 'ADMIN' || session?.user?.isAdmin) && (
           <Link
             href="/admin"

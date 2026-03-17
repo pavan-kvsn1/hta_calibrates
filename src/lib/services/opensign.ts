@@ -239,11 +239,11 @@ export async function downloadSignedPdf(signedPdfUrl: string): Promise<Buffer> {
  * These positions correspond to the customer acknowledgment section
  * in the CalibrationCertificatePDF layout.
  *
- * @param signerType – HOD or CUSTOMER
+ * @param signerType – REVIEWER or CUSTOMER
  * @param lastPage – The page number where the signature should appear
  */
 export function getSignatureWidgets(
-  signerType: 'HOD' | 'CUSTOMER',
+  signerType: 'REVIEWER' | 'CUSTOMER',
   lastPage: number
 ): OpenSignWidget[] {
   if (signerType === 'CUSTOMER') {
@@ -278,7 +278,7 @@ export function getSignatureWidgets(
     ]
   }
 
-  // HOD widgets — positioned in the "Checked By" / "Approved & Issued By" columns
+  // Reviewer widgets — positioned in the "Checked By" / "Approved & Issued By" columns
   return [
     {
       type: 'signature',

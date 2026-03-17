@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { ArrowRight, Calendar } from 'lucide-react'
 import {
   type Feedback,
-  type HoDEdit,
+  type ReviewerEdit,
   getFeedbackStyle,
   isRevisionRequest,
   isEngineerResponse,
@@ -110,7 +110,7 @@ export function FeedbackItem({
                   isEngineer ? 'bg-blue-100 text-blue-700' :
                   roleBadge.className
                 )}>
-                  {isApproved ? 'Approved' : isCustomer ? 'Customer' : isEngineer ? 'Response' : style.label}
+                  {style.label}
                 </span>
               </div>
               <span className="text-[10px] text-slate-400 flex-shrink-0">
@@ -128,9 +128,9 @@ export function FeedbackItem({
               </p>
             )}
 
-            {/* HoD Edits */}
-            {feedback.hodEdits && feedback.hodEdits.length > 0 && (
-              <HoDEditsDisplay edits={feedback.hodEdits} />
+            {/* Reviewer Edits */}
+            {feedback.reviewerEdits && feedback.reviewerEdits.length > 0 && (
+              <ReviewerEditsDisplay edits={feedback.reviewerEdits} />
             )}
           </div>
         </div>
@@ -139,8 +139,8 @@ export function FeedbackItem({
   )
 }
 
-// Sub-component for displaying HoD edits
-function HoDEditsDisplay({ edits }: { edits: HoDEdit[] }) {
+// Sub-component for displaying Reviewer edits
+function ReviewerEditsDisplay({ edits }: { edits: ReviewerEdit[] }) {
   return (
     <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg text-[11px]">
       <div className="flex items-center gap-1.5 text-amber-700 font-semibold mb-2">

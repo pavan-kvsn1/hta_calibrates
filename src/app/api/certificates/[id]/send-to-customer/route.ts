@@ -15,8 +15,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Only HoD can send to customer
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
+    // Only Admin can send to customer
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -52,7 +52,7 @@ export async function POST(
     // Verify certificate is in correct status
     if (certificate.status !== 'PENDING_CUSTOMER_APPROVAL') {
       return NextResponse.json(
-        { error: 'Certificate must be approved by HoD before sending to customer' },
+        { error: 'Certificate must be approved by Reviewer before sending to customer' },
         { status: 400 }
       )
     }

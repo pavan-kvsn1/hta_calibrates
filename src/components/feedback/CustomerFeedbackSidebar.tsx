@@ -19,7 +19,7 @@ interface CustomerFeedback {
   eventData: {
     notes?: string
     message?: string
-    response?: string // HoD reply to customer
+    response?: string // Admin reply to customer
     customerEmail?: string
     customerName?: string
     customerCompany?: string
@@ -100,13 +100,13 @@ function getFeedbackStyle(eventType: string) {
         borderColor: 'border-orange-200',
         label: 'Forwarded to Engineer'
       }
-    case 'HOD_REPLIED_TO_CUSTOMER':
+    case 'ADMIN_REPLIED_TO_CUSTOMER':
       return {
         icon: MessageSquare,
         bgColor: 'bg-amber-100',
         textColor: 'text-amber-600',
         borderColor: 'border-amber-200',
-        label: 'HoD Response'
+        label: 'Admin Response'
       }
     default:
       return {
@@ -269,7 +269,7 @@ export function CustomerFeedbackSidebar({
                                   </p>
                                 )}
 
-                                {/* Actor info for HoD actions */}
+                                {/* Actor info for Admin actions */}
                                 {feedback.user && !isCustomerAction && (
                                   <p className="text-[11px] text-slate-400 mt-1">
                                     by {feedback.user.name}

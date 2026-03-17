@@ -16,7 +16,7 @@ export interface PendingCertificate {
   expiresAt: string | null
   tokenId: string | null
   hasToken: boolean
-  hodMessage: string | null
+  adminMessage: string | null
   srfNumber: string | null
   dateOfCalibration: string | null
 }
@@ -180,13 +180,13 @@ export function PendingReviewTable({ certificates, isLoading }: PendingReviewTab
                       <tr className="bg-gray-50">
                         <td colSpan={6} className="px-4 py-4">
                           <div className="pl-6 space-y-2">
-                            {cert.hodMessage && (
+                            {cert.adminMessage && (
                               <div>
                                 <span className="text-sm font-medium text-gray-700">
-                                  Message from HoD:
+                                  Message from Admin:
                                 </span>
                                 <p className="mt-1 text-sm text-gray-600 bg-blue-50 border border-blue-100 rounded p-2">
-                                  {cert.hodMessage}
+                                  {cert.adminMessage}
                                 </p>
                               </div>
                             )}

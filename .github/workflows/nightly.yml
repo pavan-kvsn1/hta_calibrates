@@ -6,6 +6,10 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:  # Allow manual trigger
 
+env:
+  NODE_VERSION: '20'
+  CI: true
+
 jobs:
   # Full test suite across all browsers
   full-test-suite:
@@ -19,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -30,6 +34,11 @@ jobs:
 
       - name: Run all unit tests with coverage
         run: npm run test:coverage
+
+      - name: Run SQLite integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: file:./test.db
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -46,7 +55,7 @@ jobs:
       - name: Install all Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run E2E tests (all browsers)
+      - name: Run E2E workflow tests (all browsers)
         run: npx playwright test --project=chromium --project=firefox --project=webkit
         env:
           DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
@@ -62,6 +71,16 @@ jobs:
           path: playwright-report/
           retention-days: 14
 
+      - name: Test suite summary
+        if: always()
+        run: |
+          echo "## Nightly Test Suite Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tests Executed:" >> $GITHUB_STEP_SUMMARY
+          echo "- Unit tests (7 test files)" >> $GITHUB_STEP_SUMMARY
+          echo "- SQLite integration tests (12 test files)" >> $GITHUB_STEP_SUMMARY
+          echo "- E2E workflow tests (6 specs across 3 browsers)" >> $GITHUB_STEP_SUMMARY
+
   # Comprehensive security audit
   security-audit:
     name: Security Audit
@@ -74,7 +93,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -123,7 +142,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Check for outdated packages
@@ -156,7 +175,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -191,7 +210,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
@@ -250,7 +269,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies

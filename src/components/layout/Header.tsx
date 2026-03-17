@@ -30,8 +30,6 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
 
   const getDashboardLink = (role: string) => {
     switch (role) {
-      case 'HOD':
-        return '/hod/dashboard'
       case 'CUSTOMER':
         return '/customer/dashboard'
       default:
@@ -43,8 +41,6 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
     switch (role) {
       case 'ENGINEER':
         return 'Engineer'
-      case 'HOD':
-        return 'Head of Department'
       case 'ADMIN':
         return 'Administrator'
       case 'CUSTOMER':
@@ -96,7 +92,7 @@ export function Header({ title, showAutoSave = true }: HeaderProps) {
           </div>
         )}
 
-        {/* Admin Link (for Admin users or HoD with isAdmin) */}
+        {/* Admin Link (for Admin users or users with isAdmin flag) */}
         {(session?.user?.role === 'ADMIN' || session?.user?.isAdmin) && (
           <Link
             href="/admin"

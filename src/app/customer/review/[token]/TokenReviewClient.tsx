@@ -20,97 +20,17 @@ import {
   Building2,
   Calendar,
 } from 'lucide-react'
+import type {
+  CertificateData,
+  CertificateSignature,
+  CustomerData,
+  CustomerHeaderData,
+} from '@/types/certificate'
 
-interface Parameter {
-  id: string
-  parameterName: string
-  parameterUnit: string | null
-  rangeMin: string | null
-  rangeMax: string | null
-  rangeUnit: string | null
-  operatingMin: string | null
-  operatingMax: string | null
-  operatingUnit: string | null
-  leastCountValue: string | null
-  leastCountUnit: string | null
-  accuracyValue: string | null
-  accuracyUnit: string | null
-  accuracyType: string
-  errorFormula: string
-  showAfterAdjustment: boolean
-  requiresBinning: boolean
-  bins: string | null
-  sopReference: string | null
-  results: {
-    id: string
-    pointNumber: number
-    standardReading: string | null
-    beforeAdjustment: string | null
-    afterAdjustment: string | null
-    errorObserved: number | null
-    isOutOfLimit: boolean
-  }[]
-}
-
-interface MasterInstrument {
-  id: string
-  description: string | null
-  make: string | null
-  model: string | null
-  serialNumber: string | null
-  calibrationDueDate: string | null
-}
-
-export interface CertificateData {
-  id: string
-  certificateNumber: string
-  status: string
-  customerName: string | null
-  customerAddress: string | null
-  calibratedAt: string | null
-  srfNumber: string | null
-  srfDate: string | null
-  dateOfCalibration: string | null
-  calibrationDueDate: string | null
-  dueDateNotApplicable: boolean
-  uucDescription: string | null
-  uucMake: string | null
-  uucModel: string | null
-  uucSerialNumber: string | null
-  uucLocationName: string | null
-  ambientTemperature: string | null
-  relativeHumidity: string | null
-  calibrationStatus: string[]
-  conclusionStatements: string[]
-  additionalConclusionStatement: string | null
-  currentRevision: number
-  parameters: Parameter[]
-  masterInstruments: MasterInstrument[]
-}
-
-export interface Signature {
-  id: string
-  signerType: string
-  signerName: string
-  signedAt: string | null
-}
-
-export interface CustomerData {
-  id: string
-  name: string
-  email: string
-  companyName: string
-}
-
-export interface HeaderData {
-  certificateNumber: string
-  status: string
-  statusLabel: string
-  statusClassName: string
-  customerName: string
-  currentRevision: number
-  dateOfCalibration: string | null
-}
+// Re-export types for components that import from this file
+export type { CertificateData, CustomerData }
+export type Signature = CertificateSignature
+export type HeaderData = CustomerHeaderData
 
 interface TokenReviewClientProps {
   token: string

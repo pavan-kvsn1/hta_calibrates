@@ -2,16 +2,18 @@
 
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, MessageSquare, Clock, CheckCircle2, FileText, Thermometer, Wrench, ClipboardList, MessageCircle, Target, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronRight, MessageSquare, Clock, CheckCircle2 } from 'lucide-react'
 import { format } from 'date-fns'
+import {
+  SECTION_CONFIG,
+  isRevisionRequest,
+  isEngineerResponse,
+  isApproval,
+  type Feedback as BaseFeedback,
+} from '@/components/feedback/shared/feedback-utils'
 
-interface Feedback {
-  id: string
-  feedbackType: string
-  comment: string | null
-  createdAt: string
-  revisionNumber: number
-  targetSection: string | null
+// Extend base feedback type to allow non-nullable user fields (for display)
+interface Feedback extends Omit<BaseFeedback, 'user'> {
   user: {
     name: string
     role: string
@@ -24,30 +26,9 @@ interface FeedbackHistorySectionProps {
   className?: string
 }
 
-const SECTION_CONFIG: Record<string, { label: string; icon: typeof FileText; bgClass: string; iconClass: string }> = {
-  'summary': { label: 'Summary', icon: FileText, bgClass: 'bg-blue-50', iconClass: 'text-blue-600' },
-  'uuc-details': { label: 'UUC Details', icon: Target, bgClass: 'bg-indigo-50', iconClass: 'text-indigo-600' },
-  'master-inst': { label: 'Master Instruments', icon: Wrench, bgClass: 'bg-violet-50', iconClass: 'text-violet-600' },
-  'environment': { label: 'Environmental Conditions', icon: Thermometer, bgClass: 'bg-cyan-50', iconClass: 'text-cyan-600' },
-  'results': { label: 'Calibration Results', icon: ClipboardList, bgClass: 'bg-emerald-50', iconClass: 'text-emerald-600' },
-  'remarks': { label: 'Remarks', icon: MessageCircle, bgClass: 'bg-amber-50', iconClass: 'text-amber-600' },
-  'conclusion': { label: 'Conclusion', icon: CheckCircle2, bgClass: 'bg-green-50', iconClass: 'text-green-600' },
-  'general': { label: 'General', icon: AlertCircle, bgClass: 'bg-slate-100', iconClass: 'text-slate-600' },
-}
-
 export function FeedbackHistorySection({ feedbacks, currentRevision, className }: FeedbackHistorySectionProps) {
   const [isExpanded, setIsExpanded] = useState(true)
   const [expandedRevisions, setExpandedRevisions] = useState<Set<number>>(new Set([currentRevision]))
-
-  // Helper to check feedback types
-  const isRevisionRequest = (feedbackType: string) =>
-    feedbackType === 'REVISION_REQUEST' || feedbackType === 'REVISION_REQUESTED' || feedbackType === 'CUSTOMER_REVISION_FORWARDED'
-
-  const isEngineerResponse = (feedbackType: string) =>
-    feedbackType === 'REVISION_RESPONSE' || feedbackType === 'ASSIGNEE_RESPONSE'
-
-  const isApproval = (feedbackType: string) =>
-    feedbackType === 'APPROVED' || feedbackType === 'APPROVAL'
 
   // Group feedbacks by revision, then by section (excluding approvals which are shown separately)
   const { revisionGroups, revisionApprovals } = useMemo(() => {

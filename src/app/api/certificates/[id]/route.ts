@@ -61,10 +61,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
     // Check if user has access
     const isCreator = certificate.createdById === session.user.id
     const isReviewer = certificate.reviewerId === session.user.id
-    const isHoD = session.user.role === 'HOD'
     const isAdmin = session.user.role === 'ADMIN'
 
-    if (!isCreator && !isReviewer && !isHoD && !isAdmin) {
+    if (!isCreator && !isReviewer && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

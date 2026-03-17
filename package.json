@@ -25,6 +25,8 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
+    "test:e2e:workflows": "playwright test tests/e2e/workflows/",
+    "test:e2e:journeys": "playwright test tests/e2e/journeys/",
     "test:a11y": "playwright test tests/e2e/accessibility/",
     "test:visual": "playwright test tests/e2e/visual/"
   },

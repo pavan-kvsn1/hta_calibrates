@@ -13,11 +13,11 @@ export interface AwaitingCertificate {
   uucMake: string | null
   uucModel: string | null
   updatedAt: string
-  internalStatus: 'PENDING_HOD_REVIEW' | 'CUSTOMER_REVISION_REQUIRED' | 'REVISION_REQUIRED'
+  internalStatus: 'PENDING_REVIEW' | 'CUSTOMER_REVISION_REQUIRED' | 'REVISION_REQUIRED'
   customerFeedback: string | null
   feedbackDate: string | null
-  hodResponse: string | null
-  hodName: string | null
+  adminResponse: string | null
+  adminName: string | null
   respondedAt: string | null
 }
 
@@ -27,7 +27,7 @@ interface AwaitingResponseTableProps {
 }
 
 const statusDisplayMap: Record<string, { text: string; color: string }> = {
-  PENDING_HOD_REVIEW: { text: 'Internal Review', color: 'bg-blue-100 text-blue-700' },
+  PENDING_REVIEW: { text: 'Internal Review', color: 'bg-blue-100 text-blue-700' },
   CUSTOMER_REVISION_REQUIRED: { text: 'Addressing Feedback', color: 'bg-purple-100 text-purple-700' },
   REVISION_REQUIRED: { text: 'Being Corrected', color: 'bg-amber-100 text-amber-700' },
 }
@@ -179,18 +179,18 @@ export function AwaitingResponseTable({ certificates, isLoading }: AwaitingRespo
                                 </p>
                               </div>
                             )}
-                            {cert.hodResponse ? (
+                            {cert.adminResponse ? (
                               <div>
                                 <span className="text-sm font-medium text-gray-700">
-                                  HoD Response ({cert.hodName}, {formatDate(cert.respondedAt)}):
+                                  Admin Response ({cert.adminName}, {formatDate(cert.respondedAt)}):
                                 </span>
                                 <p className="mt-1 text-sm text-gray-600 bg-orange-50 border border-orange-100 rounded p-2">
-                                  {cert.hodResponse}
+                                  {cert.adminResponse}
                                 </p>
                               </div>
                             ) : (
                               <p className="text-sm text-gray-500 italic">
-                                HoD is reviewing your request...
+                                Admin is reviewing your request...
                               </p>
                             )}
                           </div>

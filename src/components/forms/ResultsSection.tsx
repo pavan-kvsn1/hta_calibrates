@@ -766,13 +766,14 @@ function ResultsTable({
 
 interface ResultsSectionProps {
   feedbackSlot?: React.ReactNode
+  disabled?: boolean
 }
 
-export function ResultsSection({ feedbackSlot }: ResultsSectionProps = {}) {
+export function ResultsSection({ feedbackSlot, disabled }: ResultsSectionProps = {}) {
   const { formData, setResult, setPointCount, setParameter } = useCertificateStore()
 
   return (
-    <FormSection id="results" sectionNumber="Section 05" title="Calibration Results" feedbackSlot={feedbackSlot}>
+    <FormSection id="results" sectionNumber="Section 05" title="Calibration Results" feedbackSlot={feedbackSlot} disabled={disabled}>
       <div className="space-y-10">
         {formData.parameters.map((parameter, parameterIndex) => (
           <ResultsTable

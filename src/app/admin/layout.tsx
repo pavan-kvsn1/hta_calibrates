@@ -48,7 +48,7 @@ export default async function AdminLayout({
     redirect('/login')
   }
 
-  // Check if user can access admin (ADMIN role OR HoD with isAdmin flag for legacy)
+  // Check if user can access admin (ADMIN role OR user with isAdmin flag for legacy)
   if (!canAccessAdmin(session.user)) {
     redirect('/dashboard')
   }
@@ -59,11 +59,8 @@ export default async function AdminLayout({
 
   const badges = await getSidebarBadges(isMaster)
 
-  // Legacy: Check if this is an HoD with admin access (to show "Switch to Engineer" link)
-  const isHodWithAdmin = session.user.role === 'HOD' && session.user.isAdmin === true
-
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="h-screen bg-slate-100 overflow-hidden">
       {/* Sidebar */}
       <AdminSidebar
         userName={session.user.name}
@@ -75,7 +72,7 @@ export default async function AdminLayout({
       />
 
       {/* Main Content - margin adjusts based on sidebar state */}
-      <AdminLayoutWrapper showEngineerSwitch={isHodWithAdmin}>
+      <AdminLayoutWrapper showEngineerSwitch={false}>
         {children}
       </AdminLayoutWrapper>
     </div>

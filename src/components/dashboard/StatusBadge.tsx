@@ -3,7 +3,6 @@ import { cn } from '@/lib/utils'
 type CertificateStatus =
   | 'DRAFT'
   | 'PENDING_REVIEW'
-  | 'PENDING_HOD_REVIEW' // Legacy - maps to PENDING_REVIEW
   | 'REVISION_REQUIRED'
   | 'PENDING_CUSTOMER_APPROVAL'
   | 'CUSTOMER_REVISION_REQUIRED'
@@ -15,12 +14,6 @@ type CertificateStatus =
 interface StatusBadgeProps {
   status: CertificateStatus | string
   className?: string
-}
-
-// Map legacy statuses to new ones
-const statusAliases: Record<string, string> = {
-  PENDING_HOD_REVIEW: 'PENDING_REVIEW',
-  HOD_REVISION_REQUIRED: 'REVISION_REQUIRED',
 }
 
 const statusConfig: Record<
@@ -75,10 +68,7 @@ const statusConfig: Record<
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
-  // Map legacy statuses to new ones
-  const normalizedStatus = statusAliases[status] || status
-
-  const config = statusConfig[normalizedStatus] || {
+  const config = statusConfig[status] || {
     label: status,
     bgColor: 'bg-gray-100',
     textColor: 'text-gray-700',
@@ -99,13 +89,8 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
 }
 
 // Export helper functions for status handling
-export function normalizeStatus(status: string): string {
-  return statusAliases[status] || status
-}
-
 export function getStatusLabel(status: string): string {
-  const normalizedStatus = normalizeStatus(status)
-  return statusConfig[normalizedStatus]?.label || status
+  return statusConfig[status]?.label || status
 }
 
 export type { CertificateStatus }

@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/dashboard/StatusBadge'
 import {
   Table,
   TableBody,
@@ -27,13 +27,6 @@ import {
   Loader2,
   Search,
   FileText,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertCircle,
-  Send,
-  MessageSquare,
-  Edit,
 } from 'lucide-react'
 
 interface Certificate {
@@ -54,7 +47,7 @@ interface Certificate {
     name: string
     email: string
   }
-  assignedHod: {
+  assignedAdmin: {
     id: string
     name: string
     email: string
@@ -72,11 +65,9 @@ interface Stats {
   revisionRequired: number
   pendingCustomerApproval: number
   customerRevisionRequired: number
-  approved: number
+  pendingAdminAuthorization: number
+  authorized: number
   rejected: number
-  inProgress: number
-  withCustomer: number
-  completed: number
 }
 
 interface Pagination {
@@ -89,11 +80,12 @@ interface Pagination {
 const STATUS_OPTIONS = [
   { value: 'ALL', label: 'All Status' },
   { value: 'DRAFT', label: 'Draft' },
-  { value: 'PENDING_HOD_REVIEW', label: 'Pending HoD Review' },
+  { value: 'PENDING_REVIEW', label: 'Pending Review' },
   { value: 'REVISION_REQUIRED', label: 'Revision Required' },
   { value: 'PENDING_CUSTOMER_APPROVAL', label: 'Pending Customer' },
   { value: 'CUSTOMER_REVISION_REQUIRED', label: 'Customer Revision' },
-  { value: 'APPROVED', label: 'Approved' },
+  { value: 'PENDING_ADMIN_AUTHORIZATION', label: 'Pending Authorization' },
+  { value: 'AUTHORIZED', label: 'Authorized' },
   { value: 'REJECTED', label: 'Rejected' },
 ]
 
@@ -153,62 +145,6 @@ function AdminCertificatesContent() {
     setSearchQuery(searchInput)
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'DRAFT':
-        return (
-          <Badge className="bg-slate-100 text-slate-800">
-            <Edit className="h-3 w-3 mr-1" />
-            Draft
-          </Badge>
-        )
-      case 'PENDING_HOD_REVIEW':
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending Review
-          </Badge>
-        )
-      case 'REVISION_REQUIRED':
-        return (
-          <Badge className="bg-orange-100 text-orange-800">
-            <XCircle className="h-3 w-3 mr-1" />
-            Revision Required
-          </Badge>
-        )
-      case 'PENDING_CUSTOMER_APPROVAL':
-        return (
-          <Badge className="bg-blue-100 text-blue-800">
-            <Send className="h-3 w-3 mr-1" />
-            With Customer
-          </Badge>
-        )
-      case 'CUSTOMER_REVISION_REQUIRED':
-        return (
-          <Badge className="bg-purple-100 text-purple-800">
-            <MessageSquare className="h-3 w-3 mr-1" />
-            Customer Revision
-          </Badge>
-        )
-      case 'APPROVED':
-        return (
-          <Badge className="bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Approved
-          </Badge>
-        )
-      case 'REJECTED':
-        return (
-          <Badge className="bg-red-100 text-red-800">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Rejected
-          </Badge>
-        )
-      default:
-        return <Badge>{status}</Badge>
-    }
-  }
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-'
     return new Date(dateStr).toLocaleDateString()
@@ -230,7 +166,7 @@ function AdminCertificatesContent() {
 
           {/* Stats Cards */}
           {stats && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-3 mb-6">
               <Card className="cursor-pointer hover:border-slate-400" onClick={() => setStatusFilter('ALL')}>
                 <CardContent className="pt-4 pb-4">
                   <div className="text-center">
@@ -240,20 +176,20 @@ function AdminCertificatesContent() {
                 </CardContent>
               </Card>
 
-              <Card className="cursor-pointer hover:border-slate-400" onClick={() => setStatusFilter('DRAFT')}>
+              <Card className="cursor-pointer hover:border-gray-400" onClick={() => setStatusFilter('DRAFT')}>
                 <CardContent className="pt-4 pb-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-slate-600">{stats.draft}</p>
+                    <p className="text-2xl font-bold text-gray-600">{stats.draft}</p>
                     <p className="text-xs text-slate-500">Draft</p>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="cursor-pointer hover:border-yellow-400" onClick={() => setStatusFilter('PENDING_HOD_REVIEW')}>
+              <Card className="cursor-pointer hover:border-yellow-400" onClick={() => setStatusFilter('PENDING_REVIEW')}>
                 <CardContent className="pt-4 pb-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-yellow-600">{stats.pendingHodReview}</p>
-                    <p className="text-xs text-slate-500">Pending HoD</p>
+                    <p className="text-xs text-slate-500">Pending Review</p>
                   </div>
                 </CardContent>
               </Card>
@@ -262,7 +198,7 @@ function AdminCertificatesContent() {
                 <CardContent className="pt-4 pb-4">
                   <div className="text-center">
                     <p className="text-2xl font-bold text-orange-600">{stats.revisionRequired}</p>
-                    <p className="text-xs text-slate-500">Revision</p>
+                    <p className="text-xs text-slate-500">Revision Req.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -285,11 +221,20 @@ function AdminCertificatesContent() {
                 </CardContent>
               </Card>
 
-              <Card className="cursor-pointer hover:border-green-400" onClick={() => setStatusFilter('APPROVED')}>
+              <Card className="cursor-pointer hover:border-indigo-400" onClick={() => setStatusFilter('PENDING_ADMIN_AUTHORIZATION')}>
                 <CardContent className="pt-4 pb-4">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{stats.approved}</p>
-                    <p className="text-xs text-slate-500">Approved</p>
+                    <p className="text-2xl font-bold text-indigo-600">{stats.pendingAdminAuthorization}</p>
+                    <p className="text-xs text-slate-500">Pending Auth</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="cursor-pointer hover:border-emerald-400" onClick={() => setStatusFilter('AUTHORIZED')}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-emerald-600">{stats.authorized}</p>
+                    <p className="text-xs text-slate-500">Authorized</p>
                   </div>
                 </CardContent>
               </Card>
@@ -365,7 +310,7 @@ function AdminCertificatesContent() {
                         <TableHead>UUC Description</TableHead>
                         <TableHead>Calibration Date</TableHead>
                         <TableHead>Engineer</TableHead>
-                        <TableHead>Manager (HoD)</TableHead>
+                        <TableHead>Admin</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="w-[120px]">Preview</TableHead>
                       </TableRow>
@@ -391,9 +336,9 @@ function AdminCertificatesContent() {
                             {cert.createdBy.name}
                           </TableCell>
                           <TableCell className="text-sm text-slate-600">
-                            {cert.assignedHod?.name || '-'}
+                            {cert.assignedAdmin?.name || '-'}
                           </TableCell>
-                          <TableCell>{getStatusBadge(cert.status)}</TableCell>
+                          <TableCell><StatusBadge status={cert.status} /></TableCell>
                           <TableCell>
                             <Link href={`/admin/certificates/${cert.id}`}>
                               <Button variant="outline" size="sm">

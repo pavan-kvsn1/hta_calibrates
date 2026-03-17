@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, Building2, Calendar, Eye, FileText } from 'lucide-react'
+import { ChevronLeft, Building2, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ViewToggleButton } from '@/components/certificate/ViewToggleButton'
+import { MetaInfoItem } from '@/components/certificate/MetaInfoItem'
 
 interface HeaderData {
   certificateNumber: string
@@ -20,6 +21,9 @@ interface CustomerCertificateHeaderProps {
   headerData: HeaderData
   viewMode: 'details' | 'pdf'
   onViewModeChange: (mode: 'details' | 'pdf') => void
+  isAuthorized?: boolean
+  onDownload?: () => void
+  isDownloading?: boolean
 }
 
 function formatDate(dateString: string | null): string {
@@ -36,6 +40,9 @@ export function CustomerCertificateHeader({
   headerData,
   viewMode,
   onViewModeChange,
+  isAuthorized = false,
+  onDownload,
+  isDownloading = false,
 }: CustomerCertificateHeaderProps) {
   return (
     <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
@@ -64,42 +71,20 @@ export function CustomerCertificateHeader({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* View Toggle Button */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onViewModeChange(viewMode === 'details' ? 'pdf' : 'details')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white border border-gray-200 text-gray-700"
-          >
-            {viewMode === 'details' ? (
-              <>
-                <Eye className="h-4 w-4" />
-                Preview PDF
-              </>
-            ) : (
-              <>
-                <FileText className="h-4 w-4" />
-                View Details
-              </>
-            )}
-          </Button>
+          <ViewToggleButton
+            viewMode={viewMode}
+            onViewModeChange={onViewModeChange}
+            isAuthorized={isAuthorized}
+            onDownload={onDownload}
+            isDownloading={isDownloading}
+          />
         </div>
       </div>
 
       {/* Meta Info Row */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm mt-3">
-        <div className="flex items-center gap-2 text-slate-600">
-          <div className="p-1 rounded bg-slate-100">
-            <Building2 className="size-3 text-slate-500" />
-          </div>
-          <span className="font-medium text-slate-700">{headerData.customerName || '-'}</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-600">
-          <div className="p-1 rounded bg-slate-100">
-            <Calendar className="size-3 text-slate-500" />
-          </div>
-          <span>Calibrated: {formatDate(headerData.dateOfCalibration)}</span>
-        </div>
+        <MetaInfoItem icon={Building2} emphasized>{headerData.customerName || '-'}</MetaInfoItem>
+        <MetaInfoItem icon={Calendar}>Calibrated: {formatDate(headerData.dateOfCalibration)}</MetaInfoItem>
         <div className="flex items-center gap-2 text-slate-500">
           <span className="text-slate-300">|</span>
           <span>Revision {headerData.currentRevision}</span>

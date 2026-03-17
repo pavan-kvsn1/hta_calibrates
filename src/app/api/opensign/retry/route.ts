@@ -17,7 +17,7 @@ import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/services/pdf/ge
  *
  * Body: { certificateId }
  *
- * Restricted to HOD and ADMIN roles.
+ * Restricted to ADMIN role.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (session.user.role !== 'HOD' && session.user.role !== 'ADMIN') {
+    if (session.user.role !== 'ADMIN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     const results: Array<{ signerType: string; documentId: string }> = []
 
     // Find signatures that need OpenSign processing
-    const hodSig = certificate.signatures.find(s => s.signerType === 'HOD')
+    const reviewerSig = certificate.signatures.find(s => s.signerType === 'REVIEWER')
     const customerSig = certificate.signatures.find(s => s.signerType === 'CUSTOMER')
 
     // Check which signer types already have an OpenSign document
@@ -84,15 +84,15 @@ export async function POST(request: NextRequest) {
     })
     const signedTypes = new Set(existingDocs.map(d => d.signerType))
 
-    // Re-sign for HoD if not already processed
-    if (hodSig && !signedTypes.has('HOD')) {
-      const widgets = getSignatureWidgets('HOD', pageCount)
+    // Re-sign for Reviewer if not already processed
+    if (reviewerSig && !signedTypes.has('REVIEWER')) {
+      const widgets = getSignatureWidgets('REVIEWER', pageCount)
       const result = await withRetry(() =>
         selfSignDocument({
           file: pdfBase64,
           title,
-          signerName: hodSig.signerName,
-          signerEmail: hodSig.signerEmail,
+          signerName: reviewerSig.signerName,
+          signerEmail: reviewerSig.signerEmail,
           widgets,
         })
       )
@@ -101,15 +101,15 @@ export async function POST(request: NextRequest) {
         data: {
           certificateId,
           openSignDocumentId: result.documentId,
-          signerType: 'HOD',
-          signerEmail: hodSig.signerEmail,
+          signerType: 'REVIEWER',
+          signerEmail: reviewerSig.signerEmail,
           status: 'SIGNED',
           signedPdfUrl: result.signedPdfUrl,
           auditTrailUrl: result.auditTrailUrl,
         },
       })
 
-      results.push({ signerType: 'HOD', documentId: result.documentId })
+      results.push({ signerType: 'REVIEWER', documentId: result.documentId })
     }
 
     // Re-sign for customer if not already processed
