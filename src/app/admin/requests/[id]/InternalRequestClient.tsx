@@ -384,7 +384,7 @@ export function InternalRequestClient({
                     )}
                     {request.adminNote && (
                       <p className="mt-2 text-sm text-slate-600 italic">
-                        "{request.adminNote}"
+                        &ldquo;{request.adminNote}&rdquo;
                       </p>
                     )}
                   </div>

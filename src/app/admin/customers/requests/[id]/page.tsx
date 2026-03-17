@@ -305,7 +305,7 @@ export default function ReviewRequestPage({ params }: { params: Promise<{ id: st
                       <CardTitle className="text-lg">Reason for Change</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-slate-700 italic">"{request.data.reason}"</p>
+                      <p className="text-slate-700 italic">&ldquo;{request.data.reason}&rdquo;</p>
                     </CardContent>
                   </Card>
                 )}

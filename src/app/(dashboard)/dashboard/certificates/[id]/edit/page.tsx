@@ -437,8 +437,8 @@ export default function EditCertificatePage() {
 
   const { formData, isDirty, isSaving, saveDraft, loadForm, setCertificateId } = useCertificateStore()
   const [activeSection, setActiveSection] = useState('summary')
-  const [isScrolled, setIsScrolled] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const [_isScrolled, setIsScrolled] = useState(false)
+  const [_saveError, setSaveError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [feedbacks, setFeedbacks] = useState<ApiFeedback[]>([])

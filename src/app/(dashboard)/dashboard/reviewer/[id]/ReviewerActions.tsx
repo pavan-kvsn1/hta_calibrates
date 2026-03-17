@@ -28,9 +28,9 @@ export function ReviewerActions({
   certificateId,
   certificateNumber,
   status,
-  assigneeId,
+  assigneeId: _assigneeId,
   assigneeName,
-  chatThreadId,
+  chatThreadId: _chatThreadId,
 }: ReviewerActionsProps) {
   const router = useRouter()
   const [isApproving, setIsApproving] = useState(false)

@@ -1,6 +1,6 @@
 // PostgreSQL Schema for Integration Testing
 // This schema is used for production-parity testing in CI
-// Run: npx prisma generate --schema=prisma/schema.postgres.prisma
+// Run: npx prisma generate --schema=prisma/schema.postgres.prisma --no-config
 
 generator client {
   provider = "prisma-client-js"
@@ -9,7 +9,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ====================
@@ -21,11 +20,12 @@ model User {
   email         String   @unique
   name          String
   passwordHash  String?
-  role          String   @default("ENGINEER")
-  isAdmin       Boolean  @default(false)
-  assignedHodId String?
-  assignedHod   User?    @relation("EngineerToHod", fields: [assignedHodId], references: [id])
-  engineers     User[]   @relation("EngineerToHod")
+  role            String   @default("ENGINEER")
+  isAdmin         Boolean  @default(false)
+  adminType       String?
+  assignedAdminId String?
+  assignedAdmin   User?    @relation("EngineerToAdmin", fields: [assignedAdminId], references: [id])
+  engineers       User[]   @relation("EngineerToAdmin")
   signatureUrl  String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -37,6 +37,7 @@ model User {
 
   createdCertificates  Certificate[] @relation("CertificateCreator")
   modifiedCertificates Certificate[] @relation("CertificateModifier")
+  reviewedCertificates Certificate[] @relation("CertificateReviewer")
 
   events               CertificateEvent[]    @relation("EventActor")
   submittedRevisions   CertificateRevision[] @relation("RevisionSubmitter")
@@ -48,28 +49,45 @@ model User {
   signatures           Signature[]
   notifications        Notification[]
 
-  reviewedRegistrations  CustomerRegistration[] @relation("RegistrationReviewer")
-  managedCustomerAccounts CustomerAccount[]     @relation("HodToCustomerAccount")
-  modifiedInstruments    MasterInstrument[]     @relation("InstrumentModifier")
+  reviewedRegistrations   CustomerRegistration[] @relation("RegistrationReviewer")
+  reviewedRequests        CustomerRequest[]      @relation("RequestReviewer")
+  managedCustomerAccounts CustomerAccount[]      @relation("AdminToCustomerAccount")
+  modifiedInstruments     MasterInstrument[]     @relation("InstrumentModifier")
+
+  chatMessages         ChatMessage[]
+  uploadedUUCImages    UUCImage[]
+
+  requestedInternalRequests  InternalRequest[] @relation("InternalRequestedBy")
+  reviewedInternalRequests   InternalRequest[] @relation("InternalRequestReviewer")
 }
 
 model CustomerUser {
   id                 String   @id @default(uuid())
   email              String   @unique
   name               String
-  passwordHash       String
+  passwordHash       String?
   companyName        String?
   customerAccountId  String?
-  isActive           Boolean  @default(true)
+  isActive           Boolean  @default(false)
   createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
 
-  customerAccount CustomerAccount? @relation(fields: [customerAccountId], references: [id])
-  signatures      Signature[]
-  approvalTokens  ApprovalToken[]
-  notifications   Notification[]
-  events          CertificateEvent[]
+  isPoc              Boolean   @default(false)
+  activatedAt        DateTime?
+  activationToken    String?   @unique
+  activationExpiry   DateTime?
+
+  customerAccount    CustomerAccount?  @relation("CustomerUsers", fields: [customerAccountId], references: [id])
+  pocForAccount      CustomerAccount?  @relation("PrimaryPOC")
+  signatures         Signature[]
+  approvalTokens     ApprovalToken[]
+  notifications      Notification[]
+  events             CertificateEvent[]
+  chatMessages       ChatMessage[]
+  requestedRequests  CustomerRequest[] @relation("RequestedBy")
 
   @@index([customerAccountId])
+  @@index([activationToken])
 }
 
 // ====================
@@ -77,22 +95,26 @@ model CustomerUser {
 // ====================
 
 model CustomerAccount {
-  id            String   @id @default(uuid())
-  companyName   String   @unique
-  address       String?
-  contactEmail  String?
-  contactPhone  String?
-  assignedHodId String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(uuid())
+  companyName     String   @unique
+  address         String?
+  contactEmail    String?
+  contactPhone    String?
+  assignedAdminId String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  assignedHod   User?                   @relation("HodToCustomerAccount", fields: [assignedHodId], references: [id])
-  users         CustomerUser[]
+  primaryPocId  String?  @unique
+  primaryPoc    CustomerUser? @relation("PrimaryPOC", fields: [primaryPocId], references: [id])
+
+  assignedAdmin User?                   @relation("AdminToCustomerAccount", fields: [assignedAdminId], references: [id])
+  users         CustomerUser[]          @relation("CustomerUsers")
   registrations CustomerRegistration[]
+  requests      CustomerRequest[]
 
   @@index([companyName])
-  @@index([assignedHodId])
+  @@index([assignedAdminId])
 }
 
 // ====================
@@ -136,6 +158,47 @@ model CustomerRegistration {
 
   @@index([status])
   @@index([customerAccountId])
+}
+
+// ====================
+// CUSTOMER REQUESTS (POC-initiated)
+// ====================
+
+enum CustomerRequestType {
+  USER_ADDITION
+  POC_CHANGE
+}
+
+enum CustomerRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CustomerRequest {
+  id                String                @id @default(uuid())
+  type              CustomerRequestType
+  status            CustomerRequestStatus @default(PENDING)
+
+  customerAccountId String
+  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id])
+
+  requestedById     String?
+  requestedBy       CustomerUser? @relation("RequestedBy", fields: [requestedById], references: [id])
+
+  data              String
+
+  reviewedById      String?
+  reviewedBy        User?    @relation("RequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt        DateTime?
+  rejectionReason   String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([customerAccountId])
+  @@index([status])
+  @@index([type])
 }
 
 // ====================
@@ -191,6 +254,11 @@ model Certificate {
   status            String   @default("DRAFT")
   currentRevision   Int      @default(1)
 
+  reviewerId        String?
+  reviewer          User?    @relation("CertificateReviewer", fields: [reviewerId], references: [id])
+
+  customerApprovedAt DateTime?
+
   calibratedAt       String?
   srfNumber          String?
   srfDate            DateTime?
@@ -213,7 +281,7 @@ model Certificate {
   ambientTemperature String?
   relativeHumidity   String?
 
-  calibrationStatus Json?              // PostgreSQL native JSON
+  calibrationStatus Json?     // PostgreSQL native JSON
   stickerOldRemoved String?
   stickerNewAffixed String?
   statusNotes       String?
@@ -245,8 +313,13 @@ model Certificate {
   signingEvidence SigningEvidence[]
   notifications  Notification[]
 
+  chatThreads    ChatThread[]
+  uucImages      UUCImage[]
+  internalRequests InternalRequest[]
+
   @@index([status])
   @@index([createdById])
+  @@index([reviewerId])
 }
 
 // ====================
@@ -555,4 +628,157 @@ model SigningEvidence {
   @@unique([certificateId, sequenceNumber])
   @@index([certificateId])
   @@index([certificateId, revision])
+}
+
+// ====================
+// CHAT SYSTEM
+// ====================
+
+model ChatThread {
+  id            String   @id @default(uuid())
+  certificateId String
+  threadType    String
+  createdAt     DateTime @default(now())
+
+  certificate   Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  messages      ChatMessage[]
+
+  @@unique([certificateId, threadType])
+  @@index([certificateId])
+}
+
+model ChatMessage {
+  id           String   @id @default(uuid())
+  threadId     String
+  senderId     String?
+  customerId   String?
+  senderType   String
+  content      String
+  createdAt    DateTime @default(now())
+  readAt       DateTime?
+
+  thread       ChatThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender       User?            @relation(fields: [senderId], references: [id])
+  customer     CustomerUser?    @relation(fields: [customerId], references: [id])
+  attachments  ChatAttachment[]
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
+  @@index([customerId])
+}
+
+model ChatAttachment {
+  id          String   @id @default(uuid())
+  messageId   String
+  fileName    String
+  fileSize    Int
+  mimeType    String
+  storagePath String
+  createdAt   DateTime @default(now())
+
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+// ====================
+// UUC READING IMAGES
+// ====================
+
+model UUCImage {
+  id            String   @id @default(uuid())
+  certificateId String
+  fileName      String
+  fileSize      Int
+  mimeType      String
+  storagePath   String
+  caption       String?
+  sortOrder     Int      @default(0)
+  uploadedById  String
+  createdAt     DateTime @default(now())
+
+  certificate   Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  uploadedBy    User        @relation(fields: [uploadedById], references: [id])
+
+  @@index([certificateId, sortOrder])
+}
+
+// ====================
+// JOB QUEUE
+// ====================
+
+model JobQueue {
+  id           String    @id @default(uuid())
+  type         String
+  payload      Json      // PostgreSQL native JSON
+  status       String    @default("pending")
+  priority     Int       @default(0)
+  attempts     Int       @default(0)
+  maxRetries   Int       @default(3)
+  error        String?
+  scheduledFor DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  processedAt  DateTime?
+
+  @@index([status, scheduledFor, priority])
+  @@index([type])
+}
+
+// ====================
+// REALTIME EVENTS
+// ====================
+
+model RealtimeEvent {
+  id          String   @id @default(uuid())
+  userId      String?
+  customerId  String?
+  channel     String
+  type        String
+  data        Json     // PostgreSQL native JSON
+  delivered   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, delivered, createdAt])
+  @@index([customerId, delivered, createdAt])
+  @@index([channel, createdAt])
+}
+
+// ====================
+// INTERNAL REQUESTS
+// ====================
+
+enum InternalRequestType {
+  SECTION_UNLOCK
+}
+
+enum InternalRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model InternalRequest {
+  id                String                @id @default(uuid())
+  type              InternalRequestType
+  status            InternalRequestStatus @default(PENDING)
+
+  requestedById     String
+  requestedBy       User                  @relation("InternalRequestedBy", fields: [requestedById], references: [id])
+
+  certificateId     String?
+  certificate       Certificate?          @relation(fields: [certificateId], references: [id])
+
+  data              String
+
+  reviewedById      String?
+  reviewedBy        User?                 @relation("InternalRequestReviewer", fields: [reviewedById], references: [id])
+  reviewedAt        DateTime?
+  adminNote         String?
+
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([certificateId])
+  @@index([status])
+  @@index([type])
 }

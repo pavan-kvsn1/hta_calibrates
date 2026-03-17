@@ -494,7 +494,7 @@ export function AdminEditPanel({
                     </div>
                     {typeof eventData.reason === 'string' && eventData.reason && (
                       <p className="text-[10px] text-slate-400 mt-0.5 italic">
-                        "{eventData.reason}"
+                        &ldquo;{eventData.reason}&rdquo;
                       </p>
                     )}
                   </div>

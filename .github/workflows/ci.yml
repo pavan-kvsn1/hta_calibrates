@@ -199,10 +199,10 @@ jobs:
         run: npm ci
 
       - name: Generate PostgreSQL Prisma client
-        run: npx prisma generate --schema=prisma/schema.postgres.prisma
+        run: npx prisma generate --config=prisma.config.postgres.ts
 
       - name: Push schema to PostgreSQL
-        run: npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss
+        run: npx prisma db push --config=prisma.config.postgres.ts --accept-data-loss
         env:
           DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
 

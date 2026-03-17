@@ -46,7 +46,7 @@ export default async function RevisionRequestedPage({
         {feedback && (
           <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6 text-left">
             <p className="text-sm font-medium text-orange-800 mb-2">Your Feedback:</p>
-            <p className="text-sm text-orange-700 italic">"{decodeURIComponent(feedback)}"</p>
+            <p className="text-sm text-orange-700 italic">&ldquo;{decodeURIComponent(feedback)}&rdquo;</p>
           </div>
         )}
 

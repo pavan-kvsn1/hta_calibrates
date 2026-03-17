@@ -43,15 +43,6 @@ export function ReviewerCertificateTable({ certificates }: ReviewerCertificateTa
     return matchesStatus && matchesSearch
   })
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
-  }
-
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return '-'
     const date = new Date(dateStr)

@@ -16,8 +16,6 @@ import {
   MapPin,
   AlertCircle,
   CheckCircle,
-  RotateCcw,
-  Send,
   MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -38,17 +36,6 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   APPROVED: { label: 'Approved', className: 'bg-green-50 text-green-700 border-green-200' },
   AUTHORIZED: { label: 'Authorized', className: 'bg-green-50 text-green-700 border-green-200' },
   REJECTED: { label: 'Rejected', className: 'bg-red-50 text-red-700 border-red-200' },
-}
-
-// Section mapping for display
-const SECTION_LABELS: Record<string, string> = {
-  'summary': 'Summary',
-  'uuc-details': 'UUC Details',
-  'master-inst': 'Master Instruments',
-  'environment': 'Environmental Conditions',
-  'results': 'Calibration Results',
-  'remarks': 'Remarks',
-  'conclusion': 'Conclusion',
 }
 
 interface Feedback {
