@@ -11,9 +11,12 @@
 import { beforeAll, afterAll, beforeEach } from 'vitest'
 import { execSync } from 'child_process'
 
-// PostgreSQL connection string
+// PostgreSQL connection string - set as environment variable for Prisma 7 compatibility
 const DATABASE_URL = process.env.DATABASE_URL ||
   'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test'
+
+// Set DATABASE_URL environment variable for PrismaClient (Prisma 7 requirement)
+process.env.DATABASE_URL = DATABASE_URL
 
 let isSetupComplete = false
 
@@ -27,12 +30,9 @@ beforeAll(async () => {
 
   try {
     // Check if PostgreSQL is available
+    // In Prisma 7, datasources in constructor is removed - use DATABASE_URL env var instead
     const { PrismaClient } = await import('@prisma/client')
-    const prisma = new PrismaClient({
-      datasources: {
-        db: { url: DATABASE_URL },
-      },
-    })
+    const prisma = new PrismaClient()
 
     // Test connection
     await prisma.$queryRaw`SELECT 1`
@@ -65,12 +65,9 @@ beforeAll(async () => {
  */
 beforeEach(async () => {
   // Import dynamically to get the right client
+  // DATABASE_URL env var is already set at module load time
   const { PrismaClient } = await import('@prisma/client')
-  const prisma = new PrismaClient({
-    datasources: {
-      db: { url: DATABASE_URL },
-    },
-  })
+  const prisma = new PrismaClient()
 
   try {
     // Truncate all tables in dependency order (PostgreSQL supports TRUNCATE CASCADE)
@@ -131,11 +128,8 @@ afterAll(async () => {
 })
 
 // Export helper for tests to get PostgreSQL client
+// DATABASE_URL env var is already set at module load time
 export async function getPostgresPrisma() {
   const { PrismaClient } = await import('@prisma/client')
-  return new PrismaClient({
-    datasources: {
-      db: { url: DATABASE_URL },
-    },
-  })
+  return new PrismaClient()
 }
