@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { StatusBadge } from '../StatusBadge'
+import { StatusBadge } from '../dashboard/StatusBadge'
 
 describe('StatusBadge', () => {
   describe('renders correct label for each status', () => {

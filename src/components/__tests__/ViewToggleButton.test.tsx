@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { ViewToggleButton, type ViewToggleButtonProps } from './ViewToggleButton'
+import { ViewToggleButton, type ViewToggleButtonProps } from '../certificate/ViewToggleButton'
 
 describe('ViewToggleButton', () => {
   const defaultProps: ViewToggleButtonProps = {

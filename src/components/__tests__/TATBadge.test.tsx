@@ -1,30 +1,30 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { TATBadge, formatTAT, type TATStatus } from './TATBadge'
+import { TATBadge, formatHours, type TATStatus } from '../tat'
 
-describe('formatTAT', () => {
+describe('formatHours', () => {
   it('formats hours less than 24 as hours only', () => {
-    expect(formatTAT(0)).toBe('0h')
-    expect(formatTAT(1)).toBe('1h')
-    expect(formatTAT(12)).toBe('12h')
-    expect(formatTAT(23)).toBe('23h')
+    expect(formatHours(0)).toBe('0h')
+    expect(formatHours(1)).toBe('1h')
+    expect(formatHours(12)).toBe('12h')
+    expect(formatHours(23)).toBe('23h')
   })
 
   it('formats exactly 24 hours as 1 day', () => {
-    expect(formatTAT(24)).toBe('1d')
+    expect(formatHours(24)).toBe('1d')
   })
 
   it('formats multiple days without remaining hours', () => {
-    expect(formatTAT(48)).toBe('2d')
-    expect(formatTAT(72)).toBe('3d')
-    expect(formatTAT(168)).toBe('7d')
+    expect(formatHours(48)).toBe('2d')
+    expect(formatHours(72)).toBe('3d')
+    expect(formatHours(168)).toBe('7d')
   })
 
   it('formats days with remaining hours', () => {
-    expect(formatTAT(25)).toBe('1d 1h')
-    expect(formatTAT(36)).toBe('1d 12h')
-    expect(formatTAT(50)).toBe('2d 2h')
-    expect(formatTAT(75)).toBe('3d 3h')
+    expect(formatHours(25)).toBe('1d 1h')
+    expect(formatHours(36)).toBe('1d 12h')
+    expect(formatHours(50)).toBe('2d 2h')
+    expect(formatHours(75)).toBe('3d 3h')
   })
 })
 
