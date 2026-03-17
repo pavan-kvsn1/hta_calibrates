@@ -61,7 +61,7 @@ beforeAll(async () => {
     // Push schema to database (creates tables if needed)
     console.log('📦 Pushing schema to PostgreSQL...')
     execSync(
-      'npx prisma db push --schema=prisma/schema.postgres.prisma --skip-generate --accept-data-loss',
+      'npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss',
       {
         stdio: 'pipe',
         env: { ...process.env, DATABASE_URL },

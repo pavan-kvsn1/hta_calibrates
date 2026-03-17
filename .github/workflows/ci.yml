@@ -202,7 +202,7 @@ jobs:
         run: npx prisma generate
 
       - name: Push schema to PostgreSQL
-        run: npx prisma db push --schema=prisma/schema.postgres.prisma --skip-generate --accept-data-loss
+        run: npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss
         env:
           DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
 
