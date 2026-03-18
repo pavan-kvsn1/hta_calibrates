@@ -60,9 +60,11 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
     test('new certificate page shows all required sections', async ({ page }) => {
       await loginAsEngineer(page)
       await page.goto('/dashboard/certificates/new')
+      await page.waitForLoadState('networkidle')
 
-      // Wait for page to load
-      await expect(page.locator('h1')).toContainText(/certificate/i, { timeout: 15000 })
+      // Wait for page to load - main content h1 shows DRAFT or certificate number
+      const mainHeading = page.locator('main h1, [role="main"] h1').first()
+      await expect(mainHeading).toBeVisible({ timeout: 15000 })
 
       // Check for main form sections (navigation or headings)
       const expectedSections = ['Summary', 'UUC', 'Customer', 'Parameter', 'Master Instrument', 'Calibration']

@@ -32,9 +32,12 @@ test.describe('Engineer Flow', () => {
 
   test('can see certificate form sections', async ({ page }) => {
     await page.goto('/dashboard/certificates/new')
+    await page.waitForLoadState('networkidle')
 
-    // The page should show the certificate creation heading
-    await expect(page.locator('h1')).toContainText(/certificate/i, { timeout: 10000 })
+    // The page should show the certificate form - main content h1 shows DRAFT or certificate number
+    // Use main content area to avoid sidebar h1
+    const mainHeading = page.locator('main h1, [role="main"] h1').first()
+    await expect(mainHeading).toBeVisible({ timeout: 10000 })
 
     // Check for form section headings (the actual sections, not nav buttons)
     await expect(page.getByRole('heading', { name: /summary/i })).toBeVisible()
