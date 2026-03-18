@@ -6,6 +6,8 @@
  *
  * Note: Integration tests require a properly configured database.
  * They will be skipped if the database cannot be initialized.
+ *
+ * For PostgreSQL tests, set DB_PROVIDER=postgresql and use the postgres-setup.ts
  */
 
 import { PrismaClient } from '@prisma/client'
@@ -13,16 +15,25 @@ import { PrismaClient } from '@prisma/client'
 let prisma: PrismaClient | null = null
 let setupError: Error | null = null
 
+const isPostgres = process.env.DB_PROVIDER === 'postgresql'
+
 /**
  * Initialize the test database
  * Uses the existing app prisma instance for integration tests.
+ * For PostgreSQL tests, uses the postgres-setup module.
  * Tests should use cleanTestDatabase() between tests to ensure isolation.
  */
 export async function setupTestDatabase(): Promise<PrismaClient> {
-  // Import the app's prisma instance
   try {
-    const prismaModule = await import('@/lib/prisma')
-    prisma = prismaModule.prisma
+    if (isPostgres) {
+      // For PostgreSQL tests, use the postgres-specific setup
+      const postgresModule = await import('./postgres-setup')
+      prisma = await postgresModule.getPostgresPrisma()
+    } else {
+      // For SQLite tests, use the app's prisma instance
+      const prismaModule = await import('@/lib/prisma')
+      prisma = prismaModule.prisma
+    }
 
     // Verify connection works
     await prisma.$queryRaw`SELECT 1`
