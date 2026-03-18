@@ -69,6 +69,11 @@ export default async function EngineerDashboard() {
     redirect('/admin')
   }
 
+  // Redirect Customer users to customer dashboard
+  if (session.user.role === 'CUSTOMER') {
+    redirect('/customer/dashboard')
+  }
+
   const [certificates, stats] = await Promise.all([
     getCertificates(session.user.id),
     getStats(session.user.id),

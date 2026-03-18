@@ -357,10 +357,12 @@ test.describe('Stage 7: Customer Reviews Certificate', () => {
 
     test('customer can select specific sections for revision', async ({ page }) => {
       await loginAsCustomer(page)
-      await page.waitForLoadState('networkidle')
+      // Use domcontentloaded as networkidle may not complete if there's polling
+      await page.waitForLoadState('domcontentloaded')
+      await page.waitForTimeout(1000) // Allow dynamic content to load
 
       const certLink = page.locator('table a, [role="table"] a, button:has-text("Review")').first()
-      if (await certLink.isVisible({ timeout: 5000 })) {
+      if (await certLink.isVisible({ timeout: 5000 }).catch(() => false)) {
         await certLink.click()
         await page.waitForLoadState('networkidle')
 

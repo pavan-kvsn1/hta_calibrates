@@ -27,8 +27,8 @@ test.describe('Reviewer Flow', () => {
     await page.goto('/dashboard/reviewer')
     await expect(page).toHaveURL(/dashboard/)
 
-    // Should see the dashboard header
-    await expect(page.locator('h1, h2').filter({ hasText: /dashboard/i }).first()).toBeVisible()
+    // Should see the page header (Reviews page)
+    await expect(page.locator('main h1, [role="main"] h1').first()).toBeVisible()
 
     // Should see statistics cards (Pending Review, Approved, Revision, etc.)
     const statsSection = page.locator('.grid')

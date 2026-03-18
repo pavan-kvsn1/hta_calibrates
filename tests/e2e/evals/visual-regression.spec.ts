@@ -72,6 +72,23 @@ test.describe('Visual Regression - Engineer Dashboard', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
+    // Mask dynamic content (certificate number contains timestamp)
+    await page.evaluate(() => {
+      // Mask certificate number in header (DRAFT-timestamp format)
+      document.querySelectorAll('h1, h2, h3').forEach(el => {
+        if (el.textContent?.includes('DRAFT-')) {
+          el.textContent = 'DRAFT-XXXXXXXX'
+        }
+      })
+      // Mask any displayed certificate number fields
+      document.querySelectorAll('input[name="certificateNumber"], input[id="certificateNumber"]').forEach(el => {
+        const input = el as HTMLInputElement
+        if (input.value.includes('DRAFT-')) {
+          input.value = 'DRAFT-XXXXXXXX'
+        }
+      })
+    })
+
     await expect(page).toHaveScreenshot('new-certificate-form.png', snapshotOptions)
   })
 })

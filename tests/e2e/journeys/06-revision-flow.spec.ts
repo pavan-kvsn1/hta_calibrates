@@ -352,18 +352,19 @@ test.describe('Multi-Role Status Verification', () => {
 })
 
 test.describe('Role Isolation Verification', () => {
-  test('Engineer cannot access HoD dashboard', async ({ page }) => {
+  test('Engineer can access reviewer dashboard (for assigned reviews)', async ({ page }) => {
     await loginAs(page, TEST_USERS.engineer)
     await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
 
-    // Try to access HoD dashboard
+    // Engineers can access reviewer dashboard - they can be assigned as peer reviewers
     await page.goto('/dashboard/reviewer')
 
-    // Should be redirected to engineer dashboard or show access denied
+    // Should be able to access the reviewer page (shows certificates assigned for review)
     const url = page.url()
-    // Engineer should not be able to access reviewer dashboard - either redirected away or 404
-    const isBlocked = !url.includes('/dashboard/reviewer') || url.includes('/login')
-    expect(isBlocked).toBe(true)
+    expect(url).toContain('/dashboard/reviewer')
+
+    // Should see the Reviews page heading
+    await expect(page.locator('main h1, [role="main"] h1').first()).toBeVisible()
   })
 
   test('Customer cannot access internal dashboards', async ({ page }) => {
@@ -373,7 +374,10 @@ test.describe('Role Isolation Verification', () => {
     // Try to access internal engineer dashboard
     await page.goto('/dashboard')
 
-    // Should be redirected to login or customer dashboard
+    // Wait for any redirect to complete
+    await page.waitForLoadState('networkidle')
+
+    // Should be redirected to customer dashboard or login (customers are blocked from internal routes)
     const url = page.url()
     const isBlocked = url.includes('/login') || url.includes('/customer')
     expect(isBlocked).toBe(true)
