@@ -44,6 +44,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Map .prisma/client-postgres to the generated PostgreSQL client
+      '.prisma/client-postgres': path.resolve(__dirname, './node_modules/.prisma/client-postgres'),
     },
   },
 })
