@@ -198,8 +198,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma client
-        run: npx prisma generate
+      - name: Generate PostgreSQL Prisma client
+        run: npx prisma generate --schema=prisma/schema.postgres.prisma
+        env:
+          DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
 
       - name: Push schema to PostgreSQL
         run: npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss

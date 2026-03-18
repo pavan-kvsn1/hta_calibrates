@@ -5,11 +5,14 @@
  * and handles schema migration before tests run.
  *
  * Uses Prisma 7 driver adapter pattern for PostgreSQL.
+ * Imports from client-postgres which is generated from schema.postgres.prisma
  */
 
 import { beforeAll, afterAll, beforeEach } from 'vitest'
 import { execSync } from 'child_process'
-import { PrismaClient } from '@prisma/client'
+// Import from PostgreSQL-specific client generated from schema.postgres.prisma
+// @ts-expect-error - client-postgres is generated at runtime
+import { PrismaClient } from '.prisma/client-postgres'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
