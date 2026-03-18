@@ -108,24 +108,24 @@ test.describe('Accessibility Audit', () => {
     })
   })
 
-  test.describe('Authenticated Pages - HoD', () => {
+  test.describe('Authenticated Pages - Admin', () => {
     test.beforeEach(async ({ page }) => {
       await page.goto('/login')
-      await page.fill('input[type="email"], input[name="email"]', TEST_USERS.hod.email)
-      await page.fill('input[type="password"]', TEST_USERS.hod.password)
+      await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
+      await page.fill('input[type="password"]', TEST_USERS.admin.password)
       await page.click('button[type="submit"]')
-      await expect(page).toHaveURL(/hod\/dashboard|dashboard/, { timeout: 10000 })
+      await expect(page).toHaveURL(/admin|dashboard/, { timeout: 10000 })
     })
 
-    test('HoD dashboard should have no accessibility violations', async ({ page }) => {
-      await page.goto('/hod/dashboard')
+    test('Admin dashboard should have no accessibility violations', async ({ page }) => {
+      await page.goto('/admin')
       await page.waitForLoadState('networkidle')
 
       const accessibilityScanResults = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze()
 
-      await saveA11yReport(accessibilityScanResults, 'hod-dashboard')
+      await saveA11yReport(accessibilityScanResults, 'admin-dashboard')
 
       expect(accessibilityScanResults.violations).toEqual([])
     })
