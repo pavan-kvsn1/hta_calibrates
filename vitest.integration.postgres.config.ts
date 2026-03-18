@@ -4,9 +4,12 @@
  * This configuration runs integration tests against a real PostgreSQL database
  * to verify production parity and catch PostgreSQL-specific behaviors.
  *
+ * Uses Prisma 7 driver adapters - the standard @prisma/client works with both
+ * SQLite and PostgreSQL through the adapter pattern.
+ *
  * Prerequisites:
  * 1. Start PostgreSQL: docker compose -f docker-compose.test.yml up -d
- * 2. Generate Prisma client: npx prisma generate --schema=prisma/schema.postgres.prisma
+ * 2. Generate Prisma client: npx prisma generate
  * 3. Push schema: npx prisma db push --schema=prisma/schema.postgres.prisma
  *
  * Usage: npm run test:integration:postgres
@@ -41,8 +44,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // Use PostgreSQL Prisma client
-      '@prisma/client': path.resolve(__dirname, './node_modules/.prisma/client-postgres'),
     },
   },
 })
