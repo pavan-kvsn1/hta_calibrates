@@ -12,11 +12,13 @@ node_modules
 *.md
 docs/
 
-# Tests
-tests/
+# Tests (exclude most, but include e2e tests for visual regression)
+tests/unit/
+tests/integration/
 playwright-report/
 test-results/
 coverage/
+# Keep tests/e2e for visual regression baseline generation
 
 # Development files
 .env

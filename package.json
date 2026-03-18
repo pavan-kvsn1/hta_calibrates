@@ -28,7 +28,9 @@
     "test:e2e:workflows": "playwright test tests/e2e/workflows/",
     "test:e2e:journeys": "playwright test tests/e2e/journeys/",
     "test:a11y": "playwright test tests/e2e/accessibility/",
-    "test:visual": "playwright test tests/e2e/visual/"
+    "test:visual": "playwright test tests/e2e/visual/",
+    "test:visual:update": "playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots",
+    "test:visual:docker": "docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

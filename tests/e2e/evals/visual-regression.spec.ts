@@ -14,14 +14,9 @@ import { TEST_USERS } from '../fixtures/test-data'
  * To update baselines:
  *   npx playwright test tests/e2e/visual/ --update-snapshots
  *
- * Note: These tests are skipped in CI until baseline snapshots are generated
- * and committed. Baselines must be generated on Linux to match CI environment.
- * Run locally with: npx playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots
+ * Note: Baselines were generated on Linux using Docker to match CI environment.
+ * To update baselines: npm run test:visual:docker
  */
-
-// Skip all visual regression tests in CI until baseline snapshots are committed
-const isCI = process.env.CI === 'true'
-test.skip(() => isCI, 'Visual regression tests skipped in CI - baseline snapshots not yet committed')
 
 // Configure snapshot options
 const snapshotOptions = {

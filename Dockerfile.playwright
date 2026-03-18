@@ -1,0 +1,37 @@
+# Dockerfile for generating Playwright visual regression baselines
+# Uses official Playwright image with all browser dependencies pre-installed
+#
+# Build: docker build -f Dockerfile.playwright -t hta-playwright .
+# Run:   docker run --rm -v "$(pwd)/tests:/app/tests" hta-playwright
+
+FROM mcr.microsoft.com/playwright:v1.58.2-noble
+
+WORKDIR /app
+
+# Copy package files first for better caching
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# Install dependencies
+RUN npm ci
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Copy source files
+COPY . .
+
+# Environment variables needed for build
+ENV CI=false
+ENV DATABASE_URL=file:./prisma/test.db
+ENV NEXTAUTH_SECRET=test-secret-for-snapshots
+ENV NEXTAUTH_URL=http://localhost:3001
+
+# Set up database
+RUN npx prisma db push && npm run db:seed
+
+# Build the app
+RUN npm run build
+
+# Run tests and generate snapshots
+CMD ["sh", "-c", "PORT=3001 npm start & sleep 20 && PLAYWRIGHT_TEST_BASE_URL=http://localhost:3001 npx playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots --reporter=list --project=chromium"]
