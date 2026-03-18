@@ -105,7 +105,7 @@ function CustomerLoginForm() {
 
         <Button
           type="submit"
-          className="w-full bg-green-600 hover:bg-green-700"
+          className="w-full bg-green-700 hover:bg-green-800"
           disabled={isLoading}
         >
           {isLoading ? 'Signing in...' : 'Sign In'}
