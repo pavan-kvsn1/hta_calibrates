@@ -16,7 +16,7 @@ export function CustomerPortalHeader({ companyName, isPrimaryPoc }: CustomerPort
         <h1 className="text-white text-base font-semibold">
           Customer Portal
         </h1>
-        <Badge className="bg-white/20 text-white border-0 hover:bg-white/30">
+        <Badge className="bg-blue-800 text-white border-0 hover:bg-blue-900">
           <Building2 className="h-3 w-3 mr-1.5" />
           {companyName}
         </Badge>
