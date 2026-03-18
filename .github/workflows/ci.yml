@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, stage4-auth-users, refactor_repo]
+    branches: [main, new-workflow, stage4-auth-users, refactor_repo]
   pull_request:
     branches: [main]
 
