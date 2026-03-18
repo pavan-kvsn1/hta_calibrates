@@ -26,10 +26,10 @@ COPY --from=deps /app/prisma ./prisma
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with cache mount for faster rebuilds
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL=file:./prisma/placeholder.db
-RUN npm run build
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # Stage 3: Production
 FROM node:20-alpine AS runner
