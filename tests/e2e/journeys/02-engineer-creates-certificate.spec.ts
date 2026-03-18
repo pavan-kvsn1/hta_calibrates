@@ -59,7 +59,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('new certificate page shows all required sections', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
 
       // Wait for page to load
       await expect(page.locator('h1')).toContainText(/certificate/i, { timeout: 15000 })
@@ -79,7 +79,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
   test.describe('1.2 - Certificate Basic Information', () => {
     test('certificate number is auto-generated', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
 
       // Wait for form to load
       await page.waitForLoadState('networkidle')
@@ -97,7 +97,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can fill customer information', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       const testData = generateTestCertData()
@@ -118,7 +118,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can fill UUC (Unit Under Calibration) details', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       const testData = generateTestCertData()
@@ -158,7 +158,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can select calibration dates', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Date of Calibration field
@@ -172,7 +172,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can select calibration location', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Look for location/calibrated at field
@@ -197,7 +197,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
   test.describe('1.3 - Parameter Management', () => {
     test('engineer can add calibration parameters', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Navigate to Parameters section
@@ -222,7 +222,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can fill parameter details', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Navigate to Parameters section
@@ -258,7 +258,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can add calibration results/points', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Navigate to calibration/results section
@@ -285,7 +285,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
   test.describe('1.4 - Master Instruments', () => {
     test('engineer can view master instruments section', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Navigate to Master Instruments section
@@ -303,7 +303,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('engineer can add master instrument to certificate', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Navigate to Master Instruments section
@@ -334,7 +334,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
   test.describe('1.5 - Saving Draft Certificate', () => {
     test('engineer can save certificate as draft', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       const testData = generateTestCertData()
@@ -416,7 +416,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
   test.describe('1.6 - Auto-save and Form Validation', () => {
     test('form shows validation errors for required fields', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Try to submit without filling required fields
@@ -440,7 +440,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
 
     test('form indicates unsaved changes', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Fill a field
@@ -463,7 +463,7 @@ test.describe('Stage 1: Engineer Creates Certificate', () => {
   test.describe('1.7 - UUC Images Upload', () => {
     test('engineer can access image upload section', async ({ page }) => {
       await loginAsEngineer(page)
-      await page.goto('/certificates/new')
+      await page.goto('/dashboard/certificates/new')
       await page.waitForLoadState('networkidle')
 
       // Navigate to UUC section or images section

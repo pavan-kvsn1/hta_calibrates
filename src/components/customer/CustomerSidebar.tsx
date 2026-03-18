@@ -194,7 +194,7 @@ export function CustomerSidebar({
                   strokeWidth={1.5}
                 />
                 {item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-red-700 text-white text-[10px] font-bold">
                     {item.badge > 9 ? '9+' : item.badge}
                   </span>
                 )}
@@ -215,7 +215,7 @@ export function CustomerSidebar({
           )}
           title={isCollapsed ? userName : undefined}
         >
-          <div className="size-8 rounded-full bg-green-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+          <div className="size-8 rounded-full bg-green-800 text-white flex items-center justify-center font-bold text-xs shrink-0">
             {getInitials(userName)}
           </div>
           {!isCollapsed && (

@@ -31,7 +31,7 @@ test.describe('Engineer Flow', () => {
   })
 
   test('can see certificate form sections', async ({ page }) => {
-    await page.goto('/certificates/new')
+    await page.goto('/dashboard/certificates/new')
 
     // The page should show the certificate creation heading
     await expect(page.locator('h1')).toContainText(/certificate/i, { timeout: 10000 })

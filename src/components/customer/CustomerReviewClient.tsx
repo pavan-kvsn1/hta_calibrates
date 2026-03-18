@@ -328,7 +328,7 @@ export function CustomerReviewClient({
             {/* User Avatar and Info */}
             <div className="flex items-center gap-2 pl-3 border-l border-gray-200">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-full ring-1 ring-gray-100 bg-green-600 text-white flex items-center justify-center font-bold text-xs">
+                <div className="h-7 w-7 rounded-full ring-1 ring-gray-100 bg-green-800 text-white flex items-center justify-center font-bold text-xs">
                   {getInitials(customer.name)}
                 </div>
                 <div className="hidden sm:block">

@@ -15,7 +15,7 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
  */
 
 // Helper function to login
-async function loginAs(page, user: typeof TEST_USERS.engineer | typeof TEST_USERS.hod | typeof TEST_USERS.customer, loginPath = '/login') {
+async function loginAs(page, user: typeof TEST_USERS.engineer | typeof TEST_USERS.reviewer | typeof TEST_USERS.customer, loginPath = '/login') {
   await page.goto(loginPath)
   await page.fill('input[type="email"], input[name="email"]', user.email)
   await page.fill('input[type="password"], input[name="password"]', user.password)
@@ -25,11 +25,11 @@ async function loginAs(page, user: typeof TEST_USERS.engineer | typeof TEST_USER
 test.describe('HoD Revision Request Flow', () => {
   test('HoD can see "Request Revision" button on pending certificates', async ({ page }) => {
     // Login as HoD
-    await loginAs(page, TEST_USERS.hod)
-    await expect(page).toHaveURL(/hod\/dashboard|dashboard/, { timeout: 10000 })
+    await loginAs(page, TEST_USERS.reviewer)
+    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
 
     // Navigate to HoD dashboard
-    await page.goto('/hod/dashboard')
+    await page.goto('/dashboard/reviewer')
 
     // Look for a certificate pending HoD review
     const pendingBadge = page.locator(`text=${STATUS_LABELS.PENDING_HOD_REVIEW}`).first()
@@ -41,7 +41,7 @@ test.describe('HoD Revision Request Flow', () => {
 
       if (await reviewLink.isVisible()) {
         await reviewLink.click()
-        await expect(page).toHaveURL(/hod\/review\//, { timeout: 10000 })
+        await expect(page).toHaveURL(/dashboard\/reviewer\//, { timeout: 10000 })
 
         // Look for the "Request Revision" button
         const revisionButton = page.locator('button:has-text("Revision"), button:has-text("Request Revision")')
@@ -57,8 +57,8 @@ test.describe('HoD Revision Request Flow', () => {
   })
 
   test('HoD revision request requires a comment', async ({ page }) => {
-    await loginAs(page, TEST_USERS.hod)
-    await page.goto('/hod/dashboard')
+    await loginAs(page, TEST_USERS.reviewer)
+    await page.goto('/dashboard/reviewer')
 
     const pendingBadge = page.locator(`text=${STATUS_LABELS.PENDING_HOD_REVIEW}`).first()
     const hasPending = await pendingBadge.isVisible({ timeout: 5000 }).catch(() => false)
@@ -69,7 +69,7 @@ test.describe('HoD Revision Request Flow', () => {
 
       if (await reviewLink.isVisible()) {
         await reviewLink.click()
-        await expect(page).toHaveURL(/hod\/review\//, { timeout: 10000 })
+        await expect(page).toHaveURL(/dashboard\/reviewer\//, { timeout: 10000 })
 
         // Try to click revision without a comment
         const revisionButton = page.locator('button:has-text("Revision"), button:has-text("Request Revision")')
@@ -231,8 +231,8 @@ test.describe('Customer Revision Request Flow', () => {
 
 test.describe('HoD Customer Feedback Forward Flow', () => {
   test('HoD can see customer revision requests on dashboard', async ({ page }) => {
-    await loginAs(page, TEST_USERS.hod)
-    await page.goto('/hod/dashboard')
+    await loginAs(page, TEST_USERS.reviewer)
+    await page.goto('/dashboard/reviewer')
 
     // Look for customer revision required status
     const customerRevisionBadge = page.locator(`text=${STATUS_LABELS.CUSTOMER_REVISION_REQUIRED}`).first()
@@ -251,8 +251,8 @@ test.describe('HoD Customer Feedback Forward Flow', () => {
   })
 
   test('HoD can view certificate with customer revision request', async ({ page }) => {
-    await loginAs(page, TEST_USERS.hod)
-    await page.goto('/hod/dashboard')
+    await loginAs(page, TEST_USERS.reviewer)
+    await page.goto('/dashboard/reviewer')
 
     const customerRevisionBadge = page.locator(`text=${STATUS_LABELS.CUSTOMER_REVISION_REQUIRED}`).first()
     const hasCustomerRevision = await customerRevisionBadge.isVisible({ timeout: 5000 }).catch(() => false)
@@ -263,7 +263,7 @@ test.describe('HoD Customer Feedback Forward Flow', () => {
 
       if (await reviewLink.isVisible()) {
         await reviewLink.click()
-        await expect(page).toHaveURL(/hod\/review\//, { timeout: 10000 })
+        await expect(page).toHaveURL(/dashboard\/reviewer\//, { timeout: 10000 })
 
         // Should show customer feedback information
         const customerFeedback = page.locator('text=/customer|feedback|revision/i')
@@ -305,8 +305,8 @@ test.describe('Multi-Role Status Verification', () => {
   })
 
   test('HoD sees correct status badges for different certificate states', async ({ page }) => {
-    await loginAs(page, TEST_USERS.hod)
-    await page.goto('/hod/dashboard')
+    await loginAs(page, TEST_USERS.reviewer)
+    await page.goto('/dashboard/reviewer')
 
     // Collect all visible status badges
     const statusBadges = page.locator('[class*="badge"], [class*="status"]')
@@ -357,11 +357,12 @@ test.describe('Role Isolation Verification', () => {
     await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
 
     // Try to access HoD dashboard
-    await page.goto('/hod/dashboard')
+    await page.goto('/dashboard/reviewer')
 
     // Should be redirected to engineer dashboard or show access denied
     const url = page.url()
-    const isBlocked = !url.includes('/hod/dashboard') || url.includes('/dashboard')
+    // Engineer should not be able to access reviewer dashboard - either redirected away or 404
+    const isBlocked = !url.includes('/dashboard/reviewer') || url.includes('/login')
     expect(isBlocked).toBe(true)
   })
 
@@ -379,11 +380,11 @@ test.describe('Role Isolation Verification', () => {
   })
 
   test('HoD cannot create new certificates', async ({ page }) => {
-    await loginAs(page, TEST_USERS.hod)
-    await page.goto('/hod/dashboard')
+    await loginAs(page, TEST_USERS.reviewer)
+    await page.goto('/dashboard/reviewer')
 
     // Try to access new certificate page
-    await page.goto('/certificates/new')
+    await page.goto('/dashboard/certificates/new')
 
     // HoD might be redirected or might see the form (depends on role permissions)
     // This test verifies the page loads without error

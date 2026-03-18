@@ -146,7 +146,7 @@ export function DashboardSidebar({
               <span className="relative">
                 <Icon className={cn('h-5 w-5 shrink-0', active ? 'text-white' : 'text-slate-400')} strokeWidth={1.5} />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                  <span className="absolute -top-1.5 -right-1.5 flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-red-700 text-white text-[10px] font-bold">
                     {item.badge > 9 ? '9+' : item.badge}
                   </span>
                 )}

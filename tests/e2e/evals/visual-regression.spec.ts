@@ -68,7 +68,7 @@ test.describe('Visual Regression - Engineer Dashboard', () => {
   })
 
   test('new certificate form visual snapshot', async ({ page }) => {
-    await page.goto('/certificates/new')
+    await page.goto('/dashboard/certificates/new')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 

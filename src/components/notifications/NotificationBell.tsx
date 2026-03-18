@@ -164,7 +164,7 @@ export function NotificationBell({ userRole }: NotificationBellProps) {
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 h-5 w-5 flex items-center justify-center">
             <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[10px] font-bold text-white items-center justify-center">
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-700 text-[10px] font-bold text-white items-center justify-center">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           </span>
