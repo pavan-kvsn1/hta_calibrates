@@ -13,7 +13,15 @@ import { TEST_USERS } from '../fixtures/test-data'
  *
  * To update baselines:
  *   npx playwright test tests/e2e/visual/ --update-snapshots
+ *
+ * Note: These tests are skipped in CI until baseline snapshots are generated
+ * and committed. Baselines must be generated on Linux to match CI environment.
+ * Run locally with: npx playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots
  */
+
+// Skip all visual regression tests in CI until baseline snapshots are committed
+const isCI = process.env.CI === 'true'
+test.skip(() => isCI, 'Visual regression tests skipped in CI - baseline snapshots not yet committed')
 
 // Configure snapshot options
 const snapshotOptions = {
@@ -73,17 +81,17 @@ test.describe('Visual Regression - Engineer Dashboard', () => {
   })
 })
 
-test.describe('Visual Regression - HoD Dashboard', () => {
+test.describe('Visual Regression - Admin Dashboard', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.hod.email)
-    await page.fill('input[type="password"]', TEST_USERS.hod.password)
+    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
+    await page.fill('input[type="password"]', TEST_USERS.admin.password)
     await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/hod\/dashboard|dashboard/, { timeout: 10000 })
+    await expect(page).toHaveURL(/admin|dashboard/, { timeout: 10000 })
   })
 
-  test('HoD dashboard visual snapshot', async ({ page }) => {
-    await page.goto('/hod/dashboard')
+  test('Admin dashboard visual snapshot', async ({ page }) => {
+    await page.goto('/admin')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
@@ -94,7 +102,7 @@ test.describe('Visual Regression - HoD Dashboard', () => {
       })
     })
 
-    await expect(page).toHaveScreenshot('hod-dashboard.png', snapshotOptions)
+    await expect(page).toHaveScreenshot('admin-dashboard.png', snapshotOptions)
   })
 })
 
