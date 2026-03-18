@@ -62,8 +62,8 @@ test.describe('Admin Certificate Management', () => {
       // Should navigate to certificate detail page
       await expect(page).toHaveURL(/admin\/certificates\/[a-zA-Z0-9-]+/, { timeout: 10000 })
 
-      // Should see certificate header with number
-      const certHeader = page.locator('h1')
+      // Should see certificate header with number (use .first() as sidebar may also have h1)
+      const certHeader = page.locator('main h1, [role="main"] h1, h1').first()
       await expect(certHeader).toBeVisible()
     } else {
       test.info().annotations.push({

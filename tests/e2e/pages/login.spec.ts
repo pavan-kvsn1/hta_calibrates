@@ -32,15 +32,15 @@ test.describe('Authentication', () => {
     await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
   })
 
-  test('HoD can login and see dashboard', async ({ page }) => {
+  test('Reviewer can login and see dashboard', async ({ page }) => {
     await page.goto('/login')
 
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.hod.email)
-    await page.fill('input[type="password"], input[name="password"]', TEST_USERS.hod.password)
+    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.reviewer.email)
+    await page.fill('input[type="password"], input[name="password"]', TEST_USERS.reviewer.password)
     await page.click('button[type="submit"]')
 
-    // Should redirect to HoD dashboard
-    await expect(page).toHaveURL(/hod|dashboard/, { timeout: 10000 })
+    // Should redirect to reviewer dashboard (may go to /admin for admin-level reviewers)
+    await expect(page).toHaveURL(/admin|dashboard/, { timeout: 10000 })
   })
 
   test('protected routes redirect to login', async ({ page }) => {
