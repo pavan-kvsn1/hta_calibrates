@@ -1,9 +1,9 @@
 # Phase 1B: CI/CD Pipeline Design
 
 ## Document Version
-- **Version**: 2.1.0
+- **Version**: 2.2.0
 - **Created**: 2026-02-04
-- **Last Updated**: 2026-03-17
+- **Last Updated**: 2026-03-19
 - **Phase**: 1 - Testing & CI/CD
 - **Status**: Complete (Implementation Details Added)
 
@@ -474,6 +474,34 @@ This document outlines the Continuous Integration and Continuous Deployment (CI/
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Implemented Caching (as of March 2026)
+
+**Next.js Build Cache** (ci.yml):
+```yaml
+- name: Cache Next.js build
+  uses: actions/cache@v4
+  with:
+    path: .next/cache
+    key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
+    restore-keys: |
+      nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      nextjs-${{ runner.os }}-
+```
+
+**Docker BuildKit Cache** (Dockerfile):
+```dockerfile
+RUN --mount=type=cache,target=/app/.next/cache npm run build
+```
+
+**Playwright Browser Cache** (ci.yml):
+```yaml
+- name: Cache Playwright browsers
+  uses: actions/cache@v4
+  with:
+    path: ~/.cache/ms-playwright
+    key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+```
+
 ---
 
 ## Notification Strategy
@@ -683,7 +711,9 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 │  ═══════                                                                        │
 │  • npm dependencies (via setup-node cache: 'npm')                               │
 │  • Playwright browsers (custom cache with hash key)                             │
+│  • Next.js build cache (actions/cache@v4 with src hash)                         │
 │  • Docker layers (type=gha cache in deploy.yml)                                 │
+│  • Docker BuildKit cache mount for .next/cache                                  │
 │                                                                                 │
 │  CONCURRENCY CONTROL                                                            │
 │  ═══════════════════                                                            │
@@ -762,6 +792,48 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 | Visual Regression | ✅ Implemented | nightly.yml screenshot comparison |
 | Slack Notifications | ➖ Optional | GitHub notifications sufficient for small teams |
 | Preview Deploys | ⏳ Pending | Requires infrastructure |
+| Build Caching | ✅ Implemented | Next.js + npm + Playwright + Docker BuildKit |
+| Pre-commit Hooks | ✅ Implemented | Husky with lint-staged |
+
+### Build Caching Implementation
+
+**Next.js Build Cache** (ci.yml):
+```yaml
+- name: Cache Next.js build
+  uses: actions/cache@v4
+  with:
+    path: .next/cache
+    key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**/*.ts', 'src/**/*.tsx') }}
+    restore-keys: |
+      nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
+      nextjs-${{ runner.os }}-
+```
+
+**Playwright Browser Cache** (ci.yml):
+```yaml
+- name: Cache Playwright browsers
+  uses: actions/cache@v4
+  with:
+    path: ~/.cache/ms-playwright
+    key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+```
+
+**Docker BuildKit Cache** (Dockerfile):
+```dockerfile
+RUN --mount=type=cache,target=/app/.next/cache npm run build
+```
+
+### Security Updates (March 2026)
+
+| Package | Previous | Current | Reason |
+|---------|----------|---------|--------|
+| Next.js | 16.1.6 | 16.2.0 | Security patch for undici vulnerability |
+| Prisma | 6.x | 7.5.0 | Breaking change: url removed from schema |
+| @prisma/client | 6.x | 7.5.0 | Version sync with Prisma CLI |
+| flatted | - | Updated | Vulnerability fix |
+| undici | - | Updated | Prototype pollution fix |
+
+**Remaining Vulnerabilities**: 9 low-severity (all in Prisma's transitive dependencies - unfixable without Prisma team update)
 
 ---
 

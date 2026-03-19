@@ -1,9 +1,9 @@
 # Phase 1A: Testing Strategy
 
 ## Document Version
-- **Version**: 2.1.0
+- **Version**: 2.2.0
 - **Created**: 2026-02-04
-- **Last Updated**: 2026-03-17
+- **Last Updated**: 2026-03-19
 - **Phase**: 1 - Testing & CI/CD
 - **Status**: Complete (Implementation Details Added)
 
@@ -467,55 +467,93 @@ This section documents the actual implementation of the testing strategy as of M
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        IMPLEMENTED TEST FILES                                    │
+│                        IMPLEMENTED TEST FILES (59 total)                         │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  src/components/__tests__/ (5 files)                                            │
-│  ══════════════════════════════════════                                         │
+│  UNIT TESTS                                                                     │
+│  ══════════                                                                     │
+│                                                                                 │
+│  tests/unit/ (1 file)                                                           │
+│  • certificate-store.test.ts - Zustand store state management                   │
+│                                                                                 │
+│  src/components/__tests__/ (8 files)                                            │
 │  • Button.test.tsx           - UI button component states                       │
 │  • StatusBadge.test.tsx      - Certificate status badge rendering               │
 │  • TATBadge.test.tsx         - Turnaround time badge display                    │
 │  • ViewToggleButton.test.tsx - View mode toggle functionality                   │
+│  • TypedSignature.test.tsx   - Digital signature component                      │
+│  • FeedbackItem.test.tsx     - Feedback item rendering                          │
+│  • FeedbackTimeline.test.tsx - Timeline component                               │
 │  • feedback-utils.test.ts    - Feedback utility functions                       │
 │                                                                                 │
 │  src/lib/__tests__/ (5 files)                                                   │
-│  ══════════════════════════════════════                                         │
 │  • certificate-number.test.ts - Certificate number generation/parsing           │
 │  • certificate-status.test.ts - Status transition validation                    │
 │  • route-guards.test.ts       - Permission and route guard logic                │
 │  • signing-evidence.test.ts   - Digital signature evidence handling             │
 │  • tat-calculator.test.ts     - Turnaround time calculations                    │
 │                                                                                 │
-│  src/app/api/__tests__/ (10 files)                                              │
-│  ══════════════════════════════════════                                         │
-│  • health.test.ts             - Health check endpoint                           │
-│  • notifications.test.ts      - Notification API endpoints                      │
-│  • certificates.test.ts       - Certificate CRUD operations                     │
-│  • admin-users.test.ts        - Admin user management endpoints                 │
-│  • admin-certificates.test.ts - Admin certificate actions                       │
-│  • customer.test.ts           - Customer dashboard API                          │
-│  • instruments.test.ts        - Master instruments API                          │
-│  • chat.test.ts               - Chat threads API                                │
-│  • internal-requests.test.ts  - Section unlock requests API                     │
-│  • workflows.test.ts          - Certificate submission workflow                 │
+│  src/lib/stores/__tests__/ (1 file)                                             │
+│  • certificate-store.test.ts - Zustand store behavior                           │
 │                                                                                 │
-│  tests/integration/api/ (3 files)                                               │
-│  ══════════════════════════════════════                                         │
-│  • auth.test.ts          - Authentication with real database                    │
-│  • certificates.test.ts  - Certificate operations with real database            │
-│  • health.test.ts        - Health check with database connection                │
+│  src/lib/services/queue/__tests__/ (2 files)                                    │
+│  • queue.test.ts             - Job queue processing                             │
+│  • database.test.ts          - Database-backed queue provider                   │
+│                                                                                 │
+│  src/app/api/__tests__/ (14 files)                                              │
+│  • health.test.ts             - Health check endpoint                           │
+│  • certificates.test.ts       - Certificate CRUD operations                     │
+│  • admin-certificates.test.ts - Admin certificate actions                       │
+│  • admin-users.test.ts        - Admin user management endpoints                 │
+│  • customer.test.ts           - Customer account management                     │
+│  • customer-approve.test.ts   - Customer approval workflow                      │
+│  • customer-dashboard.test.ts - Customer dashboard data                         │
+│  • chat.test.ts               - Chat/AI interaction                             │
+│  • instruments.test.ts        - Instrument management                           │
+│  • internal-requests.test.ts  - Internal request workflow                       │
+│  • notifications.test.ts      - Notification system                             │
+│  • signing.test.ts            - Document signing                                │
+│  • submit.test.ts             - Certificate submission                          │
+│  • workflows.test.ts          - Workflow state management                       │
+│                                                                                 │
+│  ─────────────────────────────────────────────────────────────────────────────  │
+│                                                                                 │
+│  INTEGRATION TESTS                                                              │
+│  ═════════════════                                                              │
+│                                                                                 │
+│  tests/integration/api/ (12 files)                                              │
+│  • auth.test.ts               - User authentication, password verification      │
+│  • certificates.test.ts       - Certificate CRUD with real database             │
+│  • admin-authorization.test.ts - Admin authorization workflow                   │
+│  • admin-certificates.test.ts - Admin certificate management                    │
+│  • admin-customers.test.ts    - Admin customer account management               │
+│  • admin-users.test.ts        - Admin user management                           │
+│  • customer.test.ts           - Customer workflow operations                    │
+│  • chat.test.ts               - Chat/AI integration                             │
+│  • instruments.test.ts        - Instrument management                           │
+│  • internal-requests.test.ts  - Internal request workflow                       │
+│  • notifications.test.ts      - Notification system                             │
+│  • workflows.test.ts          - Workflow state machine                          │
 │                                                                                 │
 │  tests/integration/database/ (2 files)                                          │
-│  ══════════════════════════════════════                                         │
-│  • queries.test.ts       - Complex Prisma queries                               │
-│  • transactions.test.ts  - Transaction rollback behavior                        │
+│  • queries.test.ts       - Complex Prisma queries, joins, relations             │
+│  • transactions.test.ts  - Transaction atomicity and rollback                   │
+│                                                                                 │
+│  tests/integration/setup/ (3 files)                                             │
+│  • test-db.ts            - Test database initialization/cleanup                 │
+│  • fixtures.ts           - Test data factories                                  │
+│  • postgres-setup.ts     - PostgreSQL-specific initialization                   │
+│                                                                                 │
+│  ─────────────────────────────────────────────────────────────────────────────  │
+│                                                                                 │
+│  E2E TESTS                                                                      │
+│  ═════════                                                                      │
 │                                                                                 │
 │  tests/e2e/journeys/ (10 files - numbered sequentially)                         │
-│  ══════════════════════════════════════                                         │
 │  • 01-engineer-flow.spec.ts              - Engineer login and dashboard         │
 │  • 02-engineer-creates-certificate.spec.ts - Certificate creation flow          │
 │  • 03-engineer-submits-reviewer-feedback.spec.ts - Submission workflow          │
-│  • 04-reviewer-flow.spec.ts              - Reviewer approval workflow           │
+│  • 04-hod-flow.spec.ts                   - Reviewer approval workflow           │
 │  • 05-unlock-request-workflow.spec.ts    - Section unlock requests              │
 │  • 06-revision-flow.spec.ts              - Revision request handling            │
 │  • 07-customer-flow.spec.ts              - Customer access flow                 │
@@ -524,22 +562,74 @@ This section documents the actual implementation of the testing strategy as of M
 │  • 10-admin-authorization-workflow.spec.ts - Admin authorization flow           │
 │                                                                                 │
 │  tests/e2e/pages/ (2 files)                                                     │
-│  ══════════════════════════════════════                                         │
 │  • login.spec.ts         - Login page functionality                             │
 │  • dashboard.spec.ts     - Dashboard page interactions                          │
 │                                                                                 │
 │  tests/e2e/evals/ (2 files)                                                     │
-│  ══════════════════════════════════════                                         │
-│  • accessibility.spec.ts     - WCAG accessibility checks                        │
+│  • accessibility.spec.ts     - WCAG 2.1 AA accessibility checks                 │
 │  • visual-regression.spec.ts - Visual snapshot comparisons                      │
-│                                                                                 │
-│  tests/evals/ (2 files)                                                         │
-│  ══════════════════════════════════════                                         │
-│  • pdf-generation.eval.ts  - PDF quality evaluation                             │
-│  • certificate-logic.eval.ts - Business logic evaluation                        │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Integration Test Database Configuration
+
+**SQLite Testing** (Default - Fast):
+- Config: `vitest.integration.config.ts`
+- Database: `file:./test-{uuid}.db` (isolated per test run)
+- Command: `npm run test:integration`
+- Execution: Sequential to prevent conflicts
+- Timeout: 30 seconds
+
+**PostgreSQL Testing** (Production Parity):
+- Config: `vitest.integration.postgres.config.ts`
+- Schema: `prisma/schema.postgres.prisma`
+- Command: `npm run test:integration:postgres`
+- CI Service Container: `postgres:16-alpine` on port 5433
+- Health checks: `pg_isready` with 5 retries
+
+### Visual Regression Test Configuration
+
+Visual regression tests compare screenshots against baselines to detect unintended UI changes.
+
+**Location**: `tests/e2e/evals/visual-regression.spec.ts`
+
+**Threshold Configuration** (maxDiffPixels):
+
+| Test | maxDiffPixels | Rationale |
+|------|---------------|-----------|
+| login-page.png | 100 | Static page, no dynamic content |
+| customer-login-page.png | 100 | Static page, no dynamic content |
+| engineer-dashboard.png | 100 | Timestamps masked via JS |
+| admin-dashboard.png | 100 | Timestamps masked via JS |
+| customer-dashboard.png | 100 | Timestamps masked via JS |
+| login-page-mobile.png | 100 | Responsive view, static content |
+| login-page-tablet.png | 100 | Responsive view, static content |
+| login-form-invalid-credentials.png | 100 | Server error message, consistent |
+| **new-certificate-form.png** | **500** | Dynamic content: certificate number (DRAFT-timestamp), "Saved Xs ago" text |
+| **login-form-validation-error.png** | **2000** | Browser native validation tooltip positioning varies by browser/OS |
+
+**Masking Dynamic Content**:
+```typescript
+// Mask timestamps to avoid false positives
+await page.evaluate(() => {
+  document.querySelectorAll('[data-testid="timestamp"], time').forEach(el => {
+    el.textContent = '2026-01-01 00:00'
+  })
+})
+
+// Mask certificate numbers (DRAFT-timestamp format)
+document.querySelectorAll('h1, h2, h3').forEach(el => {
+  if (el.textContent?.includes('DRAFT-')) {
+    el.textContent = 'DRAFT-XXXXXXXX'
+  }
+})
+```
+
+**Baseline Management**:
+- Baselines generated on Linux (Docker) to match CI environment
+- Update command: `npm run test:visual:docker`
+- Baselines stored in: `tests/e2e/evals/visual-regression.spec.ts-snapshots/`
 
 ### Unit Tests vs Integration Tests
 
@@ -717,15 +807,18 @@ This section documents the actual implementation of the testing strategy as of M
 
 | Category | Count | Location |
 |----------|-------|----------|
-| Component Unit Tests | 5 | `src/components/__tests__/` |
+| Component Unit Tests | 8 | `src/components/__tests__/` |
 | Utility Unit Tests | 5 | `src/lib/__tests__/` |
-| API Unit Tests | 10 | `src/app/api/__tests__/` |
-| Integration Tests | 5 | `tests/integration/` |
+| API Unit Tests | 14 | `src/app/api/__tests__/` |
+| Store Unit Tests | 1 | `src/lib/stores/__tests__/` |
+| Service Unit Tests | 2 | `src/lib/services/queue/__tests__/` |
+| Dedicated Unit Tests | 1 | `tests/unit/` |
+| API Integration Tests | 12 | `tests/integration/api/` |
+| Database Integration Tests | 2 | `tests/integration/database/` |
 | E2E Journey Tests | 10 | `tests/e2e/journeys/` |
 | E2E Page Tests | 2 | `tests/e2e/pages/` |
 | E2E Eval Tests | 2 | `tests/e2e/evals/` |
-| Evaluation Tests | 2 | `tests/evals/` |
-| **Total** | **41** | - |
+| **Total** | **59** | - |
 
 ---
 
