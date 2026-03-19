@@ -553,7 +553,7 @@ This section documents the actual implementation of the testing strategy as of M
 │  • 01-engineer-flow.spec.ts              - Engineer login and dashboard         │
 │  • 02-engineer-creates-certificate.spec.ts - Certificate creation flow          │
 │  • 03-engineer-submits-reviewer-feedback.spec.ts - Submission workflow          │
-│  • 04-hod-flow.spec.ts                   - Reviewer approval workflow           │
+│  • 04-reviewer-flow.spec.ts              - Reviewer approval workflow           │
 │  • 05-unlock-request-workflow.spec.ts    - Section unlock requests              │
 │  • 06-revision-flow.spec.ts              - Revision request handling            │
 │  • 07-customer-flow.spec.ts              - Customer access flow                 │
