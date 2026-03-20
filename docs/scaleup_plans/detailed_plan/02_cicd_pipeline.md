@@ -1,9 +1,9 @@
 # Phase 1B: CI/CD Pipeline Design
 
 ## Document Version
-- **Version**: 2.2.0
+- **Version**: 2.3.0
 - **Created**: 2026-02-04
-- **Last Updated**: 2026-03-19
+- **Last Updated**: 2026-03-20
 - **Phase**: 1 - Testing & CI/CD
 - **Status**: Complete (Implementation Details Added)
 
@@ -833,7 +833,15 @@ RUN --mount=type=cache,target=/app/.next/cache npm run build
 | flatted | - | Updated | Vulnerability fix |
 | undici | - | Updated | Prototype pollution fix |
 
-**Remaining Vulnerabilities**: 9 low-severity (all in Prisma's transitive dependencies - unfixable without Prisma team update)
+**npm Overrides** (package.json - fixes transitive vulnerabilities):
+
+| Override | Version | Vulnerabilities Fixed |
+|----------|---------|----------------------|
+| hono | ^4.12.8 | XSS, cache bypass, IP spoofing, cookie injection |
+| @hono/node-server | ^1.19.11 | Authorization bypass for static paths |
+| lodash | ^4.17.23 | Prototype pollution in unset/omit |
+
+**Vulnerability Status**: 0 vulnerabilities (all resolved via npm overrides)
 
 ---
 

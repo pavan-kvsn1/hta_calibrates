@@ -35,6 +35,11 @@ jobs:
       - name: Run all unit tests with coverage
         run: npm run test:coverage
 
+      - name: Setup SQLite database for integration tests
+        run: npx prisma db push
+        env:
+          DATABASE_URL: file:./test.db
+
       - name: Run SQLite integration tests
         run: npm run test:integration
         env:
