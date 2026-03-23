@@ -4,6 +4,37 @@ import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,  // Required when behind load balancer/proxy
+  useSecureCookies: false, // Using HTTP, not HTTPS
+  cookies: {
+    csrfToken: {
+      name: 'authjs.csrf-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+    callbackUrl: {
+      name: 'authjs.callback-url',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+    sessionToken: {
+      name: 'authjs.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: false,
+      },
+    },
+  },
   providers: [
     Credentials({
       id: 'staff-credentials',

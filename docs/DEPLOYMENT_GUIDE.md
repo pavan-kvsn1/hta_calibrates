@@ -15,7 +15,8 @@
 7. [Phase 6: Verify Deployment](#7-phase-6-verify-deployment)
 8. [Ongoing Maintenance](#8-ongoing-maintenance)
 9. [Estimated Costs](#9-estimated-costs)
-10. [Troubleshooting](#10-troubleshooting)
+10. [Delete Everything & Start Fresh](#10-delete-everything--start-fresh)
+11. [Troubleshooting](#11-troubleshooting)
 
 ---
 
@@ -140,7 +141,29 @@ terraform apply
 - Artifact Registry (Docker image storage)
 - Terraform state bucket
 
-### Step 2.3: Configure Dev/Production Environment
+### Step 2.3: Configure Docker for GCP (Do This Now!)
+
+**IMPORTANT**: Run this immediately after shared resources are created:
+
+```bash
+# Configure Docker to authenticate with GCP Artifact Registry
+gcloud auth configure-docker asia-south1-docker.pkg.dev
+```
+
+Type `Y` when prompted.
+
+**Why now?** The Artifact Registry was just created. You need to tell Docker how to talk to it before you can push images later.
+
+### Step 2.4: Verify Shared Resources
+
+```bash
+# Verify registry exists
+gcloud artifacts repositories list --location=asia-south1
+```
+
+You should see `hta-calibration` in the output.
+
+### Step 2.5: Configure Dev/Production Environment
 
 ```bash
 # Navigate to environment config
@@ -156,7 +179,7 @@ project_id = "YOUR_PROJECT_ID"
 region     = "asia-south1"
 ```
 
-### Step 2.4: Deploy Environment Infrastructure
+### Step 2.6: Deploy Environment Infrastructure
 
 ```bash
 # Initialize Terraform
@@ -178,7 +201,7 @@ terraform apply
 - Service accounts
 - Secret Manager secrets
 
-### Step 2.5: Save Important Outputs
+### Step 2.7: Save Important Outputs
 
 After deployment, save these outputs:
 ```bash
@@ -200,14 +223,9 @@ terraform output signatures_bucket
 
 ## 4. Phase 3: Build and Push Docker Image
 
-### Step 3.1: Configure Docker for GCP
+> **Note**: If you followed Phase 2 correctly, Docker is already configured. If you skipped Step 2.3, run `gcloud auth configure-docker asia-south1-docker.pkg.dev` now.
 
-```bash
-# Configure Docker to use GCP Artifact Registry
-gcloud auth configure-docker asia-south1-docker.pkg.dev
-```
-
-### Step 3.2: Build the Application
+### Step 3.1: Build the Application
 
 ```bash
 # Navigate to app directory
@@ -220,7 +238,7 @@ npm install
 npm run build
 ```
 
-### Step 3.3: Build Docker Image
+### Step 3.2: Build Docker Image
 
 ```bash
 # Build the Docker image
@@ -235,13 +253,18 @@ docker tag hta-calibration:latest \
   asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:v1.0.0
 ```
 
-### Step 3.4: Push to Artifact Registry
+### Step 3.3: Push to Artifact Registry
 
 ```bash
 # Push the image
 docker push asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:latest
 docker push asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:v1.0.0
 ```
+
+**Common Error**: `Repository "hta-calibration" not found`
+- **Cause 1**: You didn't run `terraform apply` in `terraform/shared/`
+- **Cause 2**: You didn't run `gcloud auth configure-docker asia-south1-docker.pkg.dev`
+- **Fix**: Run both commands above
 
 **Checkpoint**: Verify image in GCP Console → Artifact Registry.
 
@@ -261,120 +284,155 @@ gcloud container clusters get-credentials YOUR_CLUSTER_NAME \
 kubectl get nodes
 ```
 
-### Step 4.2: Create Kubernetes Namespace
-
+**Error: gke-gcloud-auth-plugin not found?** Run:
 ```bash
-kubectl create namespace hta-calibration
+gcloud components install gke-gcloud-auth-plugin
 ```
 
-### Step 4.3: Create Kubernetes Secrets
+### Step 4.2: Update K8s Configuration Files
 
+Before deploying, you need to update the K8s manifests with your project-specific values.
+
+**Edit `k8s/base/deployment.yaml` (line 25)** - Update the image with your project ID:
+```yaml
+image: asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:latest
+```
+
+**Edit `k8s/base/configmap.yaml`** - Update these values:
+```yaml
+data:
+  NEXTAUTH_URL: "http://YOUR_EXTERNAL_IP"  # Update after getting IP in Step 4.5
+  GCS_CERTIFICATES_BUCKET: "YOUR_PROJECT_ID-certificates-dev"
+  GCS_SIGNATURES_BUCKET: "YOUR_PROJECT_ID-signatures-dev"
+  GCS_UPLOADS_BUCKET: "YOUR_PROJECT_ID-uploads-dev"
+```
+
+> **Note**: You'll update `NEXTAUTH_URL` again after getting the external IP.
+
+### Step 4.3: Create Kubernetes Secret
+
+The K8s manifests expect a single secret named `hta-secrets` with two keys.
+
+**For Bash (Linux/Mac):**
 ```bash
 # Get database password from Secret Manager
 DB_PASSWORD=$(gcloud secrets versions access latest \
   --secret="YOUR_PROJECT_ID-db-password-dev")
 
-# Create Kubernetes secret for database
-kubectl create secret generic db-credentials \
-  --namespace=hta-calibration \
-  --from-literal=DATABASE_URL="postgresql://hta_app:${DB_PASSWORD}@PRIVATE_IP:5432/hta_calibration"
+# Get database private IP
+DB_IP=$(cd terraform/environments/dev && terraform output -raw database_private_ip)
 
-# Create secret for NextAuth
-kubectl create secret generic nextauth-secret \
+# Generate NextAuth secret
+NEXTAUTH_SECRET=$(openssl rand -base64 32)
+
+# Create the Kubernetes secret
+kubectl create namespace hta-calibration  # Create namespace first
+kubectl create secret generic hta-secrets \
   --namespace=hta-calibration \
-  --from-literal=NEXTAUTH_SECRET=$(openssl rand -base64 32) \
-  --from-literal=NEXTAUTH_URL="https://your-domain.com"
+  --from-literal=database-url="postgresql://hta_app:${DB_PASSWORD}@${DB_IP}:5432/hta_calibration" \
+  --from-literal=nextauth-secret="${NEXTAUTH_SECRET}"
 ```
 
-### Step 4.4: Create Kubernetes Deployment
+**For PowerShell (Windows):**
+```powershell
+# Get database password from Secret Manager
+$DB_PASSWORD = gcloud secrets versions access latest --secret="YOUR_PROJECT_ID-db-password-dev"
 
-Create file `k8s/deployment.yaml`:
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: hta-calibration
-  namespace: hta-calibration
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: hta-calibration
-  template:
-    metadata:
-      labels:
-        app: hta-calibration
-    spec:
-      serviceAccountName: hta-app
-      containers:
-      - name: app
-        image: asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:latest
-        ports:
-        - containerPort: 3000
-        env:
-        - name: DATABASE_URL
-          valueFrom:
-            secretKeyRef:
-              name: db-credentials
-              key: DATABASE_URL
-        - name: NEXTAUTH_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: nextauth-secret
-              key: NEXTAUTH_SECRET
-        - name: NEXTAUTH_URL
-          valueFrom:
-            secretKeyRef:
-              name: nextauth-secret
-              key: NEXTAUTH_URL
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        readinessProbe:
-          httpGet:
-            path: /api/health/ready
-            port: 3000
-          initialDelaySeconds: 10
-          periodSeconds: 5
-        livenessProbe:
-          httpGet:
-            path: /api/health
-            port: 3000
-          initialDelaySeconds: 15
-          periodSeconds: 10
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hta-calibration
-  namespace: hta-calibration
-spec:
-  type: LoadBalancer
-  ports:
-  - port: 80
-    targetPort: 3000
-  selector:
-    app: hta-calibration
+# Get database private IP (run from terraform/environments/dev folder)
+$DB_IP = terraform output -raw database_private_ip
+
+# Generate NextAuth secret
+$NEXTAUTH_SECRET = [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }) -as [byte[]])
+
+# Create the Kubernetes secret
+kubectl create namespace hta-calibration  # Create namespace first
+kubectl create secret generic hta-secrets `
+  --namespace=hta-calibration `
+  --from-literal=database-url="postgresql://hta_app:$DB_PASSWORD@${DB_IP}:5432/hta_calibration" `
+  --from-literal=nextauth-secret="$NEXTAUTH_SECRET"
 ```
 
-### Step 4.5: Deploy to Kubernetes
+### Step 4.4: Deploy to Kubernetes
+
+The K8s manifests use **Kustomize** (built into kubectl). The structure is:
+
+```
+k8s/
+├── base/                      # Base manifests (shared across all environments)
+│   ├── deployment.yaml        # ← You edited this in Step 4.2
+│   ├── configmap.yaml         # ← You edited this in Step 4.2
+│   ├── service.yaml
+│   └── ...
+└── overlays/                  # Environment-specific patches (replicas, resources)
+    ├── development/           # ← 1 replica, lower resources
+    ├── staging/               # ← 2 replicas
+    └── production/            # ← 3 replicas, higher resources
+```
+
+### Step 4.5: Apply the Deployment
 
 ```bash
-# Apply the deployment
-kubectl apply -f k8s/deployment.yaml
+# Deploy using Kustomize (for development environment)
+kubectl apply -k k8s/overlays/development
 
 # Check deployment status
-kubectl get pods -n hta-calibration -w
+kubectl get pods -n hta-calibration
 
-# Get the external IP (wait for it to be assigned)
+# Get the external IP (wait for it to be assigned, may take 1-2 minutes)
 kubectl get svc -n hta-calibration
 ```
 
+**For other environments**, use:
+```bash
+kubectl apply -k k8s/overlays/staging      # Staging
+kubectl apply -k k8s/overlays/production   # Production
+```
+
+Wait until you see an actual IP address (not `<pending>`):
+```
+NAME              TYPE           CLUSTER-IP    EXTERNAL-IP     PORT(S)
+hta-calibration   LoadBalancer   10.x.x.x      35.200.123.45   80:31234/TCP
+```
+
+### Step 4.6: Update NEXTAUTH_URL with External IP
+
+Now that you have the external IP, update the ConfigMap:
+
+**Edit `k8s/base/configmap.yaml`:**
+```yaml
+data:
+  NEXTAUTH_URL: "http://35.200.123.45"  # Replace with YOUR actual external IP
+```
+
+Then reapply and restart:
+```bash
+# Reapply the updated configmap
+kubectl apply -k k8s/overlays/development
+
+# Restart the deployment to pick up changes
+kubectl rollout restart deployment/hta-web -n hta-calibration
+
+# Watch pods come back up
+kubectl get pods -n hta-calibration -w
+```
+
 **Checkpoint**: Access the app via the external IP: `http://EXTERNAL_IP`
+
+### Updating NEXTAUTH_URL Later
+
+**When you get a domain**, update the ConfigMap:
+
+**Edit `k8s/base/configmap.yaml`:**
+```yaml
+data:
+  NEXTAUTH_URL: "https://yourdomain.com"
+```
+
+Then apply and restart:
+```bash
+kubectl apply -k k8s/overlays/development
+kubectl rollout restart deployment/hta-web -n hta-calibration
+```
 
 ---
 
@@ -384,7 +442,7 @@ kubectl get svc -n hta-calibration
 
 ```bash
 # Get the external IP
-kubectl get svc hta-calibration -n hta-calibration -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+kubectl get svc hta-web -n hta-calibration -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 ```
 
 ### Step 5.2: Configure DNS (at your domain registrar)
@@ -399,40 +457,21 @@ Add these DNS records:
 
 ### Step 5.3: Set Up SSL with Google Managed Certificate
 
-Create file `k8s/managed-cert.yaml`:
+Edit `k8s/base/managed-cert.yaml` and replace the domain placeholders with your actual domain:
 ```yaml
-apiVersion: networking.gke.io/v1
-kind: ManagedCertificate
-metadata:
-  name: hta-calibration-cert
-  namespace: hta-calibration
 spec:
   domains:
-    - your-domain.com
-    - www.your-domain.com
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: hta-calibration-ingress
-  namespace: hta-calibration
-  annotations:
-    kubernetes.io/ingress.global-static-ip-name: hta-calibration-ip
-    networking.gke.io/managed-certificates: hta-calibration-cert
-spec:
-  defaultBackend:
-    service:
-      name: hta-calibration
-      port:
-        number: 80
+    - yourdomain.com        # Replace with your actual domain
+    - www.yourdomain.com    # Replace with your actual domain
 ```
 
+Then apply:
 ```bash
 # Reserve a static IP
 gcloud compute addresses create hta-calibration-ip --global
 
-# Apply the ingress
-kubectl apply -f k8s/managed-cert.yaml
+# Apply the ingress and certificate
+kubectl apply -f k8s/base/managed-cert.yaml
 ```
 
 **Note**: SSL certificate provisioning takes 10-30 minutes.
@@ -464,7 +503,7 @@ curl https://your-domain.com/api/health/ready
 
 ```bash
 # Application logs
-kubectl logs -f deployment/hta-calibration -n hta-calibration
+kubectl logs -f deployment/hta-web -n hta-calibration
 
 # All pods
 kubectl get pods -n hta-calibration
@@ -484,7 +523,7 @@ docker build -t asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:v
 docker push asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:v1.1.0
 
 # Update deployment
-kubectl set image deployment/hta-calibration \
+kubectl set image deployment/hta-web \
   app=asia-south1-docker.pkg.dev/YOUR_PROJECT_ID/hta-calibration/app:v1.1.0 \
   -n hta-calibration
 ```
@@ -493,7 +532,7 @@ kubectl set image deployment/hta-calibration \
 
 ```bash
 # Connect to a pod
-kubectl exec -it deployment/hta-calibration -n hta-calibration -- /bin/sh
+kubectl exec -it deployment/hta-web -n hta-calibration -- /bin/sh
 
 # Run migrations
 npx prisma migrate deploy
@@ -511,10 +550,10 @@ gcloud sql backups create --instance=YOUR_INSTANCE_NAME
 
 ```bash
 # Scale to 3 replicas
-kubectl scale deployment/hta-calibration --replicas=3 -n hta-calibration
+kubectl scale deployment/hta-web --replicas=3 -n hta-calibration
 
 # Or enable autoscaling
-kubectl autoscale deployment/hta-calibration \
+kubectl autoscale deployment/hta-web \
   --min=2 --max=5 --cpu-percent=70 \
   -n hta-calibration
 ```
@@ -544,7 +583,61 @@ kubectl autoscale deployment/hta-calibration \
 
 ---
 
-## 10. Troubleshooting
+## 10. Delete Everything & Start Fresh
+
+If something went wrong and you want to start over, follow these steps to destroy all infrastructure.
+
+### Step 10.1: Destroy Dev Environment
+
+```bash
+cd hta-calibration/terraform/environments/dev
+terraform destroy
+```
+
+Type `yes` when prompted. This deletes:
+- GKE Cluster
+- Cloud SQL Database
+- Storage Buckets
+- Service Accounts
+- Secrets
+
+**Note**: This takes 10-15 minutes.
+
+### Step 10.2: Destroy Shared Resources
+
+```bash
+cd ../../../terraform/shared
+terraform destroy
+```
+
+Type `yes` when prompted. This deletes:
+- Artifact Registry (Docker images)
+- Terraform State Bucket
+
+### Step 10.3: Verify Everything is Deleted
+
+```bash
+# Check for remaining resources
+gcloud artifacts repositories list --location=asia-south1
+gcloud container clusters list
+gcloud sql instances list
+gsutil ls
+```
+
+All commands should return empty results.
+
+### Step 10.4: Start Fresh
+
+Now follow the guide from the beginning:
+
+1. [Phase 1: GCP Project Setup](#2-phase-1-gcp-project-setup) - Re-authenticate
+2. [Phase 2: Deploy Infrastructure](#3-phase-2-deploy-infrastructure-with-terraform) - Deploy shared, then dev
+3. [Phase 3: Build and Push Docker](#4-phase-3-build-and-push-docker-image) - **Don't forget `gcloud auth configure-docker`!**
+4. Continue with remaining phases...
+
+---
+
+## 11. Troubleshooting
 
 ### Pod Won't Start
 
@@ -598,13 +691,13 @@ resources:
 kubectl get all -n hta-calibration
 
 # View logs
-kubectl logs -f deployment/hta-calibration -n hta-calibration
+kubectl logs -f deployment/hta-web -n hta-calibration
 
 # Shell into pod
-kubectl exec -it deployment/hta-calibration -n hta-calibration -- /bin/sh
+kubectl exec -it deployment/hta-web -n hta-calibration -- /bin/sh
 
 # Restart deployment
-kubectl rollout restart deployment/hta-calibration -n hta-calibration
+kubectl rollout restart deployment/hta-web -n hta-calibration
 
 # Check Terraform state
 cd terraform/environments/dev && terraform show

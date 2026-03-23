@@ -165,3 +165,13 @@ module "gke" {
 
   depends_on = [module.vpc, module.iam]
 }
+
+# Workload Identity binding - must be created AFTER GKE cluster exists
+# The identity pool (project.svc.id.goog) only exists once GKE is created
+resource "google_service_account_iam_member" "app_workload_identity" {
+  service_account_id = module.iam.app_service_account_name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[hta-calibration/hta-app]"
+
+  depends_on = [module.gke]
+}

@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hta-web
+  namespace: hta-calibration
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: hta-web
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

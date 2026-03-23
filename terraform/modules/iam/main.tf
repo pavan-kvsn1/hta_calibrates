@@ -66,7 +66,10 @@ resource "google_storage_bucket_iam_member" "app_uploads" {
 }
 
 # Workload Identity binding for Kubernetes
+# Only create this after GKE cluster exists (the identity pool is created with the cluster)
 resource "google_service_account_iam_member" "app_workload_identity" {
+  count = var.create_workload_identity_binding ? 1 : 0
+
   service_account_id = google_service_account.app.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.k8s_namespace}/hta-app]"

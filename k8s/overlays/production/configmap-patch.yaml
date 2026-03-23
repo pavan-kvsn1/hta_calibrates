@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hta-config
+  namespace: hta-calibration
+data:
+  NODE_ENV: "production"
+  NEXTAUTH_URL: "https://htacalibration.com"
+  GCS_CERTIFICATES_BUCKET: "hta-calibration-prod-certificates-prod"
+  GCS_SIGNATURES_BUCKET: "hta-calibration-prod-signatures-prod"
+  GCS_UPLOADS_BUCKET: "hta-calibration-prod-uploads-prod"

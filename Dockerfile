@@ -28,7 +28,7 @@ COPY . .
 
 # Build the application with cache mount for faster rebuilds
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL=file:./prisma/placeholder.db
+ENV SKIP_DB_INIT=true
 RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # Stage 3: Production
@@ -49,12 +49,18 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 
-# Copy Prisma client and engine
+# Copy Prisma client, engine, and CLI for migrations
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/prisma.config.ts ./
 
-# Set correct ownership
-RUN chown -R nextjs:nodejs /app
+# Copy and setup entrypoint script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
+# Create cache directory and set correct ownership
+RUN mkdir -p /app/.next/cache && chown -R nextjs:nodejs /app
 
 # Switch to non-root user
 USER nextjs
@@ -66,9 +72,9 @@ EXPOSE 3000
 ENV HOSTNAME="0.0.0.0"
 ENV PORT=3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+# Health check - increased start period for migrations
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
-# Start the application
-CMD ["node", "server.js"]
+# Start with entrypoint (runs migrations then starts app)
+CMD ["./docker-entrypoint.sh"]

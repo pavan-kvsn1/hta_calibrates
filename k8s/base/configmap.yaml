@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hta-config
+  namespace: hta-calibration
+  labels:
+    app.kubernetes.io/name: hta-calibration
+    app.kubernetes.io/part-of: hta-calibration
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  NEXTAUTH_URL: "http://34.180.4.228"
+  AUTH_URL: "http://34.180.4.228"
+  AUTH_TRUST_HOST: "true"
+  GCS_CERTIFICATES_BUCKET: "hta-calibration-prod-certificates-dev"
+  GCS_SIGNATURES_BUCKET: "hta-calibration-prod-signatures-dev"
+  GCS_UPLOADS_BUCKET: "hta-calibration-prod-uploads-dev"
