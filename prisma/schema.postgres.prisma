@@ -782,3 +782,29 @@ model InternalRequest {
   @@index([status])
   @@index([type])
 }
+
+// ====================
+// REFRESH TOKENS (Auth)
+// ====================
+
+model RefreshToken {
+  id            String    @id @default(uuid())
+  token         String    @unique  // Hashed refresh token
+  userId        String?   // For staff users
+  customerId    String?   // For customer users
+  userType      String    // "STAFF" | "CUSTOMER"
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?   // "LOGOUT", "PASSWORD_CHANGE", "ADMIN_REVOKE", "TOKEN_ROTATION"
+  replacedById  String?   // New token ID if rotated
+
+  // Device/session info for security
+  userAgent     String?
+  ipAddress     String?
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([token])
+  @@index([expiresAt])
+}
