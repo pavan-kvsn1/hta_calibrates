@@ -7,7 +7,7 @@ export const TEST_USERS = {
   },
   reviewer: {
     email: 'kiran@htaipl.com',
-    password: 'admin123',
+    password: 'engineer123',
     name: 'Kiran Kumar',
   },
   admin: {
