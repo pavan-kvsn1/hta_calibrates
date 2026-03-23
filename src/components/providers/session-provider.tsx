@@ -2,6 +2,7 @@
 
 import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react'
 import { ReactNode } from 'react'
+import { TokenRefreshProvider } from '@/hooks/useTokenRefresh'
 
 interface SessionProviderProps {
   children: ReactNode
@@ -15,7 +16,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
       // Refetch session when window regains focus
       refetchOnWindowFocus={true}
     >
-      {children}
+      <TokenRefreshProvider>
+        {children}
+      </TokenRefreshProvider>
     </NextAuthSessionProvider>
   )
 }

@@ -2,37 +2,34 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
+import { REFRESH_TOKEN_CONFIG } from './refresh-token'
+
+// Determine if we're in production
+const isProduction = process.env.NODE_ENV === 'production'
+
+// Cookie configuration based on environment
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  path: '/',
+  secure: isProduction, // true in production (HTTPS), false in development (HTTP)
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   trustHost: true,  // Required when behind load balancer/proxy
-  useSecureCookies: false, // Using HTTP, not HTTPS
+  useSecureCookies: isProduction, // Secure cookies in production
   cookies: {
     csrfToken: {
-      name: 'authjs.csrf-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-      },
+      name: isProduction ? '__Host-authjs.csrf-token' : 'authjs.csrf-token',
+      options: cookieOptions,
     },
     callbackUrl: {
-      name: 'authjs.callback-url',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-      },
+      name: isProduction ? '__Secure-authjs.callback-url' : 'authjs.callback-url',
+      options: cookieOptions,
     },
     sessionToken: {
-      name: 'authjs.session-token',
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: false,
-      },
+      name: isProduction ? '__Secure-authjs.session-token' : 'authjs.session-token',
+      options: cookieOptions,
     },
   },
   providers: [
@@ -182,7 +179,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
+    // Access token expires in 4 hours (short-lived for security)
+    // Refresh token (handled separately) expires in 7 days
+    maxAge: REFRESH_TOKEN_CONFIG.accessTokenExpiresInMs / 1000, // 4 hours in seconds
   },
 })
 

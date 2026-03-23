@@ -42,6 +42,15 @@ function StaffLoginForm() {
       if (result?.error) {
         setLoginError('Invalid email or password')
       } else if (result?.ok) {
+        // Issue refresh token after successful login
+        try {
+          await fetch('/api/auth/issue-refresh-token', {
+            method: 'POST',
+            credentials: 'include',
+          })
+        } catch (err) {
+          console.warn('Failed to issue refresh token:', err)
+        }
         router.push(callbackUrl)
         router.refresh()
       }
