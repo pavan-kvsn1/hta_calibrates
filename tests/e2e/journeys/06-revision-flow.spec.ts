@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
+import { STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsEngineer, loginAsReviewer, loginAsCustomer } from '../fixtures/test-utils'
 
 /**
  * Revision Flow E2E Tests
@@ -14,21 +15,9 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
  * This tests the highest-risk multi-role interactions in the system.
  */
 
-// Helper function to login
-async function loginAs(page, user: typeof TEST_USERS.engineer | typeof TEST_USERS.reviewer | typeof TEST_USERS.customer, loginPath = '/login') {
-  await page.goto(loginPath)
-  await page.fill('input[type="email"], input[name="email"]', user.email)
-  await page.fill('input[type="password"], input[name="password"]', user.password)
-  await page.click('button[type="submit"]')
-}
-
 test.describe('HoD Revision Request Flow', () => {
   test('HoD can see "Request Revision" button on pending certificates', async ({ page }) => {
-    // Login as HoD
-    await loginAs(page, TEST_USERS.reviewer)
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
-
-    // Navigate to HoD dashboard
+    await loginAsReviewer(page)
     await page.goto('/dashboard/reviewer')
 
     // Look for a certificate pending HoD review
@@ -57,7 +46,7 @@ test.describe('HoD Revision Request Flow', () => {
   })
 
   test('HoD revision request requires a comment', async ({ page }) => {
-    await loginAs(page, TEST_USERS.reviewer)
+    await loginAsReviewer(page)
     await page.goto('/dashboard/reviewer')
 
     const pendingBadge = page.locator(`text=${STATUS_LABELS.PENDING_HOD_REVIEW}`).first()
@@ -94,8 +83,7 @@ test.describe('HoD Revision Request Flow', () => {
 
 test.describe('Engineer Revision Response Flow', () => {
   test('Engineer can see certificates requiring revision on dashboard', async ({ page }) => {
-    await loginAs(page, TEST_USERS.engineer)
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    await loginAsEngineer(page)
 
     // Look for revision required badge
     const revisionBadge = page.locator(`text=${STATUS_LABELS.REVISION_REQUIRED}`).first()
@@ -114,7 +102,7 @@ test.describe('Engineer Revision Response Flow', () => {
   })
 
   test('Engineer can access certificate requiring revision', async ({ page }) => {
-    await loginAs(page, TEST_USERS.engineer)
+    await loginAsEngineer(page)
     await page.goto('/dashboard')
 
     const revisionBadge = page.locator(`text=${STATUS_LABELS.REVISION_REQUIRED}`).first()
@@ -138,7 +126,7 @@ test.describe('Engineer Revision Response Flow', () => {
   })
 
   test('Engineer can see HoD feedback on revision-required certificate', async ({ page }) => {
-    await loginAs(page, TEST_USERS.engineer)
+    await loginAsEngineer(page)
     await page.goto('/dashboard')
 
     const revisionBadge = page.locator(`text=${STATUS_LABELS.REVISION_REQUIRED}`).first()
@@ -169,8 +157,7 @@ test.describe('Engineer Revision Response Flow', () => {
 
 test.describe('Customer Revision Request Flow', () => {
   test('Customer can access message input on pending certificate', async ({ page }) => {
-    await loginAs(page, TEST_USERS.customer, '/customer/login')
-    await expect(page).toHaveURL(/customer\/dashboard/, { timeout: 10000 })
+    await loginAsCustomer(page)
 
     // Look for certificate pending customer approval
     const pendingBadge = page.locator(`text=${STATUS_LABELS.PENDING_CUSTOMER_APPROVAL}`).first()
@@ -198,8 +185,7 @@ test.describe('Customer Revision Request Flow', () => {
   })
 
   test('Customer can type revision feedback message', async ({ page }) => {
-    await loginAs(page, TEST_USERS.customer, '/customer/login')
-    await expect(page).toHaveURL(/customer\/dashboard/, { timeout: 10000 })
+    await loginAsCustomer(page)
 
     const pendingBadge = page.locator(`text=${STATUS_LABELS.PENDING_CUSTOMER_APPROVAL}`).first()
     const hasPending = await pendingBadge.isVisible({ timeout: 5000 }).catch(() => false)
@@ -231,7 +217,7 @@ test.describe('Customer Revision Request Flow', () => {
 
 test.describe('HoD Customer Feedback Forward Flow', () => {
   test('HoD can see customer revision requests on dashboard', async ({ page }) => {
-    await loginAs(page, TEST_USERS.reviewer)
+    await loginAsReviewer(page)
     await page.goto('/dashboard/reviewer')
 
     // Look for customer revision required status
@@ -251,7 +237,7 @@ test.describe('HoD Customer Feedback Forward Flow', () => {
   })
 
   test('HoD can view certificate with customer revision request', async ({ page }) => {
-    await loginAs(page, TEST_USERS.reviewer)
+    await loginAsReviewer(page)
     await page.goto('/dashboard/reviewer')
 
     const customerRevisionBadge = page.locator(`text=${STATUS_LABELS.CUSTOMER_REVISION_REQUIRED}`).first()
@@ -281,7 +267,7 @@ test.describe('HoD Customer Feedback Forward Flow', () => {
 
 test.describe('Multi-Role Status Verification', () => {
   test('Engineer sees correct status badges for different certificate states', async ({ page }) => {
-    await loginAs(page, TEST_USERS.engineer)
+    await loginAsEngineer(page)
     await page.goto('/dashboard')
 
     // Collect all visible status badges
@@ -305,7 +291,7 @@ test.describe('Multi-Role Status Verification', () => {
   })
 
   test('HoD sees correct status badges for different certificate states', async ({ page }) => {
-    await loginAs(page, TEST_USERS.reviewer)
+    await loginAsReviewer(page)
     await page.goto('/dashboard/reviewer')
 
     // Collect all visible status badges
@@ -328,7 +314,7 @@ test.describe('Multi-Role Status Verification', () => {
   })
 
   test('Customer sees correct status badges for different certificate states', async ({ page }) => {
-    await loginAs(page, TEST_USERS.customer, '/customer/login')
+    await loginAsCustomer(page)
     await page.goto('/customer/dashboard')
 
     // Collect all visible status badges
@@ -353,8 +339,7 @@ test.describe('Multi-Role Status Verification', () => {
 
 test.describe('Role Isolation Verification', () => {
   test('Engineer can access reviewer dashboard (for assigned reviews)', async ({ page }) => {
-    await loginAs(page, TEST_USERS.engineer)
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    await loginAsEngineer(page)
 
     // Engineers can access reviewer dashboard - they can be assigned as peer reviewers
     await page.goto('/dashboard/reviewer')
@@ -368,8 +353,7 @@ test.describe('Role Isolation Verification', () => {
   })
 
   test('Customer cannot access internal dashboards', async ({ page }) => {
-    await loginAs(page, TEST_USERS.customer, '/customer/login')
-    await expect(page).toHaveURL(/customer\/dashboard/, { timeout: 10000 })
+    await loginAsCustomer(page)
 
     // Try to access internal engineer dashboard
     await page.goto('/dashboard')
@@ -384,7 +368,7 @@ test.describe('Role Isolation Verification', () => {
   })
 
   test('HoD cannot create new certificates', async ({ page }) => {
-    await loginAs(page, TEST_USERS.reviewer)
+    await loginAsReviewer(page)
     await page.goto('/dashboard/reviewer')
 
     // Try to access new certificate page

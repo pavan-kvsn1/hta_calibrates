@@ -1,5 +1,6 @@
-import { test, expect, Page } from '@playwright/test'
-import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
+import { test, expect } from '@playwright/test'
+import { STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsReviewer, loginAsCustomer, loginAsEngineer } from '../fixtures/test-utils'
 
 /**
  * Workflow Stage 6-8: Reviewer Approves, Customer Review, Feedback Flow
@@ -12,31 +13,6 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
  * 5. Customer revision feedback flows back to reviewer
  * 6. Reviewer forwards customer feedback to engineer
  */
-
-// Helper functions
-async function loginAsReviewer(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.reviewer.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.reviewer.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/admin|dashboard/, { timeout: 15000 })
-}
-
-async function loginAsCustomer(page: Page) {
-  await page.goto('/customer/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.customer.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.customer.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/customer\/dashboard/, { timeout: 15000 })
-}
-
-async function loginAsEngineer(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.engineer.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.engineer.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
-}
 
 test.describe('Stage 6: Reviewer Approves and Sends to Customer', () => {
   test.describe('6.1 - Reviewer Approval', () => {

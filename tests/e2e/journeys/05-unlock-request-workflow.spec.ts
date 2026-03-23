@@ -1,5 +1,6 @@
-import { test, expect, Page } from '@playwright/test'
-import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
+import { test, expect } from '@playwright/test'
+import { STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsEngineer, loginAsAdmin, loginAsReviewer } from '../fixtures/test-utils'
 
 /**
  * Workflow Stage 4-5: Section Unlock Request and Resubmission
@@ -12,31 +13,6 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
  * 5. Engineer makes changes to unlocked section
  * 6. Engineer resubmits certificate
  */
-
-// Helper functions
-async function loginAsEngineer(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.engineer.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.engineer.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
-}
-
-async function loginAsAdmin(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.admin.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/admin|dashboard/, { timeout: 15000 })
-}
-
-async function loginAsReviewer(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.reviewer.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.reviewer.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/admin|dashboard/, { timeout: 15000 })
-}
 
 test.describe('Stage 4: Engineer Requests Section Unlock', () => {
   test.describe('4.1 - Unlock Request Initiation', () => {

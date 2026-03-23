@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
+import { STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsAdmin } from '../fixtures/test-utils'
 
 /**
  * Admin Certificate Management E2E Tests
@@ -14,13 +15,7 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
 
 test.describe('Admin Certificate Management', () => {
   test.beforeEach(async ({ page }) => {
-    // Login as admin before each test
-    await page.goto('/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
-    await page.fill('input[type="password"], input[name="password"]', TEST_USERS.admin.password)
-    await page.click('button[type="submit"]')
-    // Admin should be redirected to admin dashboard
-    await expect(page).toHaveURL(/admin/, { timeout: 10000 })
+    await loginAsAdmin(page)
   })
 
   test('can access admin dashboard and view statistics', async ({ page }) => {

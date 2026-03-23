@@ -1,5 +1,6 @@
-import { test, expect, Page } from '@playwright/test'
-import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
+import { test, expect } from '@playwright/test'
+import { STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsAdmin } from '../fixtures/test-utils'
 
 /**
  * Workflow Stage 13-16: Admin Reviews and Authorization
@@ -12,15 +13,6 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
  * 5. Certificate status changes to AUTHORIZED
  * 6. Signed PDF becomes available for download
  */
-
-// Helper functions
-async function loginAsAdmin(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.admin.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/admin|dashboard/, { timeout: 15000 })
-}
 
 test.describe('Stage 13: Admin Reviews Engineer Requests', () => {
   test.describe('13.1 - Internal Request Queue', () => {
