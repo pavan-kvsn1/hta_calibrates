@@ -12,8 +12,8 @@ COPY prisma ./prisma/
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
 
-# Generate Prisma client
-RUN npx prisma generate
+# Generate Prisma client for PostgreSQL (production)
+RUN npx prisma generate --schema=prisma/schema.postgres.prisma
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
