@@ -131,13 +131,14 @@ module "secrets" {
   depends_on = [module.iam]
 }
 
-# GKE Module
+# GKE Module - Using Regional Standard cluster (multi-zone, high availability)
 module "gke" {
   source = "../../modules/gke"
 
   project_id             = var.project_id
   region                 = var.region
   environment            = "prod"
+  cluster_mode           = "regional"  # Multi-zone cluster for high availability
   vpc_name               = module.vpc.vpc_name
   gke_subnet_name        = module.vpc.gke_subnet_name
   gke_pod_range_name     = module.vpc.gke_pod_range_name

@@ -5,6 +5,16 @@ variable "project_id" {
   type        = string
 }
 
+variable "cluster_mode" {
+  description = "Cluster mode: autopilot (managed nodes), zonal (single zone), or regional (multi-zone HA)"
+  type        = string
+  default     = "regional"
+  validation {
+    condition     = contains(["autopilot", "zonal", "regional"], var.cluster_mode)
+    error_message = "Cluster mode must be one of: autopilot, zonal, regional."
+  }
+}
+
 variable "region" {
   description = "GCP region for the cluster"
   type        = string
@@ -101,8 +111,9 @@ variable "disk_size_gb" {
 }
 
 variable "node_service_account" {
-  description = "Service account for GKE nodes"
+  description = "Service account for GKE nodes (not used for Autopilot clusters)"
   type        = string
+  default     = null
 }
 
 variable "enable_managed_prometheus" {

@@ -130,29 +130,24 @@ module "secrets" {
   depends_on = [module.iam]
 }
 
-# GKE Module
+# GKE Module - Using Autopilot for dev (faster, cheaper, Google manages nodes)
 module "gke" {
   source = "../../modules/gke"
 
   project_id             = var.project_id
   region                 = var.region
   environment            = "dev"
+  cluster_mode           = "autopilot"  # Google manages nodes automatically
   vpc_name               = module.vpc.vpc_name
   gke_subnet_name        = module.vpc.gke_subnet_name
   gke_pod_range_name     = module.vpc.gke_pod_range_name
   gke_service_range_name = module.vpc.gke_service_range_name
   master_ipv4_cidr_block = "172.16.0.0/28"
 
-  # Dev-specific settings (smaller, cheaper)
-  node_count             = 1
-  min_node_count         = 1
-  max_node_count         = 2
-  machine_type           = "e2-medium"
-  disk_size_gb           = 30
-
-  node_service_account   = module.iam.gke_node_service_account_email
-  release_channel        = "REGULAR"
-  enable_managed_prometheus = false  # Save costs in dev
+  # Autopilot doesn't need node configuration - Google manages it
+  # Billing is per-pod resource usage, not per-node
+  release_channel           = "RAPID"  # Faster updates for dev
+  enable_managed_prometheus = false    # Save costs in dev
 
   master_authorized_networks = [
     {
@@ -163,7 +158,7 @@ module "gke" {
 
   vpc_dependency = module.vpc.vpc_id
 
-  depends_on = [module.vpc, module.iam]
+  depends_on = [module.vpc]
 }
 
 # Workload Identity binding - must be created AFTER GKE cluster exists

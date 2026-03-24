@@ -130,13 +130,14 @@ module "secrets" {
   depends_on = [module.iam]
 }
 
-# GKE Module
+# GKE Module - Using Zonal Standard cluster (single zone, cost-effective)
 module "gke" {
   source = "../../modules/gke"
 
   project_id             = var.project_id
   region                 = var.region
   environment            = "staging"
+  cluster_mode           = "zonal"  # Single zone cluster, lower cost than regional
   vpc_name               = module.vpc.vpc_name
   gke_subnet_name        = module.vpc.gke_subnet_name
   gke_pod_range_name     = module.vpc.gke_pod_range_name

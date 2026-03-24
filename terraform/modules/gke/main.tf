@@ -1,16 +1,99 @@
 # GKE Module - Main Configuration
-# Creates the Google Kubernetes Engine cluster
+# Supports three cluster modes:
+# - autopilot: Google manages nodes (fastest, cheapest for dev)
+# - zonal: Standard cluster in single zone (moderate cost)
+# - regional: Standard cluster across zones (high availability for prod)
 
-resource "google_container_cluster" "primary" {
+locals {
+  # Determine cluster location based on mode
+  # Autopilot and regional use the region, zonal uses a specific zone
+  cluster_location = var.cluster_mode == "zonal" ? "${var.region}-a" : var.region
+
+  # Whether this is a Standard cluster (needs node pool)
+  is_standard_cluster = var.cluster_mode != "autopilot"
+}
+
+# =============================================================================
+# AUTOPILOT CLUSTER (for dev - Google manages nodes)
+# =============================================================================
+resource "google_container_cluster" "autopilot" {
+  count = var.cluster_mode == "autopilot" ? 1 : 0
+
   name     = "${var.project_id}-gke-${var.environment}"
   project  = var.project_id
-  location = var.region
+  location = local.cluster_location
 
-  # Use regional cluster for high availability
-  # Set to a specific zone for dev to reduce costs
-  # location = var.environment == "dev" ? "${var.region}-a" : var.region
+  description = "GKE Autopilot cluster for HTA Calibration ${var.environment}"
 
-  description = "GKE cluster for HTA Calibration ${var.environment}"
+  # Enable Autopilot mode
+  enable_autopilot = true
+
+  # Network configuration
+  network    = var.vpc_name
+  subnetwork = var.gke_subnet_name
+
+  # IP allocation policy for VPC-native cluster
+  ip_allocation_policy {
+    cluster_secondary_range_name  = var.gke_pod_range_name
+    services_secondary_range_name = var.gke_service_range_name
+  }
+
+  # Private cluster configuration
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+    master_ipv4_cidr_block  = var.master_ipv4_cidr_block
+  }
+
+  # Master authorized networks
+  master_authorized_networks_config {
+    dynamic "cidr_blocks" {
+      for_each = var.master_authorized_networks
+      content {
+        cidr_block   = cidr_blocks.value.cidr_block
+        display_name = cidr_blocks.value.display_name
+      }
+    }
+  }
+
+  # Release channel for automatic upgrades
+  release_channel {
+    channel = var.release_channel
+  }
+
+  # Maintenance window
+  maintenance_policy {
+    recurring_window {
+      start_time = "2024-01-01T09:00:00Z"  # 2:30 PM IST
+      end_time   = "2024-01-01T17:00:00Z"  # 10:30 PM IST
+      recurrence = "FREQ=WEEKLY;BYDAY=SA,SU"
+    }
+  }
+
+  # Cost management
+  resource_labels = {
+    environment = var.environment
+    project     = "hta-calibration"
+    managed_by  = "terraform"
+    mode        = "autopilot"
+  }
+
+  depends_on = [
+    var.vpc_dependency
+  ]
+}
+
+# =============================================================================
+# STANDARD CLUSTER (for staging/prod - we manage nodes)
+# =============================================================================
+resource "google_container_cluster" "standard" {
+  count = local.is_standard_cluster ? 1 : 0
+
+  name     = "${var.project_id}-gke-${var.environment}"
+  project  = var.project_id
+  location = local.cluster_location
+
+  description = "GKE Standard cluster for HTA Calibration ${var.environment}"
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -31,7 +114,7 @@ resource "google_container_cluster" "primary" {
   # Private cluster configuration
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false  # Allow public access to master for now
+    enable_private_endpoint = false
     master_ipv4_cidr_block  = var.master_ipv4_cidr_block
   }
 
@@ -115,11 +198,11 @@ resource "google_container_cluster" "primary" {
     environment = var.environment
     project     = "hta-calibration"
     managed_by  = "terraform"
+    mode        = var.cluster_mode
   }
 
   lifecycle {
     ignore_changes = [
-      # Ignore changes to node_config as we use separate node pools
       node_config,
     ]
   }
@@ -129,12 +212,16 @@ resource "google_container_cluster" "primary" {
   ]
 }
 
-# Primary Node Pool
+# =============================================================================
+# NODE POOL (only for Standard clusters)
+# =============================================================================
 resource "google_container_node_pool" "primary" {
-  name       = "${var.project_id}-primary-pool"
-  project    = var.project_id
-  cluster    = google_container_cluster.primary.name
-  location   = var.region
+  count = local.is_standard_cluster ? 1 : 0
+
+  name     = "${var.project_id}-primary-pool"
+  project  = var.project_id
+  cluster  = google_container_cluster.standard[0].name
+  location = local.cluster_location
 
   # Node count configuration
   initial_node_count = var.node_count
@@ -143,7 +230,7 @@ resource "google_container_node_pool" "primary" {
   autoscaling {
     min_node_count  = var.min_node_count
     max_node_count  = var.max_node_count
-    location_policy = "BALANCED"
+    location_policy = var.cluster_mode == "regional" ? "BALANCED" : "ANY"
   }
 
   # Node management
@@ -194,13 +281,6 @@ resource "google_container_node_pool" "primary" {
 
     # Tags for firewall rules
     tags = ["gke-node", "${var.project_id}-gke-${var.environment}"]
-
-    # Taints (optional, for dedicated workloads)
-    # taint {
-    #   key    = "dedicated"
-    #   value  = "app"
-    #   effect = "NO_SCHEDULE"
-    # }
 
     metadata = {
       disable-legacy-endpoints = "true"
