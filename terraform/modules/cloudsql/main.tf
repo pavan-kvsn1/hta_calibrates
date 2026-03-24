@@ -19,11 +19,12 @@ resource "google_sql_database_instance" "main" {
     disk_type         = "PD_SSD"
     disk_autoresize   = true
 
-    # IP configuration - Private only
+    # IP configuration - Private only with SSL required
     ip_configuration {
       ipv4_enabled                                  = false
       private_network                               = var.vpc_id
       enable_private_path_for_google_cloud_services = true
+      ssl_mode                                      = "ENCRYPTED_ONLY"  # Require SSL for all connections
     }
 
     # Backup configuration
@@ -77,6 +78,21 @@ resource "google_sql_database_instance" "main" {
       value = var.max_connections
     }
 
+    # ============ DATABASE AUDITING (pgAudit) ============
+    # Enable pgAudit extension for comprehensive audit logging
+    database_flags {
+      name  = "cloudsql.enable_pgaudit"
+      value = "on"
+    }
+
+    # Configure what to audit: ddl, write, read, role, function, misc
+    # For security, audit DDL (schema changes) and WRITE (data modifications)
+    database_flags {
+      name  = "pgaudit.log"
+      value = "ddl,write"
+    }
+    # =====================================================
+
     # Insights for query analysis
     insights_config {
       query_insights_enabled  = true
@@ -84,6 +100,15 @@ resource "google_sql_database_instance" "main" {
       query_string_length     = 1024
       record_application_tags = true
       record_client_address   = true
+    }
+
+    # Password validation policy
+    password_validation_policy {
+      min_length                  = 12
+      complexity                  = "COMPLEXITY_DEFAULT"  # Requires uppercase, lowercase, number, symbol
+      reuse_interval              = 5                     # Cannot reuse last 5 passwords
+      disallow_username_substring = true                  # Password cannot contain username
+      enable_password_policy      = true
     }
 
     user_labels = {
@@ -168,6 +193,7 @@ resource "google_sql_database_instance" "read_replica" {
     ip_configuration {
       ipv4_enabled    = false
       private_network = var.vpc_id
+      ssl_mode        = "ENCRYPTED_ONLY"  # Require SSL for replica connections too
     }
 
     user_labels = {
