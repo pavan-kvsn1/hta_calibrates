@@ -173,7 +173,7 @@ export default async function ReviewerReviewPage({ params }: Props) {
   }
 
   // Serialize feedbacks for client
-  const serializedFeedbacks = certificate.feedbacks.map((f) => ({
+  const serializedFeedbacks = certificate.feedbacks.map((f: typeof certificate.feedbacks[number]) => ({
     id: f.id,
     feedbackType: f.feedbackType,
     comment: f.comment,
