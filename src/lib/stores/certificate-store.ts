@@ -92,6 +92,7 @@ export interface CertificateFormData {
   certificateNumber: string
   status: 'DRAFT' | 'PENDING_REVIEW' | 'REVISION_REQUIRED' | 'PENDING_CUSTOMER_APPROVAL' | 'CUSTOMER_REVISION_REQUIRED' | 'PENDING_ADMIN_AUTHORIZATION' | 'AUTHORIZED' | 'APPROVED' | 'REJECTED'
   lastSaved: Date | null
+  serverUpdatedAt: string | null  // ISO timestamp from server for optimistic concurrency control
 
   // Reviewer assignment (peer review model)
   reviewerId: string | null
@@ -173,7 +174,7 @@ interface CertificateStore {
   resetForm: () => void
   loadForm: (data: Partial<CertificateFormData>) => void
   setCertificateId: (id: string | null) => void
-  saveDraft: () => Promise<{ success: boolean; error?: string }>
+  saveDraft: () => Promise<{ success: boolean; error?: string; serverTimestamp?: string }>
   setEngineerNotes: (notes: string) => void
   setSectionResponse: (sectionId: string, response: string) => void
   clearSectionResponses: () => void
@@ -342,6 +343,7 @@ const initialFormData: CertificateFormData = {
   certificateNumber: '', // Generated on client side to avoid hydration mismatch
   status: 'DRAFT',
   lastSaved: null,
+  serverUpdatedAt: null,  // Tracks server timestamp for optimistic concurrency control
 
   // Reviewer assignment
   reviewerId: null,
@@ -734,11 +736,28 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
 
       const method = certificateId ? 'PUT' : 'POST'
 
+      // Include clientUpdatedAt for optimistic concurrency control
+      const requestBody = {
+        ...formData,
+        clientUpdatedAt: formData.serverUpdatedAt,
+      }
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestBody),
       })
+
+      // Handle 409 Conflict - certificate was modified by another user
+      if (response.status === 409) {
+        const data = await response.json()
+        set({ isSaving: false })
+        return {
+          success: false,
+          error: 'CONFLICT',
+          serverTimestamp: data.serverUpdatedAt,
+        }
+      }
 
       if (!response.ok) {
         const data = await response.json()
@@ -753,10 +772,15 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
         set({ certificateId: data.certificate.id })
       }
 
+      // Track server timestamp for optimistic concurrency control
       set({
         isSaving: false,
         isDirty: false,
-        formData: { ...state.formData, lastSaved: new Date() },
+        formData: {
+          ...state.formData,
+          lastSaved: new Date(),
+          serverUpdatedAt: data.certificate?.updatedAt || null,
+        },
       })
 
       return { success: true }
