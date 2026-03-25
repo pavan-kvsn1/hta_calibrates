@@ -148,52 +148,11 @@ npm run test:watch     # Watch mode
 
 ---
 
-## Job 2a: SQLite Integration Tests
+## Job 2a: Integration Tests (PostgreSQL)
 
 ```yaml
-integration-sqlite:
-  name: SQLite Integration Tests
-  runs-on: ubuntu-latest
-  needs: code-quality
-
-  steps:
-    - name: Setup SQLite database
-      run: npx prisma db push
-      env:
-        DATABASE_URL: file:./test.db
-
-    - name: Run SQLite integration tests
-      run: npm run test:integration
-      env:
-        DATABASE_URL: file:./test.db
-```
-
-### What's Tested
-
-Integration tests against SQLite:
-- Authentication endpoints
-- Certificate CRUD operations
-- Admin user management
-- Customer workflows
-- Internal request handling
-- Instrument management
-- Notification system
-
-### Local Equivalent
-
-```bash
-export DATABASE_URL="file:./test.db"
-npx prisma db push
-npm run test:integration
-```
-
----
-
-## Job 2b: PostgreSQL Integration Tests
-
-```yaml
-integration-postgres:
-  name: PostgreSQL Integration Tests
+integration-tests:
+  name: Integration Tests
   runs-on: ubuntu-latest
   needs: code-quality
 
@@ -205,7 +164,7 @@ integration-postgres:
         POSTGRES_PASSWORD: hta_test_password
         POSTGRES_DB: hta_calibration_test
       ports:
-        - 5433:5432
+        - 5432:5432
       options: >-
         --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
         --health-interval 10s
@@ -213,68 +172,48 @@ integration-postgres:
         --health-retries 5
 
   steps:
-    - name: Generate Prisma clients
-      run: |
-        npx prisma generate
-        npx prisma generate --schema=prisma/schema.postgres.prisma
+    - name: Generate Prisma client
+      run: npx prisma generate
       env:
-        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test
 
     - name: Push schema to PostgreSQL
-      run: npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss
+      run: npx prisma db push --accept-data-loss
       env:
-        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test
 
-    - name: Run PostgreSQL integration tests
-      run: npm run test:integration:postgres
+    - name: Run integration tests
+      run: npm run test:integration
       env:
-        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test
 ```
 
-### Why Both SQLite and PostgreSQL?
+### What's Tested
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                 WHY TEST BOTH DATABASES?                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  SQLite Integration Tests:                                      │
-│  ├── Fast (no Docker service)                                  │
-│  ├── Tests SQLite-specific behavior                            │
-│  └── Catches JSON serialization issues                         │
-│                                                                  │
-│  PostgreSQL Integration Tests:                                  │
-│  ├── Production parity (same database as prod)                 │
-│  ├── Tests native JSON operators                               │
-│  ├── Tests concurrent transaction handling                     │
-│  └── Tests constraint enforcement                              │
-│                                                                  │
-│  Some bugs only appear in one database!                        │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+Integration tests against PostgreSQL:
+- Authentication endpoints
+- Certificate CRUD operations
+- Admin user management
+- Customer workflows
+- Internal request handling
+- Instrument management
+- Notification system
 
 ### Local PostgreSQL Testing
 
 ```bash
-# Start PostgreSQL with Docker
-docker run -d \
-  --name hta-postgres-test \
-  -e POSTGRES_USER=hta_test \
-  -e POSTGRES_PASSWORD=hta_test_password \
-  -e POSTGRES_DB=hta_calibration_test \
-  -p 5433:5432 \
-  postgres:16-alpine
+# Start PostgreSQL with Docker Compose
+npm run db:test:start
 
 # Set environment
 export DATABASE_URL="postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test"
 
 # Generate and push schema
-npx prisma generate --schema=prisma/schema.postgres.prisma
-npx prisma db push --schema=prisma/schema.postgres.prisma
+npx prisma generate
+npx prisma db push
 
 # Run tests
-npm run test:integration:postgres
+npm run test:integration
 ```
 
 ---
@@ -300,7 +239,7 @@ build:
     - name: Build application
       run: npm run build
       env:
-        DATABASE_URL: file:./prisma/build.db
+        DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
 ```
 
 ### Build Caching
@@ -311,7 +250,7 @@ Next.js build cache speeds up subsequent builds:
 
 ### Why DATABASE_URL for Build?
 
-Next.js needs Prisma client at build time for static generation. The `DATABASE_URL` points to a dummy file that satisfies Prisma without requiring actual database access.
+Next.js needs Prisma client at build time for static generation. The `DATABASE_URL` is a placeholder that satisfies Prisma validation without requiring actual database access.
 
 ---
 
@@ -321,13 +260,23 @@ Next.js needs Prisma client at build time for static generation. The `DATABASE_U
 e2e-tests:
   name: E2E Workflow Tests
   runs-on: ubuntu-latest
-  needs: [unit-tests, integration-sqlite, build]
+  needs: [unit-tests, integration-tests, build]
+
+  services:
+    postgres:
+      image: postgres:16-alpine
+      env:
+        POSTGRES_USER: hta_test
+        POSTGRES_PASSWORD: hta_test_password
+        POSTGRES_DB: hta_calibration_test
+      ports:
+        - 5432:5432
 
   steps:
     - name: Setup and seed database
-      run: npx prisma db push && npm run db:seed
+      run: npx prisma db push --accept-data-loss && npm run db:seed
       env:
-        DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test
 
     - name: Cache Playwright browsers
       uses: actions/cache@v4
@@ -343,7 +292,7 @@ e2e-tests:
     - name: Run E2E workflow tests
       run: npx playwright test --project=chromium
       env:
-        DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+        DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test
         NEXTAUTH_SECRET: test-secret-for-ci
         NEXTAUTH_URL: http://localhost:3000
 
@@ -370,8 +319,9 @@ e2e-tests:
 ### Local E2E Testing
 
 ```bash
-# Setup database
-export DATABASE_URL="file:./prisma/test.db"
+# Start PostgreSQL and setup database
+npm run db:test:start
+export DATABASE_URL="postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test"
 npx prisma db push
 npm run db:seed
 
@@ -436,13 +386,10 @@ code-quality
      ├──────────────────┬───────────────────┐
      │                  │                   │
      ▼                  ▼                   ▼
-unit-tests      integration-sqlite     integration-postgres
-     │                  │
-     │                  │
-     │                  │
-     │                  │
-     │                  │
-     └────────┬─────────┘
+unit-tests      integration-tests         build
+     │                  │                   │
+     │                  │                   │
+     └────────┬─────────┴───────────────────┘
               │
               ▼
           e2e-tests
@@ -499,13 +446,16 @@ npm run test
 ### Integration Tests Failing
 
 ```bash
+# Start test database
+npm run db:test:start
+
 # Check database setup
-export DATABASE_URL="file:./test.db"
+export DATABASE_URL="postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test"
 npx prisma db push
 npm run test:integration
 
 # Check specific test
-npx vitest run src/app/api/__tests__/certificates.test.ts
+npx vitest run tests/integration/api/certificates.test.ts
 ```
 
 ### E2E Tests Failing

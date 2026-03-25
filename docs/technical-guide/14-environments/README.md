@@ -14,7 +14,7 @@
 
 | Environment | Purpose | URL | Database |
 |-------------|---------|-----|----------|
-| Local | Development | http://localhost:3000 | SQLite |
+| Local | Development | http://localhost:3000 | PostgreSQL (Docker) |
 | Development | Testing in GKE | http://34.180.4.228 | Cloud SQL (dev) |
 | Staging | Pre-production | TBD | Cloud SQL (staging) |
 | Production | Live system | TBD | Cloud SQL (prod) |
@@ -25,7 +25,7 @@
 
 | Aspect | Local | Dev | Staging | Prod |
 |--------|-------|-----|---------|------|
-| **Database** | SQLite | PostgreSQL | PostgreSQL | PostgreSQL |
+| **Database** | PostgreSQL (Docker) | PostgreSQL | PostgreSQL | PostgreSQL |
 | **Replicas** | 1 | 1 | 2 | 3+ |
 | **CPU Request** | - | 250m | 500m | 1000m |
 | **Memory Request** | - | 512Mi | 1Gi | 2Gi |
@@ -56,16 +56,16 @@ npm run dev
 
 ```bash
 # .env.local (create this file)
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 NEXTAUTH_SECRET="dev-secret-change-in-production"
 NEXTAUTH_URL="http://localhost:3000"
 ```
 
 ### Database
 
-- **Type**: SQLite (file-based)
-- **Location**: `./dev.db` or `./prisma/dev.db`
-- **Access**: Prisma Studio (`npx prisma studio`)
+- **Type**: PostgreSQL 16 (Docker Compose)
+- **Start**: `npm run db:start`
+- **Access**: Prisma Studio (`npx prisma studio`) or any PostgreSQL client
 
 ---
 
@@ -203,7 +203,7 @@ spec:
 |----------|-------|-----|------|
 | `NODE_ENV` | development | production | production |
 | `NEXTAUTH_URL` | http://localhost:3000 | http://34.180.4.228 | https://app.htacalibration.com |
-| `DATABASE_URL` | file:./dev.db | postgresql://... | postgresql://... |
+| `DATABASE_URL` | postgresql://...@localhost:5432 | postgresql://... (Cloud SQL) | postgresql://... (Cloud SQL) |
 
 ---
 

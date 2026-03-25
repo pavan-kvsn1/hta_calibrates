@@ -148,28 +148,21 @@ Phase 1 focuses on establishing a comprehensive testing strategy and CI/CD pipel
 | `fixtures.ts` | Reusable test data factories for creating test entities |
 | `postgres-setup.ts` | PostgreSQL-specific initialization |
 
-#### SQLite Testing (Default)
+#### PostgreSQL Testing (All Environments)
 
 **Configuration**: `vitest.integration.config.ts`
 - Environment: Node
-- Database: SQLite (file-based or in-memory)
+- Database: PostgreSQL 16 (Docker locally, service container in CI)
+- Schema: `prisma/schema.prisma`
 - Execution: Sequential (prevent database conflicts)
 - Timeout: 30 seconds for database operations
 - Command: `npm run test:integration`
 
 **Features**:
-- Fast execution for development
+- Production parity: Tests match production database exactly
+- Native JSON support: PostgreSQL handles JSONB natively
 - Automatic test data cleanup between tests
 - Transaction isolation for test safety
-
-#### PostgreSQL Testing (Production Parity)
-
-**Configuration**: `vitest.integration.postgres.config.ts`
-- Environment: Node
-- Database: PostgreSQL 16 (via Docker in CI)
-- Schema: `prisma/schema.postgres.prisma`
-- Execution: Sequential
-- Command: `npm run test:integration:postgres`
 
 **CI Configuration** (`.github/workflows/ci.yml`):
 ```yaml
@@ -258,9 +251,7 @@ services:
 ```
 code-quality ──┬──> unit-tests ──────────┬──> e2e-tests ──> security-scan ──> ci-summary
                │                         │
-               ├──> integration-sqlite ──┤
-               │                         │
-               ├──> integration-postgres─┤
+               ├──> integration-tests ───┤
                │                         │
                └──> build ───────────────┘
 ```
@@ -269,8 +260,7 @@ code-quality ──┬──> unit-tests ──────────┬──
 |-----|---------|----------|
 | `code-quality` | ESLint, TypeScript checks | ~2 min |
 | `unit-tests` | Unit tests with coverage | ~3 min |
-| `integration-sqlite` | API tests (SQLite) | ~4 min |
-| `integration-postgres` | API tests (PostgreSQL 16) | ~5 min |
+| `integration-tests` | API tests (PostgreSQL 16) | ~5 min |
 | `build` | Next.js production build | ~4 min |
 | `e2e-tests` | Playwright workflow tests | ~10 min |
 | `security-scan` | npm audit | ~2 min |
@@ -400,8 +390,7 @@ RUN --mount=type=cache,target=/app/.next/cache npm run build
 {
   "test": "vitest",
   "test:coverage": "vitest --coverage",
-  "test:integration": "vitest --config vitest.integration.config.ts",
-  "test:integration:postgres": "vitest --config vitest.integration.config.ts",
+  "test:integration": "vitest run --config vitest.integration.config.ts",
   "test:e2e": "playwright test",
   "test:e2e:headed": "playwright test --headed",
   "test:e2e:debug": "playwright test --debug",
@@ -463,8 +452,7 @@ RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 ### Test Configuration
 - `vitest.config.ts` - Unit test config (jsdom environment, parallel execution)
-- `vitest.integration.config.ts` - SQLite integration test config (node environment, sequential)
-- `vitest.integration.postgres.config.ts` - PostgreSQL integration test config
+- `vitest.integration.config.ts` - PostgreSQL integration test config (node environment, sequential)
 - `playwright.config.ts` - E2E test config (Chromium, Firefox, WebKit)
 - `tests/setup.ts` - Test setup utilities (MSW server, Next.js router mocks, next-auth mocks)
 

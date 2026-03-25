@@ -9,7 +9,7 @@
 | [00 - Overview](./00-overview/) | Architecture, tech stack, design decisions |
 | [01 - Frontend](./01-frontend/) | Next.js 15, React 19, UI components, state |
 | [02 - Backend](./02-backend/) | API routes, server actions, business logic |
-| [03 - Database](./03-database/) | Prisma 7, PostgreSQL/SQLite, schema design |
+| [03 - Database](./03-database/) | Prisma 7, PostgreSQL, schema design |
 | [04 - Authentication](./04-authentication/) | NextAuth v5, roles, permissions, OAuth |
 | [05 - Event Architecture](./05-event-architecture/) | Certificate workflow, state machine |
 | [06 - Infrastructure](./06-infrastructure/) | Terraform, GCP services, networking |
@@ -38,10 +38,10 @@
 │         │                 │                                      │          │
 │         │                 │                                      │          │
 │         ▼                 ▼                                      ▼          │
-│  ┌─────────────┐    ┌─────────────┐                       ┌─────────────┐  │
-│  │   NextAuth  │    │     GCS     │                       │   SQLite    │  │
-│  │   (Auth)    │    │  (Storage)  │                       │   (Local)   │  │
-│  └─────────────┘    └─────────────┘                       └─────────────┘  │
+│  ┌─────────────┐    ┌─────────────┐                                        │
+│  │   NextAuth  │    │     GCS     │                                        │
+│  │   (Auth)    │    │  (Storage)  │                                        │
+│  └─────────────┘    └─────────────┘                                        │
 │                                                                              │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                            Infrastructure Layer                              │
@@ -86,8 +86,8 @@
 ### Database
 | Technology | Purpose |
 |------------|---------|
-| PostgreSQL 15 | Production database (Cloud SQL) |
-| SQLite | Local development database |
+| PostgreSQL 16 | All environments (Docker locally, Cloud SQL in production) |
+| Prisma 7 | ORM with PostgreSQL driver adapter |
 | Prisma Migrate | Schema migrations |
 
 ### Infrastructure

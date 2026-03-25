@@ -186,7 +186,7 @@ This document outlines the Continuous Integration and Continuous Deployment (CI/
 │  ┌─────────────────────────────────────────────────────────────────────────┐   │
 │  │  JOB 4: Integration Tests (after build succeeds)                        │   │
 │  │  ───────────────────────────────────────────────                        │   │
-│  │  • Start test database (SQLite)                                         │   │
+│  │  • Start test database (PostgreSQL service container)                   │   │
 │  │  • Run Prisma migrations                                                │   │
 │  │  • Run integration test suite                                           │   │
 │  │  • Report test results                                                  │   │
@@ -621,12 +621,11 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 │  Jobs:                                                                          │
 │  1. code-quality      - ESLint, TypeScript type check                           │
 │  2. unit-tests        - Vitest with coverage (needs: code-quality)              │
-│  3. integration-sqlite - SQLite integration tests (needs: code-quality)         │
-│  4. integration-postgres - PostgreSQL 16 tests (needs: code-quality)            │
-│  5. build             - Next.js production build (needs: code-quality)          │
-│  6. e2e-tests         - Playwright Chromium (needs: unit-tests, integration, build) │
-│  7. security-scan     - npm audit (needs: e2e-tests)                            │
-│  8. ci-summary        - Final pipeline summary (needs: all)                     │
+│  3. integration-tests - PostgreSQL 16 integration tests (needs: code-quality)   │
+│  4. build             - Next.js production build (needs: code-quality)          │
+│  5. e2e-tests         - Playwright Chromium (needs: unit-tests, integration, build) │
+│  6. security-scan     - npm audit (needs: e2e-tests)                            │
+│  7. ci-summary        - Final pipeline summary (needs: all)                     │
 │                                                                                 │
 │  ─────────────────────────────────────────────────────────────────────────────  │
 │                                                                                 │
@@ -669,15 +668,15 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 │                          │  TypeScript) │                                       │
 │                          └──────┬───────┘                                       │
 │                                 │                                               │
-│              ┌──────────────────┼──────────────────┬────────────────┐           │
-│              │                  │                  │                │           │
-│              ▼                  ▼                  ▼                ▼           │
-│      ┌────────────┐    ┌────────────┐    ┌────────────┐    ┌────────────┐      │
-│      │ unit-tests │    │integration │    │integration │    │   build    │      │
-│      │  (Vitest)  │    │  (SQLite)  │    │ (Postgres) │    │ (Next.js)  │      │
-│      └─────┬──────┘    └─────┬──────┘    └────────────┘    └─────┬──────┘      │
-│            │                 │                                    │             │
-│            └─────────────────┼────────────────────────────────────┘             │
+│              ┌──────────────────┼──────────────────┐                            │
+│              │                  │                  │                            │
+│              ▼                  ▼                  ▼                            │
+│      ┌────────────┐    ┌────────────┐    ┌────────────┐                        │
+│      │ unit-tests │    │integration │    │   build    │                        │
+│      │  (Vitest)  │    │ (Postgres) │    │ (Next.js)  │                        │
+│      └─────┬──────┘    └─────┬──────┘    └─────┬──────┘                        │
+│            │                 │                  │                               │
+│            └─────────────────┼──────────────────┘                               │
 │                              │                                                  │
 │                              ▼                                                  │
 │                      ┌────────────────┐                                         │
@@ -730,11 +729,10 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 │                                                                                 │
 │  DATABASE TESTING                                                               │
 │  ════════════════                                                               │
-│  • SQLite: Uses file:./test.db with prisma db push                              │
 │  • PostgreSQL: Service container (postgres:16-alpine)                           │
-│    - Port: 5433 (mapped from 5432)                                              │
+│    - Port: 5432                                                                 │
 │    - Health checks configured                                                   │
-│    - Separate schema: prisma/schema.postgres.prisma                             │
+│    - Schema: prisma/schema.prisma                                               │
 │                                                                                 │
 │  GITHUB STEP SUMMARIES                                                          │
 │  ═════════════════════                                                          │
@@ -760,8 +758,7 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 | `npm run lint` | ci.yml | ESLint code quality |
 | `npm run build` | ci.yml, nightly.yml | Next.js production build |
 | `npm run test:coverage` | ci.yml, nightly.yml | Vitest with coverage |
-| `npm run test:integration` | ci.yml, nightly.yml | SQLite integration tests |
-| `npm run test:integration:postgres` | ci.yml | PostgreSQL integration tests |
+| `npm run test:integration` | ci.yml, nightly.yml | PostgreSQL integration tests |
 | `npm run db:seed` | ci.yml, nightly.yml | Seed test database |
 | `npm run test:a11y` | nightly.yml | Accessibility tests |
 | `npm run test:visual` | nightly.yml | Visual regression tests |
@@ -772,7 +769,7 @@ This section documents the actual implementation of the CI/CD pipeline as of Mar
 |----------|-------|-------|
 | `NODE_VERSION` | All workflows | `20` |
 | `CI` | All workflows | `true` |
-| `DATABASE_URL` | Test jobs | `file:./test.db` or PostgreSQL URL |
+| `DATABASE_URL` | Test jobs | PostgreSQL connection string |
 | `NEXTAUTH_SECRET` | E2E jobs | `test-secret-for-ci` |
 | `NEXTAUTH_URL` | E2E jobs | `http://localhost:3000` |
 | `REGISTRY` | deploy.yml | `ghcr.io` |

@@ -5,7 +5,7 @@
 | File | Description | When to Read |
 |------|-------------|--------------|
 | [01-unit-tests.md](./01-unit-tests.md) | Unit testing with Vitest, mocking strategies | Writing unit tests |
-| [02-integration-tests.md](./02-integration-tests.md) | API integration tests (SQLite + PostgreSQL) | Testing API endpoints |
+| [02-integration-tests.md](./02-integration-tests.md) | API integration tests (PostgreSQL) | Testing API endpoints |
 | [03-e2e-tests.md](./03-e2e-tests.md) | Playwright E2E workflow tests | Testing user journeys |
 | [04-test-patterns.md](./04-test-patterns.md) | Common patterns, fixtures, helpers | Writing effective tests |
 
@@ -21,11 +21,8 @@ npm run test              # Run once
 npm run test:watch        # Watch mode
 npm run test:coverage     # With coverage
 
-# Integration tests (SQLite)
-npm run test:integration
-
 # Integration tests (PostgreSQL)
-npm run test:integration:postgres
+npm run test:integration
 
 # E2E tests
 npx playwright test                      # All browsers
@@ -58,7 +55,7 @@ npx playwright test --ui                 # Interactive mode
 │                      /------\       Browser tests                │
 │                     /        \      Slowest (~60s)               │
 │                    /Integration\  ← 12 test files                │
-│                   /-------------\    SQLite + PostgreSQL         │
+│                   /-------------\    PostgreSQL                  │
 │                  /               \   Medium (~30s)               │
 │                 /   Unit Tests    \← 7+ test files               │
 │                /-------------------\ Fast (<5s)                  │
@@ -219,9 +216,8 @@ npm run test -- --watch         # Watch mode
 npm run test -- path/to/file    # Specific file
 npm run test:coverage           # Generate coverage
 
-# Integration tests
-npm run test:integration        # SQLite
-npm run test:integration:postgres  # PostgreSQL
+# Integration tests (PostgreSQL)
+npm run test:integration
 
 # E2E tests
 npx playwright test             # Run all
@@ -243,8 +239,7 @@ Tests run automatically in GitHub Actions:
 | Test Type | CI Job | Blocking |
 |-----------|--------|----------|
 | Unit | `unit-tests` | Yes |
-| Integration (SQLite) | `integration-sqlite` | Yes |
-| Integration (PostgreSQL) | `integration-postgres` | Yes |
+| Integration (PostgreSQL) | `integration-tests` | Yes |
 | E2E | `e2e-tests` | Yes |
 | Accessibility | `accessibility-audit` (nightly) | No |
 | Visual | `visual-regression` (nightly) | No |
