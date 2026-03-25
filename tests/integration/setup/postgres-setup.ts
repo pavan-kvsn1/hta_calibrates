@@ -14,8 +14,9 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
 // PostgreSQL connection string
+// CI uses port 5432 (standard), local docker-compose.test.yml uses 5433
 const DATABASE_URL = process.env.DATABASE_URL ||
-  'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test'
+  'postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test'
 
 // Set DATABASE_URL environment variable for Prisma CLI commands
 process.env.DATABASE_URL = DATABASE_URL

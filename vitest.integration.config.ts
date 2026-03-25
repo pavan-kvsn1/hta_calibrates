@@ -29,10 +29,9 @@ export default defineConfig({
     },
     // Run test files sequentially
     fileParallelism: false,
-    // Environment variables for PostgreSQL
-    env: {
-      DATABASE_URL: 'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test',
-    },
+    // DATABASE_URL should be set by CI or local environment
+    // CI uses port 5432, local docker-compose.test.yml uses 5433
+    // Don't hardcode here - let environment variable or postgres-setup.ts default handle it
     // Setup file for database initialization
     setupFiles: ['./tests/integration/setup/postgres-setup.ts'],
   },
