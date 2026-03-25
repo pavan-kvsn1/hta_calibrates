@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/instruments/export - Export instruments as CSV or JSON
 export async function GET(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
         next_due_on: inst.calibrationDueDate
           ? formatDateMMDDYYYY(inst.calibrationDueDate)
           : '',
-        range: inst.rangeData ? JSON.parse(inst.rangeData) : [],
+        range: safeJsonParse<unknown[]>(inst.rangeData, []),
         remarks: inst.remarks || '',
       }))
 

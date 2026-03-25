@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/customers/requests/[id] - Get request details
 export async function GET(
@@ -40,7 +41,7 @@ export async function GET(
       return NextResponse.json({ error: 'Request not found' }, { status: 404 })
     }
 
-    const data = JSON.parse(customerRequest.data)
+    const data = safeJsonParse<Record<string, string>>(customerRequest.data, {})
 
     // For POC_CHANGE, include the new POC user details
     let newPocUser = null

@@ -12,6 +12,7 @@ import {
   buildSigningEvidencePayload,
   type ClientEvidence,
 } from '@/lib/stores/signing-evidence'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -170,11 +171,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!hasResults) validationErrors.push('At least one calibration result is required')
 
     // Calibration status
-    const calibrationStatus = certificate.calibrationStatus ? JSON.parse(certificate.calibrationStatus) : []
+    const calibrationStatus = safeJsonParse<string[]>(certificate.calibrationStatus, [])
     if (calibrationStatus.length === 0) validationErrors.push('Calibration status is required')
 
     // Conclusion statements
-    const conclusions = certificate.selectedConclusionStatements ? JSON.parse(certificate.selectedConclusionStatements) : []
+    const conclusions = safeJsonParse<string[]>(certificate.selectedConclusionStatements, [])
     if (conclusions.length === 0) validationErrors.push('At least one conclusion statement is required')
 
     if (validationErrors.length > 0) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -118,13 +119,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       : { hours: 0, status: 'ok' as const }
 
     // Parse JSON fields
-    const conclusionStatements = certificate.selectedConclusionStatements
-      ? JSON.parse(certificate.selectedConclusionStatements)
-      : []
-
-    const calibrationStatus = certificate.calibrationStatus
-      ? JSON.parse(certificate.calibrationStatus)
-      : []
+    const conclusionStatements = safeJsonParse<string[]>(certificate.selectedConclusionStatements, [])
+    const calibrationStatus = safeJsonParse<string[]>(certificate.calibrationStatus, [])
 
     // Get chat threads by type
     const engineerThread = certificate.chatThreads.find(t => t.threadType === 'ASSIGNEE_REVIEWER')

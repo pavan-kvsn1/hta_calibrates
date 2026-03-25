@@ -1,28 +1,15 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 
-// Check if we're using PostgreSQL or SQLite based on DATABASE_URL
-const isPostgres = process.env.DATABASE_URL?.startsWith('postgresql://')
-
-let prisma: PrismaClient
-
-if (isPostgres) {
-  // PostgreSQL for production/cloud
-  const { PrismaPg } = require('@prisma/adapter-pg')
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
-  prisma = new PrismaClient({ adapter })
-} else {
-  // SQLite for local development
-  const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3')
-  const adapter = new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL || 'file:./dev.db',
-  })
-  prisma = new PrismaClient({ adapter })
-}
+// PostgreSQL adapter for all environments
+const connectionString = process.env.DATABASE_URL || 'postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration'
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter })
 
 // Interface for master instruments JSON
 interface MasterInstrumentJson {

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/instruments - List instruments with filters and pagination
 export async function GET(request: NextRequest) {
@@ -108,7 +110,7 @@ export async function GET(request: NextRequest) {
         ...inst,
         status: instrumentStatus,
         daysUntilExpiry,
-        rangeData: inst.rangeData ? JSON.parse(inst.rangeData) : [],
+        rangeData: safeJsonParse<unknown[]>(inst.rangeData, []),
       }
     })
 
@@ -187,7 +189,7 @@ export async function POST(request: NextRequest) {
         calibrationDueDate: body.calibrationDueDate
           ? new Date(body.calibrationDueDate)
           : null,
-        rangeData: body.rangeData ? JSON.stringify(body.rangeData) : null,
+        rangeData: body.rangeData ? body.rangeData : Prisma.DbNull,
         remarks: body.remarks || null,
         isActive: true,
         createdById: session!.user.id,

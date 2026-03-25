@@ -12,8 +12,8 @@ COPY prisma ./prisma/
 # Install all dependencies (including devDependencies for build)
 RUN npm ci
 
-# Generate Prisma client for PostgreSQL (production)
-RUN npx prisma generate --schema=prisma/schema.postgres.prisma
+# Generate Prisma client
+RUN npx prisma generate
 
 # Stage 2: Build
 FROM node:20-alpine AS builder
@@ -28,7 +28,8 @@ COPY . .
 
 # Build the application with cache mount for faster rebuilds
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL=file:./prisma/placeholder.db
+# Placeholder DATABASE_URL for build (actual connection comes from runtime env)
+ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
 RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # Stage 3: Production

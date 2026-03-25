@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/certificates/[id]/unlock-requests - Get section unlock requests for a certificate
 export async function GET(
@@ -73,9 +74,9 @@ export async function GET(
     unlockRequests
       .filter(r => r.status === 'APPROVED')
       .forEach(r => {
-        const data = JSON.parse(r.data)
-        if (data.sections) {
-          approvedUnlockedSections.push(...data.sections)
+        const data = safeJsonParse<Record<string, unknown>>(r.data, {})
+        if (data.sections && Array.isArray(data.sections)) {
+          approvedUnlockedSections.push(...(data.sections as string[]))
         }
       })
 
@@ -87,7 +88,7 @@ export async function GET(
         id: r.id,
         type: r.type,
         status: r.status,
-        data: JSON.parse(r.data),
+        data: safeJsonParse<Record<string, unknown>>(r.data, {}),
         requestedBy: r.requestedBy,
         reviewedBy: r.reviewedBy,
         reviewedAt: r.reviewedAt?.toISOString() || null,

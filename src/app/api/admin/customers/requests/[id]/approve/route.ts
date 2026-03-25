@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { enqueue } from '@/lib/services/queue'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // POST /api/admin/customers/requests/[id]/approve - Approve a customer request
 export async function POST(
@@ -39,12 +40,20 @@ export async function POST(
       )
     }
 
-    const data = JSON.parse(customerRequest.data)
+    const data = safeJsonParse<Record<string, string>>(customerRequest.data, {})
 
     if (customerRequest.type === 'USER_ADDITION') {
-      return await handleUserAdditionApproval(customerRequest, data, session?.user?.id)
+      return await handleUserAdditionApproval(
+        customerRequest,
+        { name: data.name || '', email: data.email || '' },
+        session?.user?.id
+      )
     } else if (customerRequest.type === 'POC_CHANGE') {
-      return await handlePocChangeApproval(customerRequest, data, session?.user?.id)
+      return await handlePocChangeApproval(
+        customerRequest,
+        { newPocUserId: data.newPocUserId || '', reason: data.reason || '' },
+        session?.user?.id
+      )
     }
 
     return NextResponse.json({ error: 'Unknown request type' }, { status: 400 })

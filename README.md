@@ -46,7 +46,7 @@ A web application for managing calibration certificates, including multi-stage a
 
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
-- **Database**: SQLite with Prisma ORM
+- **Database**: PostgreSQL with Prisma ORM
 - **Authentication**: NextAuth.js
 - **PDF Generation**: @react-pdf/renderer
 - **UI Components**: Tailwind CSS, Radix UI, Lucide Icons
@@ -56,8 +56,9 @@ A web application for managing calibration certificates, including multi-stage a
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - npm or yarn
+- Docker (for local PostgreSQL)
 
 ### Installation
 
@@ -69,9 +70,14 @@ cd hta_calibrates
 # Install dependencies
 npm install
 
+# Start PostgreSQL (via Docker)
+npm run db:start
+
 # Set up the database
-npx prisma generate
-npx prisma migrate dev
+npm run db:setup
+
+# Seed test data (optional)
+npm run db:seed
 
 # Start the development server
 npm run dev
@@ -81,11 +87,11 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ### Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (or copy from `.env.example`):
 
 ```env
-# Database
-DATABASE_URL="file:./dev.db"
+# Database (PostgreSQL)
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 
 # NextAuth
 NEXTAUTH_URL="http://localhost:3000"

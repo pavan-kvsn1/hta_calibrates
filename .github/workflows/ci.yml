@@ -13,14 +13,29 @@ concurrency:
 
 env:
   NODE_VERSION: '20'
-  # Shared environment variables
   CI: true
+  DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test
 
 jobs:
   # Job 1: Code Quality (runs first, fail fast)
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hta_test
+          POSTGRES_PASSWORD: hta_test_password
+          POSTGRES_DB: hta_calibration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -40,20 +55,18 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
-        continue-on-error: true  # Report issues but don't block CI (fix incrementally)
+        continue-on-error: true
 
       - name: Run TypeScript type check
         run: npx tsc --noEmit
-        continue-on-error: true  # Report issues but don't block CI (fix incrementally)
+        continue-on-error: true
 
       - name: Report code quality status
         run: |
           echo "## Code Quality Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Check ESLint
           if npm run lint 2>&1 | grep -q "error"; then
-            LINT_ERRORS=$(npm run lint 2>&1 | grep -c "error" || echo "0")
             echo "### ESLint" >> $GITHUB_STEP_SUMMARY
             echo "⚠️ Found lint issues that should be fixed" >> $GITHUB_STEP_SUMMARY
           else
@@ -63,7 +76,6 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Check TypeScript
           if npx tsc --noEmit 2>&1 | grep -q "error TS"; then
             TS_ERRORS=$(npx tsc --noEmit 2>&1 | grep -c "error TS" || echo "0")
             echo "### TypeScript" >> $GITHUB_STEP_SUMMARY
@@ -73,11 +85,26 @@ jobs:
             echo "✅ No TypeScript errors" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # Job 2: Unit Tests (parallel with build, after code-quality)
+  # Job 2: Unit Tests
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
     needs: code-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hta_test
+          POSTGRES_PASSWORD: hta_test_password
+          POSTGRES_DB: hta_calibration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -118,55 +145,9 @@ jobs:
           echo "- Certificate Status" >> $GITHUB_STEP_SUMMARY
           echo "- Certificate Store" >> $GITHUB_STEP_SUMMARY
 
-  # Job 2a: SQLite Integration Tests
-  integration-sqlite:
-    name: SQLite Integration Tests
-    runs-on: ubuntu-latest
-    needs: code-quality
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Setup SQLite database
-        run: npx prisma db push
-        env:
-          DATABASE_URL: file:./test.db
-
-      - name: Run SQLite integration tests
-        run: npm run test:integration
-        env:
-          DATABASE_URL: file:./test.db
-
-      - name: SQLite test summary
-        if: always()
-        run: |
-          echo "## SQLite Integration Tests" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "API integration tests ran against SQLite for:" >> $GITHUB_STEP_SUMMARY
-          echo "- Authentication endpoints" >> $GITHUB_STEP_SUMMARY
-          echo "- Certificate CRUD operations" >> $GITHUB_STEP_SUMMARY
-          echo "- Admin user management" >> $GITHUB_STEP_SUMMARY
-          echo "- Customer workflows" >> $GITHUB_STEP_SUMMARY
-          echo "- Internal request handling" >> $GITHUB_STEP_SUMMARY
-          echo "- Instrument management" >> $GITHUB_STEP_SUMMARY
-          echo "- Notification system" >> $GITHUB_STEP_SUMMARY
-
-  # Job 2b: PostgreSQL Integration Tests (production parity)
-  integration-postgres:
-    name: PostgreSQL Integration Tests
+  # Job 3: Integration Tests (PostgreSQL)
+  integration-tests:
+    name: Integration Tests
     runs-on: ubuntu-latest
     needs: code-quality
 
@@ -178,7 +159,7 @@ jobs:
           POSTGRES_PASSWORD: hta_test_password
           POSTGRES_DB: hta_calibration_test
         ports:
-          - 5433:5432
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
           --health-interval 10s
@@ -198,40 +179,51 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate Prisma clients
-        run: |
-          npx prisma generate
-          npx prisma generate --schema=prisma/schema.postgres.prisma
-        env:
-          DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Push schema to PostgreSQL
-        run: npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss
-        env:
-          DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+        run: npx prisma db push --accept-data-loss
 
-      - name: Run PostgreSQL integration tests
-        run: npm run test:integration:postgres
-        env:
-          DATABASE_URL: postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test
+      - name: Run integration tests
+        run: npm run test:integration
 
-      - name: PostgreSQL test summary
+      - name: Integration test summary
         if: always()
         run: |
-          echo "## PostgreSQL Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "## Integration Tests Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Tests ran against PostgreSQL 16 for production parity" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Tests ran against PostgreSQL 16" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "This ensures PostgreSQL-specific behaviors are tested:" >> $GITHUB_STEP_SUMMARY
-          echo "- Native JSON operators" >> $GITHUB_STEP_SUMMARY
-          echo "- Concurrent transaction handling" >> $GITHUB_STEP_SUMMARY
-          echo "- Constraint enforcement" >> $GITHUB_STEP_SUMMARY
+          echo "API integration tests include:" >> $GITHUB_STEP_SUMMARY
+          echo "- Authentication endpoints" >> $GITHUB_STEP_SUMMARY
+          echo "- Certificate CRUD operations" >> $GITHUB_STEP_SUMMARY
+          echo "- Admin user management" >> $GITHUB_STEP_SUMMARY
+          echo "- Customer workflows" >> $GITHUB_STEP_SUMMARY
+          echo "- Internal request handling" >> $GITHUB_STEP_SUMMARY
+          echo "- Instrument management" >> $GITHUB_STEP_SUMMARY
+          echo "- Notification system" >> $GITHUB_STEP_SUMMARY
 
-  # Job 3: Build Check (parallel with unit tests, after code-quality)
+  # Job 4: Build Check
   build:
     name: Build Check
     runs-on: ubuntu-latest
     needs: code-quality
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hta_test
+          POSTGRES_PASSWORD: hta_test_password
+          POSTGRES_DB: hta_calibration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -260,8 +252,6 @@ jobs:
 
       - name: Build application
         run: npm run build
-        env:
-          DATABASE_URL: file:./prisma/build.db
 
       - name: Build summary
         if: always()
@@ -270,11 +260,26 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ Next.js application built successfully" >> $GITHUB_STEP_SUMMARY
 
-  # Job 4: E2E Tests (after unit tests and build pass)
+  # Job 5: E2E Tests
   e2e-tests:
     name: E2E Workflow Tests
     runs-on: ubuntu-latest
-    needs: [unit-tests, integration-sqlite, build]
+    needs: [unit-tests, integration-tests, build]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hta_test
+          POSTGRES_PASSWORD: hta_test_password
+          POSTGRES_DB: hta_calibration_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hta_test -d hta_calibration_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout code
@@ -293,9 +298,7 @@ jobs:
         run: npx prisma generate
 
       - name: Setup and seed database
-        run: npx prisma db push && npm run db:seed
-        env:
-          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
+        run: npx prisma db push --accept-data-loss && npm run db:seed
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -315,7 +318,6 @@ jobs:
       - name: Run E2E workflow tests
         run: npx playwright test --project=chromium
         env:
-          DATABASE_URL: file:${{ github.workspace }}/prisma/test.db
           NEXTAUTH_SECRET: test-secret-for-ci
           NEXTAUTH_URL: http://localhost:3000
 
@@ -351,12 +353,12 @@ jobs:
           echo "| 9-12 | Final Approval | Feedback addressing, resubmission |" >> $GITHUB_STEP_SUMMARY
           echo "| 13-16 | Admin Authorization | Requests, instruments, authorization |" >> $GITHUB_STEP_SUMMARY
 
-  # Job 5: Security Scan (after E2E tests pass)
+  # Job 6: Security Scan
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     needs: e2e-tests
-    continue-on-error: true  # Don't fail CI for security issues, just report
+    continue-on-error: true
 
     steps:
       - name: Checkout code
@@ -373,14 +375,13 @@ jobs:
 
       - name: Run npm audit
         run: npm audit --audit-level=high
-        continue-on-error: true  # Don't fail the build, but report
+        continue-on-error: true
 
       - name: Check for known vulnerabilities
         run: |
           echo "## Security Scan Results" >> $GITHUB_STEP_SUMMARY
           npm audit --json > audit-results.json 2>/dev/null || true
 
-          # Parse vulnerabilities safely
           if [ -f audit-results.json ]; then
             HIGH=$(cat audit-results.json | jq '.metadata.vulnerabilities.high // 0' 2>/dev/null || echo "0")
             CRITICAL=$(cat audit-results.json | jq '.metadata.vulnerabilities.critical // 0' 2>/dev/null || echo "0")
@@ -407,7 +408,7 @@ jobs:
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [code-quality, unit-tests, integration-sqlite, integration-postgres, build, e2e-tests, security-scan]
+    needs: [code-quality, unit-tests, integration-tests, build, e2e-tests, security-scan]
     if: always()
 
     steps:
@@ -417,12 +418,11 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Test Coverage" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Test Type | Count | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | 7 test files | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration (SQLite) | 12 test files | ${{ needs.integration-sqlite.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration (PostgreSQL) | 12 test files | ${{ needs.integration-postgres.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Workflow Tests | 6 workflow specs | ${{ needs.e2e-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests (PostgreSQL) | ${{ needs.integration-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Workflow Tests | ${{ needs.e2e-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Pipeline Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

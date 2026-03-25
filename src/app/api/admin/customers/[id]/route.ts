@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/customers/[id] - Get customer account details (Master Admin only)
 export async function GET(
@@ -108,7 +109,7 @@ export async function GET(
       pendingRequests: account.requests.map((r) => ({
         id: r.id,
         type: r.type,
-        data: JSON.parse(r.data),
+        data: safeJsonParse<Record<string, unknown>>(r.data, {}),
         requestedBy: r.requestedBy,
         createdAt: r.createdAt.toISOString(),
       })),

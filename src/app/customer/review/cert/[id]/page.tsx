@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { CustomerCertReviewClient } from './CustomerCertReviewClient'
 
 interface Props {
@@ -141,13 +142,8 @@ export default async function CustomerCertReviewPage({ params }: Props) {
   }
 
   // Parse JSON fields
-  const conclusionStatements = certificate.selectedConclusionStatements
-    ? JSON.parse(certificate.selectedConclusionStatements)
-    : []
-
-  const calibrationStatus = certificate.calibrationStatus
-    ? JSON.parse(certificate.calibrationStatus)
-    : []
+  const conclusionStatements = safeJsonParse<string[]>(certificate.selectedConclusionStatements, [])
+  const calibrationStatus = safeJsonParse<string[]>(certificate.calibrationStatus, [])
 
   // Get chat thread
   const chatThread = certificate.chatThreads[0] || null
@@ -197,7 +193,7 @@ export default async function CustomerCertReviewPage({ params }: Props) {
       errorFormula: p.errorFormula,
       showAfterAdjustment: p.showAfterAdjustment,
       requiresBinning: p.requiresBinning,
-      bins: p.bins,
+      bins: p.bins ? (typeof p.bins === 'string' ? p.bins : JSON.stringify(p.bins)) : null,
       sopReference: p.sopReference,
       results: p.results.map((r) => ({
         id: r.id,

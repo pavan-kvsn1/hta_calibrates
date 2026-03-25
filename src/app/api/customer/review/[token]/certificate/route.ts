@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { parseUserAgent, type SigningMetadata } from '@/components/pdf/pdf-utils'
+import { safeJsonParse } from '@/lib/utils/safe-json'
+import type { ParameterBin } from '@/lib/stores/certificate-store'
 
 export async function GET(
   request: NextRequest,
@@ -184,18 +186,15 @@ async function getFullCertificateData(certificateId: string) {
 
     if (!evidence) return undefined
 
-    try {
-      const parsed = JSON.parse(evidence.evidence)
-      return {
-        signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
-        ipAddress: parsed.ipAddress,
-        timezone: parsed.timezone,
-        deviceInfo: parseUserAgent(parsed.userAgent || ''),
-      }
-    } catch {
-      return {
-        signedAt: evidence.createdAt.toISOString(),
-      }
+    const parsed = safeJsonParse<Record<string, string>>(evidence.evidence, {})
+    if (Object.keys(parsed).length === 0) {
+      return { signedAt: evidence.createdAt.toISOString() }
+    }
+    return {
+      signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
+      ipAddress: parsed.ipAddress,
+      timezone: parsed.timezone,
+      deviceInfo: parseUserAgent(parsed.userAgent || ''),
     }
   }
 
@@ -307,7 +306,7 @@ async function getFullCertificateData(certificateId: string) {
       accuracyUnit: param.accuracyUnit || '',
       accuracyType: param.accuracyType || 'ABSOLUTE',
       requiresBinning: param.requiresBinning || false,
-      bins: param.bins ? JSON.parse(param.bins as string) : [],
+      bins: safeJsonParse<ParameterBin[]>(param.bins, []),
       errorFormula: param.errorFormula || 'A-B',
       showAfterAdjustment: param.showAfterAdjustment || false,
       masterInstrumentId: param.masterInstrumentId ? parseInt(param.masterInstrumentId) : null,
@@ -345,17 +344,13 @@ async function getFullCertificateData(certificateId: string) {
     relativeHumidity: certificate.relativeHumidity || '',
 
     // Section 6: Remarks
-    calibrationStatus: certificate.calibrationStatus
-      ? JSON.parse(certificate.calibrationStatus as string)
-      : [],
+    calibrationStatus: safeJsonParse<string[]>(certificate.calibrationStatus, []),
     stickerOldRemoved: certificate.stickerOldRemoved || null,
     stickerNewAffixed: certificate.stickerNewAffixed || null,
     statusNotes: certificate.statusNotes || '',
 
     // Section 7: Conclusion Statements
-    selectedConclusionStatements: certificate.selectedConclusionStatements
-      ? JSON.parse(certificate.selectedConclusionStatements as string)
-      : [],
+    selectedConclusionStatements: safeJsonParse<string[]>(certificate.selectedConclusionStatements, []),
     additionalConclusionStatement: certificate.additionalConclusionStatement || '',
 
     // Engineer notes

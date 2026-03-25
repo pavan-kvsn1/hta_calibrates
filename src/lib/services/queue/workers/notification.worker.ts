@@ -6,6 +6,7 @@
  * - notification:batch - Create multiple notifications
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { Job, JobWorker } from '../types'
 
@@ -27,7 +28,7 @@ export const notificationSendWorker: JobWorker<'notification:send'> = async (job
       title,
       message,
       certificateId,
-      data: data ? JSON.stringify(data) : null,
+      data: data ? data : Prisma.DbNull,
     },
   })
 
@@ -55,7 +56,7 @@ export const notificationBatchWorker: JobWorker<'notification:batch'> = async (j
           title: n.title,
           message: n.message,
           certificateId: n.certificateId,
-          data: n.data ? JSON.stringify(n.data) : null,
+          data: n.data ? n.data : Prisma.DbNull,
         },
       })
     )

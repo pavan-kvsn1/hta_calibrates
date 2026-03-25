@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/internal-requests/[id] - Get internal request details
 export async function GET(
@@ -59,7 +60,7 @@ export async function GET(
       return NextResponse.json({ error: 'Request not found' }, { status: 404 })
     }
 
-    const data = JSON.parse(internalRequest.data)
+    const data = safeJsonParse<Record<string, unknown>>(internalRequest.data, {})
 
     // For SECTION_UNLOCK, also fetch the currently unlocked sections from feedback
     let currentlyUnlockedSections: string[] = []
@@ -87,7 +88,7 @@ export async function GET(
       })
 
       approvedUnlocks.forEach(unlock => {
-        const unlockData = JSON.parse(unlock.data)
+        const unlockData = safeJsonParse<{ sections?: string[] }>(unlock.data, {})
         if (unlockData.sections) {
           currentlyUnlockedSections = [...new Set([...currentlyUnlockedSections, ...unlockData.sections])]
         }

@@ -1,6 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { ReviewerPageClient } from './ReviewerPageClient'
 
 // Status badge configuration
@@ -114,14 +115,16 @@ export default async function ReviewerReviewPage({ params }: Props) {
   const tat = calculateTAT(certificate.updatedAt)
 
   // Parse conclusion statements
-  const conclusionStatements = certificate.selectedConclusionStatements
-    ? JSON.parse(certificate.selectedConclusionStatements)
-    : []
+  const conclusionStatements = safeJsonParse<string[]>(
+    certificate.selectedConclusionStatements,
+    []
+  )
 
   // Parse calibration status
-  const calibrationStatus = certificate.calibrationStatus
-    ? JSON.parse(certificate.calibrationStatus)
-    : []
+  const calibrationStatus = safeJsonParse<string[]>(
+    certificate.calibrationStatus,
+    []
+  )
 
   // Get chat thread if exists
   const chatThread = certificate.chatThreads[0] || null
@@ -147,18 +150,26 @@ export default async function ReviewerReviewPage({ params }: Props) {
   })
 
   if (latestCustomerEvent?.eventData) {
-    try {
-      const eventData = JSON.parse(latestCustomerEvent.eventData)
+    interface CustomerEventData {
+      notes?: string
+      sectionFeedbacks?: { section: string; comment: string }[]
+      generalNotes?: string
+      customerName?: string
+      customerEmail?: string
+      requestedAt?: string
+    }
+    const eventData = safeJsonParse<CustomerEventData>(latestCustomerEvent.eventData, {})
+    if (Object.keys(eventData).length > 0) {
       customerFeedback = {
         notes: eventData.notes || '',
-        sectionFeedbacks: eventData.sectionFeedbacks || null,
+        sectionFeedbacks: eventData.sectionFeedbacks ?? null,
         generalNotes: eventData.generalNotes || null,
         customerName: eventData.customerName || 'Customer',
         customerEmail: eventData.customerEmail || '',
         requestedAt: eventData.requestedAt || latestCustomerEvent.createdAt.toISOString(),
         revision: latestCustomerEvent.revision,
       }
-    } catch {
+    } else {
       // Fallback to statusNotes if event data parsing fails
       customerFeedback = {
         notes: certificate.statusNotes || '',
@@ -173,7 +184,7 @@ export default async function ReviewerReviewPage({ params }: Props) {
   }
 
   // Serialize feedbacks for client
-  const serializedFeedbacks = certificate.feedbacks.map((f: typeof certificate.feedbacks[number]) => ({
+  const serializedFeedbacks = certificate.feedbacks.map((f) => ({
     id: f.id,
     feedbackType: f.feedbackType,
     comment: f.comment,
@@ -245,7 +256,7 @@ export default async function ReviewerReviewPage({ params }: Props) {
           errorFormula: p.errorFormula,
           showAfterAdjustment: p.showAfterAdjustment,
           requiresBinning: p.requiresBinning,
-          bins: p.bins,
+          bins: p.bins ? (typeof p.bins === 'string' ? p.bins : JSON.stringify(p.bins)) : null,
           sopReference: p.sopReference,
           results: p.results.map((r) => ({
             id: r.id,
