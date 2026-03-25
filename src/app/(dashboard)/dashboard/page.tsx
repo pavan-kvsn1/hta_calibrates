@@ -19,7 +19,7 @@ async function getCertificates(userId: string): Promise<CertificateListItem[]> {
     orderBy: { updatedAt: 'desc' },
   })
 
-  return certificates.map((cert) => ({
+  return certificates.map((cert: typeof certificates[number]) => ({
     id: cert.id,
     certificateNumber: cert.certificateNumber,
     status: cert.status,
