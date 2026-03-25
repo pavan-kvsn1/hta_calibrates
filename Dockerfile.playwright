@@ -1,8 +1,8 @@
 # Dockerfile for generating Playwright visual regression baselines
 # Uses official Playwright image with all browser dependencies pre-installed
 #
-# Build: docker build -f Dockerfile.playwright -t hta-playwright .
-# Run:   docker run --rm -v "$(pwd)/tests:/app/tests" hta-playwright
+# Build: docker compose -f docker-compose.playwright.yml up --build
+# (Don't build standalone - requires PostgreSQL from docker-compose)
 
 FROM mcr.microsoft.com/playwright:v1.58.2-noble
 
@@ -15,23 +15,21 @@ COPY prisma ./prisma/
 # Install dependencies
 RUN npm ci
 
-# Generate Prisma client
+# Generate Prisma client (doesn't need database connection)
 RUN npx prisma generate
 
 # Copy source files
 COPY . .
 
-# Environment variables needed for build
+# Environment variables for build (DATABASE_URL set by docker-compose at runtime)
 ENV CI=false
-ENV DATABASE_URL=file:./prisma/test.db
+ENV SKIP_DB_INIT=true
 ENV NEXTAUTH_SECRET=test-secret-for-snapshots
 ENV NEXTAUTH_URL=http://localhost:3001
 
-# Set up database
-RUN npx prisma db push && npm run db:seed
-
-# Build the app
+# Build the app (uses SKIP_DB_INIT to avoid database connection at build time)
 RUN npm run build
 
-# Run tests and generate snapshots
-CMD ["sh", "-c", "PORT=3001 npm start & sleep 20 && PLAYWRIGHT_TEST_BASE_URL=http://localhost:3001 npx playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots --reporter=list --project=chromium"]
+# At runtime: setup database, seed, start app, run tests
+# DATABASE_URL is provided by docker-compose environment
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && npm run db:seed && PORT=3001 npm start & sleep 20 && PLAYWRIGHT_TEST_BASE_URL=http://localhost:3001 npx playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots --reporter=list --project=chromium"]
