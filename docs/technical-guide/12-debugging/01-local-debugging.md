@@ -205,21 +205,14 @@ prisma.$on('query', (e) => {
 ### Direct Database Access
 
 ```bash
-# SQLite (local dev)
-sqlite3 prisma/dev.db
-
-# Common queries
-.tables
-SELECT * FROM User LIMIT 5;
-SELECT * FROM Certificate WHERE status = 'DRAFT';
-
-# PostgreSQL
+# Connect to local PostgreSQL (Docker)
 psql -h localhost -U hta_user -d hta_calibration
 
 # Common queries
 \dt                           # List tables
 \d+ "Certificate"             # Describe table
 SELECT * FROM "User" LIMIT 5;
+SELECT * FROM "Certificate" WHERE status = 'DRAFT';
 ```
 
 ---

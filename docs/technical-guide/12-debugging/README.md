@@ -122,15 +122,20 @@ gcloud compute networks peerings list
 postgresql://user:pass@host:5432/db?connection_limit=10&pool_timeout=30
 ```
 
-#### Symptom: Prisma Driver Adapter Mismatch
+#### Symptom: Prisma Connection Failed
 
-**Error**: `Driver Adapter is not compatible with provider`
+**Error**: `Can't reach database server`
 
-**Cause**: Using SQLite adapter with PostgreSQL schema or vice versa
+**Cause**: PostgreSQL not running or wrong connection string
 
-**Fix**: Check DATABASE_URL format matches schema provider:
-- PostgreSQL: `postgresql://...`
-- SQLite: `file:./dev.db`
+**Fix**: Check PostgreSQL is running and DATABASE_URL is correct:
+```bash
+# Local: Start PostgreSQL
+npm run db:start
+
+# Check DATABASE_URL format
+echo $DATABASE_URL  # Should be postgresql://...
+```
 
 ---
 

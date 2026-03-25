@@ -76,11 +76,10 @@ ENV HOSTNAME="0.0.0.0"
 
 **Format**:
 ```bash
-# SQLite (local development)
-DATABASE_URL="file:./dev.db"
-DATABASE_URL="file:./prisma/dev.db"
+# PostgreSQL (local development via Docker)
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 
-# PostgreSQL (GKE)
+# PostgreSQL (GKE/Cloud SQL)
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public"
 
 # PostgreSQL with SSL
@@ -299,8 +298,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ### Local Development (.env.local)
 
 ```bash
-# Database
-DATABASE_URL="file:./dev.db"
+# Database (PostgreSQL via Docker Compose)
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 
 # Authentication
 NEXTAUTH_SECRET="development-secret-32-chars-min"
@@ -308,17 +307,6 @@ NEXTAUTH_URL="http://localhost:3000"
 
 # Optional: Debug
 LOG_LEVEL="debug"
-```
-
-### Local with PostgreSQL (.env.local)
-
-```bash
-# Database (Docker PostgreSQL)
-DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
-
-# Authentication
-NEXTAUTH_SECRET="development-secret-32-chars-min"
-NEXTAUTH_URL="http://localhost:3000"
 ```
 
 ### Production (.env.production - NOT committed)

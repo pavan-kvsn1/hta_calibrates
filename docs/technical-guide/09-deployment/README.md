@@ -22,9 +22,8 @@ Check current status: `.github/workflows/ci.yml`
 Push to main/PR → Code Quality → Tests (parallel) → Build → E2E → Security
                         │              │               │       │
                         │              ├── Unit Tests  │       │
-                        │              ├── SQLite Int  │       │
-                        │              └── Postgres Int│       │
-                        │                              │       │
+                        │              └── Integration │       │
+                        │                 (PostgreSQL) │       │
                         └──────────────────────────────┴───────┘
 ```
 
@@ -65,10 +64,10 @@ kubectl rollout status deployment/hta-web -n hta-calibration
 │     ▼                                                            │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │ Stage 2: PARALLEL TESTS + BUILD                          │    │
-│  │ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐ │    │
-│  │ │ Unit Tests  │ │ SQLite Int  │ │ PostgreSQL Int      │ │    │
-│  │ │ + Coverage  │ │ Tests       │ │ Tests               │ │    │
-│  │ └─────────────┘ └─────────────┘ └─────────────────────┘ │    │
+│  │ ┌─────────────┐ ┌─────────────────────────────────────┐ │    │
+│  │ │ Unit Tests  │ │ Integration Tests (PostgreSQL)      │ │    │
+│  │ │ + Coverage  │ │                                     │ │    │
+│  │ └─────────────┘ └─────────────────────────────────────┘ │    │
 │  │                                                          │    │
 │  │ ┌──────────────────────────────────────────────────────┐│    │
 │  │ │ Build Check (Next.js production build)               ││    │
@@ -127,8 +126,7 @@ kubectl rollout status deployment/hta-web -n hta-calibration
 |-------|-----------|-------------|
 | Code Quality | No | ESLint + TypeScript (warnings) |
 | Unit Tests | **Yes** | Must pass |
-| SQLite Integration | **Yes** | Must pass |
-| PostgreSQL Integration | **Yes** | Must pass |
+| Integration Tests | **Yes** | PostgreSQL tests must pass |
 | Build | **Yes** | Must compile |
 | E2E Tests | **Yes** | Workflow tests |
 | Security | No | Reports only |

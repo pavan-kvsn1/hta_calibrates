@@ -32,7 +32,7 @@ Built-in database GUI for Prisma.
 
 **Start**:
 ```bash
-# Local SQLite
+# Local PostgreSQL (Docker)
 npx prisma studio
 
 # Production (via Cloud SQL Proxy)

@@ -22,11 +22,7 @@ package.json: "prisma": { "seed": "tsx prisma/seed.ts" }
 tsx executes prisma/seed.ts
        │
        ▼
-Script detects DATABASE_URL format
-       │
-       ├── postgresql:// → Use @prisma/adapter-pg
-       │
-       └── file:// or undefined → Use @prisma/adapter-better-sqlite3
+Connects to PostgreSQL via @prisma/adapter-pg
        │
        ▼
 Creates test data via Prisma Client
@@ -48,27 +44,16 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATABASE ADAPTER SELECTION
+// DATABASE CONNECTION (PostgreSQL)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Same logic as src/lib/prisma.ts
-const isPostgres = process.env.DATABASE_URL?.startsWith('postgresql://')
+import { PrismaPg } from '@prisma/adapter-pg'
 
-let prisma: PrismaClient
+const connectionString = process.env.DATABASE_URL ||
+  'postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration'
 
-if (isPostgres) {
-  // Production: Cloud SQL via proxy or direct connection
-  const { PrismaPg } = require('@prisma/adapter-pg')
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
-  prisma = new PrismaClient({ adapter })
-} else {
-  // Local: SQLite file
-  const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3')
-  const adapter = new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL || 'file:./dev.db',
-  })
-  prisma = new PrismaClient({ adapter })
-}
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter })
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -356,17 +341,18 @@ main()
 
 ## Running the Seed
 
-### Local (SQLite)
+### Local Development
 
 ```bash
-# Make sure schema is pushed first
-npx prisma db push
+# Start PostgreSQL (if not running)
+npm run db:start
 
-# Run seed
+# Push schema and seed
+npm run db:setup
 npx prisma db seed
 ```
 
-### Cloud SQL (PostgreSQL)
+### Cloud SQL (Production/Staging)
 
 ```bash
 # Start Cloud SQL Proxy
@@ -449,22 +435,21 @@ await prisma.user.create({
 
 ---
 
-### Error: "Driver Adapter is not compatible"
+### Error: "Connection refused"
 
 ```
-The Driver Adapter `@prisma/adapter-better-sqlite3` is not compatible
-with the provider `postgresql`
+Error: connect ECONNREFUSED 127.0.0.1:5432
 ```
 
-**Cause**: DATABASE_URL format doesn't match what seed expects
+**Cause**: PostgreSQL is not running
 
-**Fix**: Check DATABASE_URL:
+**Fix**: Start PostgreSQL:
 ```bash
-# Should be postgresql:// for Cloud SQL
-echo $DATABASE_URL
+# Start local PostgreSQL via Docker Compose
+npm run db:start
 
-# Or file:// for SQLite
-DATABASE_URL="file:./dev.db" npx prisma db seed
+# Verify it's running
+docker ps | grep postgres
 ```
 
 ---

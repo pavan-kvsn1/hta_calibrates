@@ -27,8 +27,8 @@ This guide documents key differences between local development and GKE deploymen
 │           │                                                      │
 │           ▼                                                      │
 │   ┌────────────────┐                                            │
-│   │   SQLite       │ ◄── ./dev.db                               │
-│   │   Database     │     (Single File)                          │
+│   │   PostgreSQL   │ ◄── Docker Compose                         │
+│   │   (Docker)     │     localhost:5432                         │
 │   └────────────────┘                                            │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
@@ -70,15 +70,15 @@ This guide documents key differences between local development and GKE deploymen
 
 ## Database Differences
 
-### Schema Provider
+### Environment Comparison
 
-| Aspect | Local (SQLite) | GKE (PostgreSQL) |
+| Aspect | Local (Docker) | GKE (Cloud SQL) |
 |--------|----------------|------------------|
-| Provider | `sqlite` | `postgresql` |
-| JSON Support | Limited | Full (`@db.Json`) |
-| Arrays | Not supported | Supported |
-| Case Sensitivity | Case-insensitive | Case-sensitive |
-| Concurrent Writes | Limited | Full support |
+| Provider | PostgreSQL 16 | PostgreSQL 16 |
+| Access | localhost:5432 | Private IP |
+| Management | Docker Compose | Google Managed |
+| Backups | Manual | Automatic |
+| HA | Single instance | Multi-zone |
 
 ### Prisma Configuration
 
@@ -86,24 +86,25 @@ This guide documents key differences between local development and GKE deploymen
 // prisma/schema.prisma
 
 datasource db {
-  // Provider is determined by driver adapter at runtime
-  provider = "sqlite"  // Base provider
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 ```
 
 ```typescript
 // src/lib/prisma.ts
-// Driver adapter handles PostgreSQL in production
+// Uses @prisma/adapter-pg for PostgreSQL
+import { PrismaPg } from '@prisma/adapter-pg'
+const adapter = new PrismaPg({ connectionString })
 ```
 
 ### Connection String Differences
 
 ```bash
-# Local SQLite
-DATABASE_URL="file:./dev.db"
+# Local PostgreSQL (Docker)
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 
-# GKE PostgreSQL
+# GKE PostgreSQL (Cloud SQL)
 DATABASE_URL="postgresql://user:pass@10.x.x.x:5432/hta_calibration"
 ```
 
@@ -183,7 +184,7 @@ const [signedUrl] = await bucket.file('cert.pdf').getSignedUrl({
 
 ```bash
 # .env.local (file)
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 NEXTAUTH_SECRET="dev-secret"
 ```
 
@@ -225,7 +226,7 @@ data:
 
 ```
 Local:
-Browser → Next.js → SQLite file
+Browser → Next.js → PostgreSQL (Docker localhost:5432)
 
 GKE:
 Browser → Load Balancer → Pod → Private IP → Cloud SQL
@@ -287,7 +288,7 @@ kubectl exec -it deployment/hta-web -n hta-calibration -- sh
 |-------|-------|----------|
 | "Can't find module" | Missing install | `npm install` |
 | "Port in use" | Another process | Kill process or use different port |
-| "Database locked" | SQLite limitation | Close other connections |
+| "Connection refused" | PostgreSQL not running | `npm run db:start` |
 
 ### GKE Only Issues
 
@@ -305,15 +306,15 @@ kubectl exec -it deployment/hta-web -n hta-calibration -- sh
 
 ### Recommended Approach
 
-1. **Develop Locally** with SQLite
-   - Fast iteration
-   - Easy debugging
-   - No infrastructure needed
-
-2. **Test Locally with PostgreSQL** (optional)
+1. **Start Local PostgreSQL**
    ```bash
-   docker compose -f docker-compose.dev.yml up postgres
-   DATABASE_URL="postgresql://..." npm run dev
+   npm run db:start  # Starts PostgreSQL via Docker Compose
+   ```
+
+2. **Develop Locally**
+   ```bash
+   npm run dev
+   # Fast iteration, easy debugging, production parity
    ```
 
 3. **Deploy to Dev GKE** for integration testing
@@ -343,10 +344,10 @@ kubectl exec -it deployment/hta-web -n hta-calibration -- sh
 
 ### Known Differences to Watch
 
-1. **JSON operations** - SQLite doesn't support PostgreSQL JSON operators
-2. **Date handling** - Timezone differences
-3. **Case sensitivity** - PostgreSQL is case-sensitive
-4. **Concurrent access** - SQLite has limitations
+1. **Network latency** - Cloud SQL has network overhead vs local Docker
+2. **Date handling** - Timezone differences between local and server
+3. **Connection pooling** - Cloud SQL may limit connections
+4. **Resource limits** - GKE pods have memory/CPU constraints
 
 ---
 
@@ -394,6 +395,6 @@ kubectl port-forward deployment/hta-web -n hta-calibration 3000:3000
 | Purpose | Local | GKE |
 |---------|-------|-----|
 | Environment | `.env.local` | ConfigMap + Secret |
-| Database | `./dev.db` | Cloud SQL |
+| Database | Docker Compose | Cloud SQL |
 | Config | `next.config.ts` | Same + Kustomize |
 | Logs | Terminal | `kubectl logs` |

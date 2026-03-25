@@ -150,16 +150,9 @@ docker build --target deps -t hta-deps .
 ### Run Locally
 
 ```bash
-# Run with local SQLite
+# Run with local PostgreSQL (Docker Compose network)
 docker run -p 3000:3000 \
-  -e DATABASE_URL="file:./dev.db" \
-  -e NEXTAUTH_SECRET="your-secret" \
-  -e NEXTAUTH_URL="http://localhost:3000" \
-  hta-app
-
-# Run with Cloud SQL (via proxy on host)
-docker run -p 3000:3000 \
-  -e DATABASE_URL="postgresql://user:pass@host.docker.internal:5432/db" \
+  -e DATABASE_URL="postgresql://hta_user:hta_dev_password@host.docker.internal:5432/hta_calibration" \
   -e NEXTAUTH_SECRET="your-secret" \
   -e NEXTAUTH_URL="http://localhost:3000" \
   hta-app
