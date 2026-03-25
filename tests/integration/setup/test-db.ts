@@ -4,10 +4,8 @@
  * Provides utilities for setting up and tearing down a test database
  * for integration tests that require real database interactions.
  *
- * Note: Integration tests require a properly configured database.
+ * Note: Integration tests require a properly configured PostgreSQL database.
  * They will be skipped if the database cannot be initialized.
- *
- * For PostgreSQL tests, set DB_PROVIDER=postgresql and use the postgres-setup.ts
  */
 
 import { PrismaClient } from '@prisma/client'
@@ -15,25 +13,16 @@ import { PrismaClient } from '@prisma/client'
 let prisma: PrismaClient | null = null
 let setupError: Error | null = null
 
-const isPostgres = process.env.DB_PROVIDER === 'postgresql'
-
 /**
  * Initialize the test database
- * Uses the existing app prisma instance for integration tests.
- * For PostgreSQL tests, uses the postgres-setup module.
+ * Uses the postgres-setup module for PostgreSQL connection.
  * Tests should use cleanTestDatabase() between tests to ensure isolation.
  */
 export async function setupTestDatabase(): Promise<PrismaClient> {
   try {
-    if (isPostgres) {
-      // For PostgreSQL tests, use the postgres-specific setup
-      const postgresModule = await import('./postgres-setup')
-      prisma = await postgresModule.getPostgresPrisma()
-    } else {
-      // For SQLite tests, use the app's prisma instance
-      const prismaModule = await import('@/lib/prisma')
-      prisma = prismaModule.prisma
-    }
+    // Use the PostgreSQL-specific setup
+    const postgresModule = await import('./postgres-setup')
+    prisma = await postgresModule.getPostgresPrisma()
 
     // Verify connection works
     await prisma.$queryRaw`SELECT 1`
@@ -42,7 +31,7 @@ export async function setupTestDatabase(): Promise<PrismaClient> {
   } catch (error) {
     setupError = error instanceof Error ? error : new Error(String(error))
     throw new Error(
-      `Failed to initialize test database. Integration tests require a configured database. Error: ${setupError.message}`
+      `Failed to initialize test database. Integration tests require a configured PostgreSQL database. Error: ${setupError.message}`
     )
   }
 }
@@ -109,8 +98,8 @@ export async function cleanTestDatabase(): Promise<void> {
     })
   } catch (error) {
     console.error('Error cleaning test database:', error)
-    // If transaction fails, try individual deletes with force
-    // This is a fallback for SQLite which may not support all FK operations
+    // If transaction fails, individual deletes may also fail
+    // This indicates a real issue with the database state
   }
 }
 
