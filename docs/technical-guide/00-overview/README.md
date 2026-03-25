@@ -49,35 +49,36 @@ A web application for managing calibration certificates for instrumentation equi
 
 ---
 
-### 2. SQLite for Local, PostgreSQL for Production
+### 2. PostgreSQL Everywhere
 
-**Decision**: Use Prisma driver adapters to support both databases
+**Decision**: Use PostgreSQL for all environments (local, CI, production)
 
 **Rationale**:
-- Zero-setup local development (SQLite)
-- Production-grade reliability (PostgreSQL)
-- Same Prisma schema works for both
+- Consistent behavior across all environments
+- Native JSON support in PostgreSQL
+- Production-grade reliability everywhere
+- No dual-database compatibility issues
 
 **Implementation**:
 ```typescript
 // src/lib/prisma.ts
-const isPostgres = process.env.DATABASE_URL?.startsWith('postgresql://')
+import { PrismaPg } from '@prisma/adapter-pg'
 
-if (isPostgres) {
-  const { PrismaPg } = require('@prisma/adapter-pg')
-  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
-  prisma = new PrismaClient({ adapter })
-} else {
-  const { PrismaBetterSqlite3 } = require('@prisma/adapter-better-sqlite3')
-  const adapter = new PrismaBetterSqlite3({ url: process.env.DATABASE_URL })
-  prisma = new PrismaClient({ adapter })
-}
+const connectionString = process.env.DATABASE_URL
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter })
+```
+
+**Local Development**:
+```bash
+npm run db:start    # Start PostgreSQL via Docker
+npm run db:setup    # Generate client + push schema
+npm run db:seed     # Seed test data
 ```
 
 **Trade-offs**:
-- Schema must be compatible with both (no PostgreSQL-specific features)
-- Must test on both databases
-- Prisma 7 driver adapters are newer (less community support)
+- Requires Docker for local development
+- Slightly more setup than file-based database
 
 ---
 

@@ -8,7 +8,7 @@
 | [02-schema-deep-dive.md](./02-schema-deep-dive.md) | All models explained, relationships, status flows | Understanding data model, adding fields |
 | [03-seed-script.md](./03-seed-script.md) | Test data generation, how seeding works | Populating dev/test databases |
 | [04-environments.md](./04-environments.md) | Local/Dev/Staging/Prod database operations | Connecting to different environments |
-| [05-testing.md](./05-testing.md) | Unit tests, integration tests (SQLite + PostgreSQL) | Writing database tests |
+| [05-testing.md](./05-testing.md) | Unit tests, integration tests (PostgreSQL) | Writing database tests |
 | [06-multi-tenancy-future.md](./06-multi-tenancy-future.md) | Future architecture for multi-tenant support | Planning multi-tenant migration |
 
 ---
@@ -18,8 +18,9 @@
 ### Local Development
 
 ```bash
-npx prisma db push      # Apply schema
-npx prisma db seed      # Add test data
+npm run db:start        # Start PostgreSQL via Docker
+npm run db:setup        # Generate client + push schema
+npm run db:seed         # Add test data
 npx prisma studio       # GUI browser
 ```
 
@@ -34,26 +35,28 @@ export DATABASE_URL="postgresql://user:pass@127.0.0.1:5432/db"
 npx prisma studio
 ```
 
-### Environment Detection
+### Database Connection
 
 ```typescript
-// Automatic adapter selection in src/lib/prisma.ts
-const isPostgres = process.env.DATABASE_URL?.startsWith('postgresql://')
-// → Uses @prisma/adapter-pg for PostgreSQL
-// → Uses @prisma/adapter-better-sqlite3 for SQLite
+// src/lib/prisma.ts - PostgreSQL adapter
+import { PrismaPg } from '@prisma/adapter-pg'
+
+const connectionString = process.env.DATABASE_URL
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter })
 ```
 
 ---
 
 ## Database Stack
 
-| Component | Local | Production |
-|-----------|-------|------------|
-| Database | SQLite | PostgreSQL 15 |
-| ORM | Prisma 7 | Prisma 7 |
-| Adapter | better-sqlite3 | pg |
-| Location | `./dev.db` | Cloud SQL |
-| GUI | Prisma Studio | DBeaver / Prisma Studio |
+| Component | Local | CI | Production |
+|-----------|-------|-----|------------|
+| Database | PostgreSQL 16 | PostgreSQL 16 | PostgreSQL 15 |
+| ORM | Prisma 7 | Prisma 7 | Prisma 7 |
+| Adapter | @prisma/adapter-pg | @prisma/adapter-pg | @prisma/adapter-pg |
+| Location | Docker container | GitHub Actions service | Cloud SQL |
+| GUI | Prisma Studio | - | DBeaver / Prisma Studio |
 
 ---
 

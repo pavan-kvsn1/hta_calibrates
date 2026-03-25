@@ -21,6 +21,10 @@ export default defineConfig({
     testTimeout: 30000,            // 30 seconds for DB operations
     sequence: { concurrent: false }, // Sequential execution
     fileParallelism: false,        // One file at a time
+    env: {
+      DATABASE_URL: 'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test',
+    },
+    setupFiles: ['./tests/integration/setup/postgres-setup.ts'],
   },
 })
 ```
@@ -51,40 +55,6 @@ export default defineConfig({
 
 ## Test Database Setup
 
-### SQLite Setup
-
-```typescript
-// tests/integration/setup/test-db.ts
-import { PrismaClient } from '@prisma/client'
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
-
-let prisma: PrismaClient
-
-export async function setupTestDb() {
-  // Use in-memory SQLite for speed
-  const adapter = new PrismaBetterSqlite3({
-    url: 'file::memory:?cache=shared',
-  })
-
-  prisma = new PrismaClient({ adapter })
-
-  // Push schema to in-memory database
-  await prisma.$executeRaw`PRAGMA foreign_keys = ON`
-
-  return prisma
-}
-
-export async function cleanupTestDb() {
-  // Delete all data in reverse order of dependencies
-  await prisma.certificateEvent.deleteMany()
-  await prisma.certificate.deleteMany()
-  await prisma.user.deleteMany()
-  // ...
-}
-
-export { prisma }
-```
-
 ### PostgreSQL Setup
 
 ```typescript
@@ -94,7 +64,7 @@ import { PrismaPg } from '@prisma/adapter-pg'
 
 let prisma: PrismaClient
 
-export async function setupPostgresTestDb() {
+export async function setupTestDb() {
   const connectionString = process.env.DATABASE_URL
     || 'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test'
 
@@ -108,13 +78,34 @@ export async function setupPostgresTestDb() {
 }
 
 export async function cleanupTestDb() {
-  // Use transaction to delete all data
+  // Delete all data in correct order (respecting foreign keys)
   await prisma.$transaction([
     prisma.certificateEvent.deleteMany(),
+    prisma.reviewFeedback.deleteMany(),
     prisma.certificate.deleteMany(),
     prisma.user.deleteMany(),
   ])
 }
+
+export { prisma }
+```
+
+### Docker Compose for Tests
+
+```yaml
+# docker-compose.test.yml
+version: '3.8'
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hta_test
+      POSTGRES_PASSWORD: hta_test_password
+      POSTGRES_DB: hta_calibration_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data  # In-memory for speed
 ```
 
 ---
@@ -126,8 +117,7 @@ export async function cleanupTestDb() {
 ```typescript
 // tests/integration/api/certificates.test.ts
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { setupTestDb, cleanupTestDb, prisma } from '../setup/test-db'
-import { createMockRequest, createMockSession } from '../helpers'
+import { setupTestDb, cleanupTestDb, prisma } from '../setup/postgres-setup'
 
 describe('Certificate API', () => {
   beforeAll(async () => {
@@ -144,7 +134,6 @@ describe('Certificate API', () => {
 
   describe('GET /api/certificates', () => {
     it('returns empty array when no certificates', async () => {
-      // Create test user
       const user = await prisma.user.create({
         data: {
           email: 'engineer@test.com',
@@ -154,47 +143,7 @@ describe('Certificate API', () => {
         },
       })
 
-      // Mock session
-      const session = createMockSession(user)
-
-      // Call API
-      const request = createMockRequest('GET', '/api/certificates')
-      const response = await GET(request, { session })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.certificates).toEqual([])
-    })
-
-    it('returns user certificates', async () => {
-      // Create user and certificate
-      const user = await prisma.user.create({
-        data: {
-          email: 'engineer@test.com',
-          name: 'Test Engineer',
-          role: 'ENGINEER',
-          authProvider: 'PASSWORD',
-        },
-      })
-
-      await prisma.certificate.create({
-        data: {
-          certificateNumber: 'HTA-2024-001',
-          status: 'DRAFT',
-          customerName: 'Test Customer',
-          createdById: user.id,
-          lastModifiedById: user.id,
-        },
-      })
-
-      // Call API
-      const session = createMockSession(user)
-      const response = await GET(createMockRequest('GET'), { session })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.certificates).toHaveLength(1)
-      expect(data.certificates[0].certificateNumber).toBe('HTA-2024-001')
+      // Call API and verify...
     })
   })
 
@@ -209,25 +158,7 @@ describe('Certificate API', () => {
         },
       })
 
-      const request = createMockRequest('POST', '/api/certificates', {
-        body: {
-          customerName: 'Test Customer',
-          uucDescription: 'Digital Multimeter',
-        },
-      })
-
-      const response = await POST(request, { session: createMockSession(user) })
-
-      expect(response.status).toBe(201)
-      const data = await response.json()
-      expect(data.certificateNumber).toMatch(/HTA-2024-\d{3}/)
-
-      // Verify in database
-      const cert = await prisma.certificate.findUnique({
-        where: { id: data.id },
-      })
-      expect(cert).not.toBeNull()
-      expect(cert!.customerName).toBe('Test Customer')
+      // Create certificate and verify...
     })
   })
 })
@@ -238,7 +169,7 @@ describe('Certificate API', () => {
 ```typescript
 // tests/integration/database/transactions.test.ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { setupTestDb, prisma } from '../setup/test-db'
+import { setupTestDb, prisma } from '../setup/postgres-setup'
 
 describe('Database Transactions', () => {
   beforeAll(async () => {
@@ -268,155 +199,7 @@ describe('Database Transactions', () => {
     }
 
     const finalCount = await prisma.certificate.count()
-    expect(finalCount).toBe(initialCount) // No change
-  })
-
-  it('commits all changes on success', async () => {
-    const user = await prisma.user.create({
-      data: {
-        email: 'test@test.com',
-        name: 'Test',
-        role: 'ENGINEER',
-        authProvider: 'PASSWORD',
-      },
-    })
-
-    await prisma.$transaction(async (tx) => {
-      // Create certificate
-      const cert = await tx.certificate.create({
-        data: {
-          certificateNumber: 'HTA-2024-001',
-          status: 'DRAFT',
-          createdById: user.id,
-          lastModifiedById: user.id,
-        },
-      })
-
-      // Create event
-      await tx.certificateEvent.create({
-        data: {
-          certificateId: cert.id,
-          sequenceNumber: 1,
-          revision: 0,
-          eventType: 'CERTIFICATE_CREATED',
-          eventData: '{}',
-          userId: user.id,
-          userRole: 'ENGINEER',
-        },
-      })
-    })
-
-    // Both should exist
-    const cert = await prisma.certificate.findFirst()
-    const event = await prisma.certificateEvent.findFirst()
-
-    expect(cert).not.toBeNull()
-    expect(event).not.toBeNull()
-    expect(event!.certificateId).toBe(cert!.id)
-  })
-})
-```
-
-### Workflow Integration Tests
-
-```typescript
-// tests/integration/api/workflows.test.ts
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest'
-import { setupTestDb, cleanupTestDb, prisma } from '../setup/test-db'
-
-describe('Certificate Workflow', () => {
-  let engineer: any
-  let reviewer: any
-  let certificate: any
-
-  beforeAll(async () => {
-    await setupTestDb()
-  })
-
-  afterAll(async () => {
-    await prisma.$disconnect()
-  })
-
-  beforeEach(async () => {
-    await cleanupTestDb()
-
-    // Create users
-    engineer = await prisma.user.create({
-      data: {
-        email: 'engineer@test.com',
-        name: 'Test Engineer',
-        role: 'ENGINEER',
-        authProvider: 'PASSWORD',
-      },
-    })
-
-    reviewer = await prisma.user.create({
-      data: {
-        email: 'reviewer@test.com',
-        name: 'Test Reviewer',
-        role: 'ENGINEER',
-        authProvider: 'PASSWORD',
-      },
-    })
-
-    // Create certificate
-    certificate = await prisma.certificate.create({
-      data: {
-        certificateNumber: 'HTA-2024-001',
-        status: 'DRAFT',
-        createdById: engineer.id,
-        lastModifiedById: engineer.id,
-        reviewerId: reviewer.id,
-      },
-    })
-  })
-
-  it('complete workflow: DRAFT → AUTHORIZED', async () => {
-    // 1. Submit for review
-    await submitCertificate(certificate.id, engineer.id)
-    let cert = await prisma.certificate.findUnique({
-      where: { id: certificate.id },
-    })
-    expect(cert!.status).toBe('IN_REVIEW')
-
-    // 2. Reviewer approves
-    await approveCertificate(certificate.id, reviewer.id)
-    cert = await prisma.certificate.findUnique({
-      where: { id: certificate.id },
-    })
-    expect(cert!.status).toBe('APPROVED')
-
-    // ... continue workflow
-  })
-
-  it('revision flow: submit → revision requested → resubmit', async () => {
-    // Submit
-    await submitCertificate(certificate.id, engineer.id)
-
-    // Request revision
-    await requestRevision(certificate.id, reviewer.id, {
-      sections: ['results'],
-      comment: 'Check measurement values',
-    })
-
-    let cert = await prisma.certificate.findUnique({
-      where: { id: certificate.id },
-    })
-    expect(cert!.status).toBe('IN_REVIEW') // Status unchanged
-
-    // Check feedback created
-    const feedback = await prisma.reviewFeedback.findFirst({
-      where: { certificateId: certificate.id },
-    })
-    expect(feedback).not.toBeNull()
-    expect(feedback!.feedbackType).toBe('REVISION_REQUEST')
-
-    // Resubmit
-    await resubmitCertificate(certificate.id, engineer.id)
-    cert = await prisma.certificate.findUnique({
-      where: { id: certificate.id },
-    })
-    expect(cert!.currentRevision).toBe(2)
+    expect(finalCount).toBe(initialCount) // No change - rolled back
   })
 })
 ```
@@ -425,37 +208,50 @@ describe('Certificate Workflow', () => {
 
 ## Running Integration Tests
 
-### SQLite
+### Local Development
 
 ```bash
-# Run all integration tests with SQLite
+# 1. Start test PostgreSQL
+npm run db:test:start
+
+# 2. Push schema to test database
+DATABASE_URL="postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test" \
+  npx prisma db push
+
+# 3. Run integration tests
 npm run test:integration
 
-# Or manually
-DATABASE_URL="file:./test.db" npx vitest run --config vitest.integration.config.ts
+# 4. Stop test database when done
+npm run db:test:stop
 ```
 
-### PostgreSQL
+### CI/CD (GitHub Actions)
 
-```bash
-# Start PostgreSQL (Docker)
-docker run -d \
-  --name hta-postgres-test \
-  -e POSTGRES_USER=hta_test \
-  -e POSTGRES_PASSWORD=hta_test_password \
-  -e POSTGRES_DB=hta_calibration_test \
-  -p 5433:5432 \
-  postgres:16-alpine
+```yaml
+integration-tests:
+  runs-on: ubuntu-latest
+  services:
+    postgres:
+      image: postgres:16-alpine
+      env:
+        POSTGRES_USER: hta_test
+        POSTGRES_PASSWORD: hta_test_password
+        POSTGRES_DB: hta_calibration_test
+      ports:
+        - 5432:5432
+      options: >-
+        --health-cmd "pg_isready -U hta_test"
+        --health-interval 10s
+        --health-timeout 5s
+        --health-retries 5
 
-# Wait for it to be ready
-until docker exec hta-postgres-test pg_isready; do sleep 1; done
-
-# Push schema
-DATABASE_URL="postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test" \
-  npx prisma db push --schema=prisma/schema.postgres.prisma
-
-# Run tests
-npm run test:integration:postgres
+  steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+    - run: npm ci
+    - run: npx prisma generate
+    - run: npx prisma db push --accept-data-loss
+    - run: npm run test:integration
 ```
 
 ---
@@ -477,23 +273,6 @@ export function createMockSession(user: User) {
     },
     expires: new Date(Date.now() + 86400000).toISOString(),
   }
-}
-
-export function createMockRequest(
-  method: string,
-  url = '/api/test',
-  options: {
-    body?: Record<string, unknown>
-    headers?: Record<string, string>
-  } = {}
-) {
-  return {
-    method,
-    url,
-    json: () => Promise.resolve(options.body || {}),
-    headers: new Headers(options.headers || {}),
-    nextUrl: new URL(`http://localhost:3000${url}`),
-  } as unknown as Request
 }
 
 export async function createTestUser(
@@ -537,10 +316,6 @@ export async function createTestCertificate(
 
 ### "Unique constraint failed"
 
-```
-Error: Unique constraint failed on the fields: (`email`)
-```
-
 **Fix**: Clean up before each test
 ```typescript
 beforeEach(async () => {
@@ -550,13 +325,8 @@ beforeEach(async () => {
 
 ### "Foreign key constraint failed"
 
-```
-Error: Foreign key constraint failed on the field: `createdById`
-```
-
 **Fix**: Create required relations first
 ```typescript
-// Create user BEFORE certificate
 const user = await prisma.user.create({ ... })
 const cert = await prisma.certificate.create({
   data: {
@@ -566,11 +336,9 @@ const cert = await prisma.certificate.create({
 })
 ```
 
-### Tests Interfering with Each Other
+### "Connection refused"
 
-**Fix**: Use sequential execution
-```typescript
-// vitest.integration.config.ts
-sequence: { concurrent: false },
-fileParallelism: false,
+**Fix**: Start the test database
+```bash
+npm run db:test:start
 ```

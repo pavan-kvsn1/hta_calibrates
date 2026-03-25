@@ -4,12 +4,12 @@
 
 | Aspect | Local | Dev (GKE) | Staging (GKE) | Production (GKE) |
 |--------|-------|-----------|---------------|------------------|
-| **Database** | SQLite | Cloud SQL | Cloud SQL | Cloud SQL |
-| **Instance** | `./dev.db` | `hta-db-dev` | `hta-db-staging` | `hta-db-prod` |
+| **Database** | PostgreSQL 16 | Cloud SQL | Cloud SQL | Cloud SQL |
+| **Instance** | Docker container | `hta-db-dev` | `hta-db-staging` | `hta-db-prod` |
 | **Tier** | N/A | db-f1-micro | db-g1-small | db-custom-2-4096 |
 | **Connections** | Unlimited | 25 | 50 | 100 |
 | **Backups** | Manual | Daily | Daily | Continuous |
-| **Access** | Direct file | Cloud SQL Proxy | Cloud SQL Proxy | Cloud SQL Proxy |
+| **Access** | localhost:5432 | Cloud SQL Proxy | Cloud SQL Proxy | Cloud SQL Proxy |
 | **Data** | Seed data | Test data | Prod copy (sanitized) | Real data |
 
 ---
@@ -19,13 +19,14 @@
 ### Setup
 
 ```bash
-# 1. No external dependencies needed - SQLite is file-based
+# 1. Start PostgreSQL via Docker
+npm run db:start
 
-# 2. Create/update database schema
-npx prisma db push
+# 2. Generate Prisma client and push schema
+npm run db:setup
 
 # 3. Seed with test data
-npx prisma db seed
+npm run db:seed
 
 # 4. Start app
 npm run dev
@@ -33,18 +34,27 @@ npm run dev
 
 ### Database Location
 
-```
-hta-calibration/
-├── dev.db              # SQLite database (auto-created)
-├── prisma/
-│   └── dev.db          # Alternative location
+PostgreSQL runs in a Docker container defined in `docker-compose.dev.yml`:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hta_user
+      POSTGRES_PASSWORD: hta_dev_password
+      POSTGRES_DB: hta_calibration
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 ```
 
 ### Environment Variables
 
 ```bash
 # .env.local (create this file)
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 ```
 
 ### Viewing Data
@@ -54,55 +64,31 @@ DATABASE_URL="file:./dev.db"
 npx prisma studio
 # Opens browser at http://localhost:5555
 
-# Option 2: SQLite CLI
-sqlite3 dev.db
-sqlite> .tables
-sqlite> SELECT * FROM User;
-sqlite> .quit
+# Option 2: psql CLI
+psql "postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 
-# Option 3: VS Code extension "SQLite Viewer"
+# Option 3: DBeaver or other GUI client
 ```
 
 ### Reset Database
 
 ```bash
-# Delete and recreate
-rm dev.db
-npx prisma db push
-npx prisma db seed
+# Stop, delete volume, and recreate
+npm run db:reset
 
-# Or force reset
-npx prisma db push --force-reset
-npx prisma db seed
+# Then setup and seed again
+npm run db:setup
+npm run db:seed
 ```
 
-### SQLite Limitations
+### PostgreSQL Features Used
 
-| Feature | SQLite | PostgreSQL |
-|---------|--------|------------|
-| JSON columns | String (manual parse) | Native JSON |
-| Concurrent writes | Limited (file lock) | Full MVCC |
-| Full-text search | Basic | Advanced |
-| Connection pooling | N/A | Yes |
-| Stored procedures | No | Yes |
-
-**Code Impact**:
-```typescript
-// JSON fields stored as strings in SQLite
-// Must manually parse/stringify
-
-// Writing
-await prisma.certificate.update({
-  where: { id },
-  data: {
-    calibrationStatus: JSON.stringify(['Within tolerance']),
-  }
-})
-
-// Reading
-const cert = await prisma.certificate.findUnique({ where: { id } })
-const statuses = JSON.parse(cert.calibrationStatus || '[]')
-```
+| Feature | Usage |
+|---------|-------|
+| Native JSON | Storing event data, bins, complex objects |
+| Concurrent writes | Full MVCC support |
+| Connection pooling | Managed by Prisma |
+| Transactions | Event sourcing, atomic operations |
 
 ---
 
@@ -345,7 +331,7 @@ npx prisma studio
 # 1. Create migration locally
 npx prisma migrate dev --name add_new_field
 
-# 2. Test on local SQLite
+# 2. Test on local PostgreSQL
 npm run dev
 # Verify application works
 
@@ -393,7 +379,7 @@ gcloud sql backups restore BACKUP_ID --restore-instance=hta-db-prod
 
 ### Before Deploying to Dev
 
-- [ ] Schema pushed to local SQLite works
+- [ ] Schema pushed to local PostgreSQL works
 - [ ] Seed runs without errors
 - [ ] All tests pass locally
 - [ ] No hardcoded connection strings
@@ -420,12 +406,14 @@ gcloud sql backups restore BACKUP_ID --restore-instance=hta-db-prod
 
 ```bash
 # ═══════════════════════════════════════════════════════════════
-# LOCAL
+# LOCAL (Docker PostgreSQL)
 # ═══════════════════════════════════════════════════════════════
-npx prisma db push                    # Apply schema
-npx prisma db seed                    # Seed data
+npm run db:start                      # Start PostgreSQL
+npm run db:setup                      # Generate + push schema
+npm run db:seed                       # Seed data
+npm run db:stop                       # Stop PostgreSQL
+npm run db:reset                      # Delete and recreate
 npx prisma studio                     # GUI
-sqlite3 dev.db                        # CLI
 
 # ═══════════════════════════════════════════════════════════════
 # DEV (via Cloud SQL Proxy)
