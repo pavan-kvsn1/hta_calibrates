@@ -809,8 +809,8 @@ variable "database_password" {
 │  ┌────────────────────┬─────────────────────┬─────────────────────┐        │
 │  │ Component          │ Local Development   │ Cloud (Terraform)   │        │
 │  ├────────────────────┼─────────────────────┼─────────────────────┤        │
-│  │ Database           │ SQLite file or      │ Cloud SQL           │        │
-│  │                    │ Docker Postgres     │ (managed Postgres)  │        │
+│  │ Database           │ PostgreSQL          │ Cloud SQL           │        │
+│  │                    │ (Docker Compose)    │ (managed Postgres)  │        │
 │  ├────────────────────┼─────────────────────┼─────────────────────┤        │
 │  │ Secrets            │ .env file           │ Secret Manager      │        │
 │  │                    │ (local only)        │ (encrypted storage) │        │
@@ -830,25 +830,17 @@ variable "database_password" {
 │  LOCAL SETUP:                                                               │
 │  ════════════                                                               │
 │                                                                             │
-│  1. Database (SQLite - simplest):                                           │
-│     # .env                                                                  │
-│     DATABASE_URL="file:./dev.db"                                            │
-│                                                                             │
-│  2. Database (Postgres via Docker - more realistic):                        │
-│     $ docker run -d --name postgres \                                       │
-│         -e POSTGRES_PASSWORD=localpass \                                    │
-│         -e POSTGRES_DB=hta_calibration \                                    │
-│         -p 5432:5432 \                                                      │
-│         postgres:15                                                         │
+│  1. Database (PostgreSQL via Docker Compose):                               │
+│     $ docker compose up -d postgres                                         │
 │                                                                             │
 │     # .env                                                                  │
 │     DATABASE_URL="postgresql://postgres:localpass@localhost:5432/hta"       │
 │                                                                             │
-│  3. Secrets (just put in .env):                                             │
+│  2. Secrets (just put in .env):                                             │
 │     # .env                                                                  │
 │     NEXTAUTH_SECRET="any-random-string-here"                                │
 │                                                                             │
-│  4. Run the app:                                                            │
+│  3. Run the app:                                                            │
 │     $ npm run dev                                                           │
 │     → Opens at http://localhost:3000                                        │
 │                                                                             │

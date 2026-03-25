@@ -2021,14 +2021,10 @@ npm run test:run
 npm run test:coverage
 # → Generates coverage report
 
-# Integration tests (SQLite)
-npm run test:integration
-# → API tests with SQLite
-
 # Integration tests (PostgreSQL)
-npm run db:postgres:start   # Start test DB
-npm run test:integration:postgres
-npm run db:postgres:stop    # Stop test DB
+npm run db:start            # Start PostgreSQL via Docker
+npm run test:integration
+npm run db:stop             # Stop PostgreSQL
 
 # E2E tests
 npm run test:e2e
@@ -2174,8 +2170,7 @@ flowchart TB
 
     subgraph "Stage 2: Tests (Parallel)"
         UT[Unit Tests]
-        SI[SQLite Integration]
-        PI[PostgreSQL Integration]
+        INT[Integration Tests]
         BD[Build Check]
     end
 
@@ -2189,11 +2184,10 @@ flowchart TB
 
     Push --> CQ
     CQ --> UT
-    CQ --> SI
-    CQ --> PI
+    CQ --> INT
     CQ --> BD
     UT --> E2E
-    SI --> E2E
+    INT --> E2E
     BD --> E2E
     E2E --> SEC
 ```
@@ -2204,10 +2198,9 @@ flowchart TB
 |-----|------------|---------|
 | code-quality | - | Install, lint, typecheck |
 | unit-tests | code-quality | Run vitest with coverage |
-| integration-sqlite | code-quality | Push schema, run integration tests |
-| integration-postgres | code-quality | Start postgres service, push schema, run tests |
+| integration | code-quality | Start PostgreSQL service, push schema, run tests |
 | build | code-quality | Build Next.js production bundle |
-| e2e-tests | unit-tests, integration-sqlite, build | Seed DB, run Playwright |
+| e2e-tests | unit-tests, integration, build | Seed DB, run Playwright |
 | security-scan | e2e-tests | npm audit |
 | ci-summary | all | Generate summary report |
 

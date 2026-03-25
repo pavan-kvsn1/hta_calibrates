@@ -86,7 +86,7 @@ model CertificateEvent {
   revision       Int      // Which revision this event belongs to
 
   eventType String // CERTIFICATE_CREATED, SUBMITTED_FOR_REVIEW, etc.
-  eventData String // JSON payload stored as string for SQLite
+  eventData String // JSON payload stored as string
 
   userId     String?  // For staff events (engineer, HoD, admin)
   customerId String?  // For customer events
@@ -136,9 +136,10 @@ const nextSeq = (lastEvent?.sequenceNumber ?? 0) + 1
 
 ### Why `eventData` is String (not JSON)?
 
-SQLite doesn't have native JSON type. For compatibility:
-- **SQLite**: `eventData` stored as string, manually parsed
-- **PostgreSQL**: Could use native JSON, but we use string for consistency
+We use a String type with JSON.stringify/parse for explicit serialization control:
+- **Consistency**: Same code path regardless of database features
+- **Portability**: Works identically across PostgreSQL versions
+- **Explicit parsing**: No automatic JSON coercion surprises
 
 ```typescript
 // Writing event

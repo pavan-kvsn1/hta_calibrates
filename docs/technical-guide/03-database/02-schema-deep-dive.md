@@ -486,7 +486,7 @@ model CertificateEvent {
   // See event types below
 
   eventData      String
-  // JSON payload (stored as string for SQLite compatibility)
+  // JSON payload (stored as string)
   // Structure depends on eventType
 
   // ═══════════════════════════════════════════════════════════
@@ -570,9 +570,9 @@ SELECT * FROM Certificate WHERE status = 'PENDING_REVIEW';
 
 ---
 
-## JSON Fields (SQLite Compatibility)
+## JSON Fields (String Storage)
 
-Several fields store JSON as strings because SQLite doesn't have native JSON type:
+Several fields store JSON as strings for explicit serialization control:
 
 ```prisma
 // These are JSON stored as String:
@@ -597,11 +597,10 @@ await prisma.certificate.update({
 })
 ```
 
-**PostgreSQL Alternative** (if we drop SQLite support):
-```prisma
-// Could use native JSON type
-calibrationStatus Json?
-```
+**Why String instead of native JSON?**
+- Explicit serialization/deserialization gives predictable behavior
+- No automatic coercion surprises between different PostgreSQL versions
+- Same code path for all JSON-like fields
 
 ---
 

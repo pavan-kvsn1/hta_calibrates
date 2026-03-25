@@ -34,7 +34,7 @@ This document describes how the HTA Calibration application evolves from a devel
 │   Developer's  →   Shared team   →   Pre-prod       →   Live system         │
 │   machine          testing           validation         Real users          │
 │                                                                              │
-│   SQLite       →   Cloud SQL     →   Cloud SQL      →   Cloud SQL (HA)     │
+│   PostgreSQL   →   Cloud SQL     →   Cloud SQL      →   Cloud SQL (HA)     │
 │   Seeded data      Seeded data       Sanitized prod     Real data          │
 │                                                                              │
 │   npm run dev  →   Docker/K8s    →   Docker/K8s     →   Docker/K8s         │
@@ -53,7 +53,7 @@ This document describes how the HTA Calibration application evolves from a devel
 | Aspect | Local | Dev (GKE) | Staging | Production |
 |--------|-------|-----------|---------|------------|
 | **Purpose** | Development | Integration testing | Pre-prod validation | Live system |
-| **Database** | SQLite | Cloud SQL (shared) | Cloud SQL (isolated) | Cloud SQL (HA) |
+| **Database** | PostgreSQL (Docker) | Cloud SQL (shared) | Cloud SQL (isolated) | Cloud SQL (HA) |
 | **Data** | Seeded test data | Seeded test data | Sanitized prod copy | Real customer data |
 | **Replicas** | 1 (npm process) | 1 pod | 2 pods | 3+ pods (HPA) |
 | **URL** | localhost:3000 | http://34.180.4.228 | staging.htacalibration.com | app.htacalibration.com |
@@ -83,9 +83,9 @@ This document describes how the HTA Calibration application evolves from a devel
 │          │                                                       │
 │          ▼                                                       │
 │   ┌──────────────┐     ┌──────────────┐     ┌──────────────┐   │
-│   │  Next.js Dev │     │   Prisma     │     │   SQLite     │   │
-│   │   Server     │────▶│   Client     │────▶│   dev.db     │   │
-│   │  (Port 3000) │     │              │     │   (file)     │   │
+│   │  Next.js Dev │     │   Prisma     │     │  PostgreSQL  │   │
+│   │   Server     │────▶│   Client     │────▶│   (Docker)   │   │
+│   │  (Port 3000) │     │              │     │   Port 5432  │   │
 │   └──────────────┘     └──────────────┘     └──────────────┘   │
 │          │                                                       │
 │          │ Hot Module Replacement                                │
@@ -106,8 +106,11 @@ cd hta-calibration
 npm install
 cp .env.example .env.local
 
+# Start PostgreSQL
+npm run db:start
+
 # Configure .env.local
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 NEXTAUTH_SECRET="local-dev-secret-min-32-characters"
 NEXTAUTH_URL="http://localhost:3000"
 
@@ -129,7 +132,7 @@ sequenceDiagram
     participant Git as Git
     participant IDE as VS Code
     participant App as npm run dev
-    participant DB as SQLite
+    participant DB as PostgreSQL
 
     Dev->>Git: git checkout -b feature/new-feature
     Dev->>App: npm run dev
@@ -164,13 +167,8 @@ npm test
 # Unit tests (single run)
 npm run test:run
 
-# Integration tests with SQLite
+# Integration tests (PostgreSQL)
 npm run test:integration
-
-# Integration tests with PostgreSQL (requires Docker)
-npm run db:postgres:start
-npm run test:integration:postgres
-npm run db:postgres:stop
 
 # E2E tests
 npm run test:e2e
@@ -190,15 +188,13 @@ npx prisma studio
 # Opens http://localhost:5555
 
 # Reset database completely
-rm -f ./dev.db ./prisma/dev.db
-npx prisma db push
-npx prisma db seed
+npm run db:reset
 
 # Create test data for specific scenario
 npx ts-node scripts/seed-scenario.ts --scenario=pending-review
 
-# Query database directly
-sqlite3 ./dev.db "SELECT * FROM Certificate LIMIT 5;"
+# Query database directly (via psql)
+psql -h localhost -U hta_user -d hta_calibration -c "SELECT * FROM \"Certificate\" LIMIT 5;"
 ```
 
 ## 1.6 Local Environment Variables
@@ -206,8 +202,8 @@ sqlite3 ./dev.db "SELECT * FROM Certificate LIMIT 5;"
 ```bash
 # .env.local (complete example)
 
-# Database
-DATABASE_URL="file:./dev.db"
+# Database (PostgreSQL via Docker)
+DATABASE_URL="postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration"
 
 # Authentication
 NEXTAUTH_SECRET="local-development-secret-32-chars-min"
@@ -1350,38 +1346,8 @@ jobs:
         with:
           files: ./coverage/lcov.info
 
-  integration-sqlite:
-    name: Integration Tests (SQLite)
-    needs: code-quality
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Setup database
-        env:
-          DATABASE_URL: "file:./test.db"
-        run: |
-          npx prisma generate
-          npx prisma db push
-          npx prisma db seed
-
-      - name: Run integration tests
-        env:
-          DATABASE_URL: "file:./test.db"
-          NEXTAUTH_SECRET: "test-secret"
-        run: npm run test:integration
-
-  integration-postgres:
-    name: Integration Tests (PostgreSQL)
+  integration:
+    name: Integration Tests
     needs: code-quality
     runs-on: ubuntu-latest
     services:
@@ -1459,8 +1425,22 @@ jobs:
   # ============================================
   e2e-tests:
     name: E2E Tests
-    needs: [unit-tests, integration-sqlite, build]
+    needs: [unit-tests, integration, build]
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: hta_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -1484,15 +1464,15 @@ jobs:
 
       - name: Setup database
         env:
-          DATABASE_URL: "file:./e2e-test.db"
+          DATABASE_URL: "postgresql://test:test@localhost:5432/hta_test"
         run: |
           npx prisma generate
-          npx prisma db push
+          npx prisma migrate deploy
           npx prisma db seed
 
       - name: Run E2E tests
         env:
-          DATABASE_URL: "file:./e2e-test.db"
+          DATABASE_URL: "postgresql://test:test@localhost:5432/hta_test"
           NEXTAUTH_SECRET: "e2e-test-secret"
           NEXTAUTH_URL: "http://localhost:3000"
         run: npm run test:e2e
@@ -1537,7 +1517,7 @@ jobs:
   # ============================================
   ci-success:
     name: CI Success
-    needs: [unit-tests, integration-sqlite, integration-postgres, e2e-tests, security-scan]
+    needs: [unit-tests, integration, e2e-tests, security-scan]
     runs-on: ubuntu-latest
     if: success()
     steps:
@@ -1852,8 +1832,8 @@ jobs:
 │  LOCAL           DEV              STAGING           PRODUCTION              │
 │  ─────           ───              ───────           ──────────              │
 │                                                                              │
-│  SQLite          Cloud SQL        Cloud SQL         Cloud SQL               │
-│  (file)          (shared)         (isolated)        (HA)                    │
+│  PostgreSQL      Cloud SQL        Cloud SQL         Cloud SQL               │
+│  (Docker)        (shared)         (isolated)        (HA)                    │
 │                                                                              │
 │  db push         migrate deploy   migrate deploy    migrate deploy          │
 │  (schema sync)   (versioned)      (versioned)       (versioned)             │
@@ -2006,7 +1986,7 @@ gcloud sql instances clone hta-db-prod hta-db-staging-refresh \
 │                               │                                              │
 │                         ┌─────┴─────┐                                       │
 │   CI/CD                 │Integration│  API + Database tests                 │
-│                         │   Tests   │  SQLite + PostgreSQL                  │
+│                         │   Tests   │  PostgreSQL service container         │
 │                         └─────┬─────┘                                       │
 │                               │                                              │
 │                         ┌─────┴─────┐                                       │

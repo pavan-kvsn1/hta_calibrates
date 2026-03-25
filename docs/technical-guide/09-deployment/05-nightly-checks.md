@@ -55,10 +55,10 @@ full-test-suite:
     # Run all unit tests
     - run: npm run test:coverage
 
-    # Run SQLite integration tests
+    # Run integration tests (PostgreSQL service container)
     - run: npm run test:integration
       env:
-        DATABASE_URL: file:./test.db
+        DATABASE_URL: postgresql://test:test@localhost:5432/hta_test
 
     # Run E2E on ALL browsers
     - run: npx playwright test --project=chromium --project=firefox --project=webkit
