@@ -22,6 +22,7 @@ resource "google_container_cluster" "autopilot" {
   name     = "${var.project_id}-gke-${var.environment}"
   project  = var.project_id
   location = local.cluster_location
+  deletion_protection = false  # Add this line
 
   description = "GKE Autopilot cluster for HTA Calibration ${var.environment}"
 
@@ -92,6 +93,7 @@ resource "google_container_cluster" "standard" {
   name     = "${var.project_id}-gke-${var.environment}"
   project  = var.project_id
   location = local.cluster_location
+  deletion_protection = false  # Add this line
 
   description = "GKE Standard cluster for HTA Calibration ${var.environment}"
 

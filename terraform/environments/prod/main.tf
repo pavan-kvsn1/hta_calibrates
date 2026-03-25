@@ -36,7 +36,7 @@ provider "google-beta" {
   region  = var.region
 }
 
-# Enable required APIs
+# Enable required APIs (shared APIs like iam, artifactregistry are in terraform/shared)
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "compute.googleapis.com",
@@ -44,11 +44,8 @@ resource "google_project_service" "required_apis" {
     "sqladmin.googleapis.com",
     "servicenetworking.googleapis.com",
     "secretmanager.googleapis.com",
-    "cloudresourcemanager.googleapis.com",
-    "iam.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
-    "artifactregistry.googleapis.com",
   ])
 
   project = var.project_id
