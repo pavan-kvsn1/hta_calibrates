@@ -392,6 +392,7 @@ const initialFormData: CertificateFormData = {
   sectionResponses: {},
 }
 
+// Certificate store - manages certificate form data and state
 export const useCertificateStore = create<CertificateStore>((set, get) => ({
   formData: initialFormData,
   isDirty: false,
@@ -400,6 +401,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
   isHydrated: false,
   certificateId: null,
 
+  // Hydrate store with client-side generated values to avoid hydration mismatch
   hydrate: () => {
     const state = get()
     if (state.isHydrated) return
@@ -410,6 +412,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     const dateOfCalibration = state.formData.dateOfCalibration || today
     const calibrationDueDate = state.formData.calibrationDueDate || calculateDueDateString(dateOfCalibration, state.formData.calibrationTenure, state.formData.dueDateAdjustment)
 
+    // Update form data with client-side generated values
     set({
       isHydrated: true,
       formData: {
@@ -421,6 +424,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Set form field - updates form data and marks as dirty
   setFormField: (field, value) => {
     set((state) => ({
       formData: { ...state.formData, [field]: value },
@@ -433,6 +437,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     }
   },
 
+  // Set parameter - updates parameter at index and marks as dirty
   setParameter: (index, parameter) => {
     const oldParameter = get().formData.parameters[index]
 
@@ -461,6 +466,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     }
   },
 
+  // Add parameter - adds new parameter and marks as dirty
   addParameter: () => {
     set((state) => ({
       formData: {
@@ -471,6 +477,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     }))
   },
 
+  // Remove parameter - removes parameter at index and marks as dirty
   removeParameter: (index) => {
     set((state) => {
       if (state.formData.parameters.length <= 1) return state
@@ -482,6 +489,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Set result - updates result at parameter and result index and marks as dirty
   setResult: (parameterIndex, resultIndex, result) => {
     set((state) => {
       const newParameters = [...state.formData.parameters]
@@ -496,6 +504,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     get().calculateError(parameterIndex, resultIndex)
   },
 
+  // Add result - adds new result to parameter and marks as dirty
   addResult: (parameterIndex) => {
     set((state) => {
       const newParameters = [...state.formData.parameters]
@@ -512,6 +521,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Remove result - removes result at parameter and result index and marks as dirty
   removeResult: (parameterIndex, resultIndex) => {
     set((state) => {
       const newParameters = [...state.formData.parameters]
@@ -527,6 +537,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Set point count - adjusts number of results for parameter and marks as dirty
   setPointCount: (parameterIndex, count) => {
     set((state) => {
       const newParameters = [...state.formData.parameters]
@@ -555,6 +566,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Add master instrument - adds new master instrument and marks as dirty
   addMasterInstrument: () => {
     set((state) => ({
       formData: {
@@ -565,6 +577,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     }))
   },
 
+  // Remove master instrument - removes master instrument at index and marks as dirty
   removeMasterInstrument: (index) => {
     set((state) => {
       if (state.formData.masterInstruments.length <= 1) return state
@@ -576,6 +589,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Set master instrument - updates master instrument at index and marks as dirty
   setMasterInstrument: (index, instrument) => {
     set((state) => {
       const newInstruments = [...state.formData.masterInstruments]
@@ -587,6 +601,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Set parameter master instrument - updates parameter's master instrument ID and marks as dirty
   setParameterMasterInstrument: (parameterIndex, masterInstrumentId) => {
     set((state) => {
       const newParameters = [...state.formData.parameters]
@@ -601,6 +616,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Calculate due date - recalculates due date based on date, tenure, and adjustment and updates form data
   calculateDueDate: () => {
     set((state) => {
       const dueDate = calculateDueDateString(
@@ -614,6 +630,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Calculate error - recalculates error for result and updates form data
   calculateError: (parameterIndex, resultIndex) => {
     set((state) => {
       const newParameters = [...state.formData.parameters]
@@ -657,6 +674,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Recalculate all errors - recalculates errors for all results in parameter and updates form data
   recalculateAllErrors: (parameterIndex) => {
     const state = get()
     const parameter = state.formData.parameters[parameterIndex]
@@ -667,6 +685,7 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Toggle calibration status - adds or removes status from calibration status array and marks as dirty
   toggleCalibrationStatus: (status) => {
     set((state) => {
       const currentStatuses = state.formData.calibrationStatus
@@ -680,22 +699,28 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     })
   },
 
+  // Set is saving - sets saving state
   setIsSaving: (saving) => set({ isSaving: saving }),
 
+  // Set last saved - sets last saved date and marks as not dirty
   setLastSaved: (date) => set((state) => ({
     formData: { ...state.formData, lastSaved: date },
     isDirty: false,
   })),
 
+  // Reset form - resets form data to initial state and marks as not dirty
   resetForm: () => set({ formData: initialFormData, isDirty: false, validationErrors: {}, certificateId: null }),
 
+  // Load form - loads form data and marks as not dirty
   loadForm: (data) => set((state) => ({
     formData: { ...state.formData, ...data },
     isDirty: false,
   })),
 
+  // Set certificate ID - sets certificate ID
   setCertificateId: (id) => set({ certificateId: id }),
 
+  // Save draft - saves form data as draft
   saveDraft: async () => {
     const state = get()
     const { formData, certificateId } = state
@@ -742,11 +767,13 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     }
   },
 
+  // Set engineer notes - updates engineer notes and marks as dirty
   setEngineerNotes: (notes) => set((state) => ({
     formData: { ...state.formData, engineerNotes: notes },
     isDirty: true,
   })),
 
+  // Set section response - updates section response and marks as dirty
   setSectionResponse: (sectionId, response) => set((state) => ({
     formData: {
       ...state.formData,
@@ -758,10 +785,12 @@ export const useCertificateStore = create<CertificateStore>((set, get) => ({
     isDirty: true,
   })),
 
+  // Clear section responses - clears all section responses and marks as dirty
   clearSectionResponses: () => set((state) => ({
     formData: {
       ...state.formData,
       sectionResponses: {},
     },
+    isDirty: true,
   })),
 }))
