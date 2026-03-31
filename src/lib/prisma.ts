@@ -8,9 +8,11 @@ const globalForPrisma = globalThis as unknown as {
 
 // Create PostgreSQL adapter for Prisma 7
 // Must use Pool object, not just connectionString - PrismaPg requires Pool
+// Type cast needed due to @types/pg version mismatch between pg and @prisma/adapter-pg
 const connectionString = process.env.DATABASE_URL || 'postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration'
 const pool = new Pool({ connectionString })
-const adapter = new PrismaPg(pool)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const adapter = new PrismaPg(pool as any)
 
 export const prisma =
   globalForPrisma.prisma ??
