@@ -7,8 +7,9 @@
 
 import React from 'react'
 import { prisma } from '@/lib/prisma'
-import { CertificateFormData } from '@/lib/stores/certificate-store'
+import { CertificateFormData, ParameterBin } from '@/lib/stores/certificate-store'
 import { PDFSignatureData, SigningMetadata, parseUserAgent } from '@/components/pdf/pdf-utils'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // Binary search bounds for multiplier
 const MIN_MULTIPLIER = 0.75
@@ -112,18 +113,15 @@ export async function fetchCertificateForPDF(certificateId: string): Promise<{
 
     if (!evidence) return undefined
 
-    try {
-      const parsed = JSON.parse(evidence.evidence)
-      return {
-        signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
-        ipAddress: parsed.ipAddress,
-        timezone: parsed.timezone,
-        deviceInfo: parseUserAgent(parsed.userAgent || ''),
-      }
-    } catch {
-      return {
-        signedAt: evidence.createdAt.toISOString(),
-      }
+    const parsed = safeJsonParse<Record<string, string>>(evidence.evidence, {})
+    if (Object.keys(parsed).length === 0) {
+      return { signedAt: evidence.createdAt.toISOString() }
+    }
+    return {
+      signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
+      ipAddress: parsed.ipAddress,
+      timezone: parsed.timezone,
+      deviceInfo: parseUserAgent(parsed.userAgent || ''),
     }
   }
 
@@ -233,7 +231,7 @@ export async function fetchCertificateForPDF(certificateId: string): Promise<{
       accuracyUnit: param.accuracyUnit || '',
       accuracyType: param.accuracyType || 'ABSOLUTE',
       requiresBinning: param.requiresBinning || false,
-      bins: param.bins ? JSON.parse(param.bins as string) : [],
+      bins: safeJsonParse<ParameterBin[]>(param.bins, []),
       errorFormula: param.errorFormula || 'A-B',
       showAfterAdjustment: param.showAfterAdjustment || false,
       masterInstrumentId: param.masterInstrumentId ? parseInt(param.masterInstrumentId) : null,
@@ -271,17 +269,13 @@ export async function fetchCertificateForPDF(certificateId: string): Promise<{
     relativeHumidity: certificate.relativeHumidity || '',
 
     // Section 6: Remarks
-    calibrationStatus: certificate.calibrationStatus
-      ? JSON.parse(certificate.calibrationStatus as string)
-      : [],
+    calibrationStatus: safeJsonParse<string[]>(certificate.calibrationStatus, []),
     stickerOldRemoved: certificate.stickerOldRemoved || null,
     stickerNewAffixed: certificate.stickerNewAffixed || null,
     statusNotes: certificate.statusNotes || '',
 
     // Section 7: Conclusion Statements
-    selectedConclusionStatements: certificate.selectedConclusionStatements
-      ? JSON.parse(certificate.selectedConclusionStatements as string)
-      : [],
+    selectedConclusionStatements: safeJsonParse<string[]>(certificate.selectedConclusionStatements, []),
     additionalConclusionStatement: certificate.additionalConclusionStatement || '',
 
     engineerNotes: '',

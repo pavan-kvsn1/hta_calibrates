@@ -1,9 +1,14 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth, canAccessAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { AdminAuthorizationClient } from './AdminAuthorizationClient'
+import type { ParameterBin } from '@/lib/stores/certificate-store'
 import type { SignatureInfo } from '@/components/certificates'
 import type { CertificateFormData } from './AdminAuthContent'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 
 // Status badge configuration
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -85,7 +90,7 @@ async function getCertificateData(id: string) {
     sequenceNumber: e.sequenceNumber,
     revision: e.revision,
     eventType: e.eventType,
-    eventData: e.eventData,
+    eventData: e.eventData ? (typeof e.eventData === 'string' ? e.eventData : JSON.stringify(e.eventData)) : '',
     userRole: e.userRole,
     createdAt: e.createdAt.toISOString(),
     user: e.user ? {
@@ -186,12 +191,8 @@ async function getCertificateData(id: string) {
     uucLocationName: certificate.uucLocationName || '',
     ambientTemperature: certificate.ambientTemperature || '',
     relativeHumidity: certificate.relativeHumidity || '',
-    calibrationStatus: certificate.calibrationStatus
-      ? JSON.parse(certificate.calibrationStatus as string)
-      : [],
-    selectedConclusionStatements: certificate.selectedConclusionStatements
-      ? JSON.parse(certificate.selectedConclusionStatements as string)
-      : [],
+    calibrationStatus: safeJsonParse<string[]>(certificate.calibrationStatus, []),
+    selectedConclusionStatements: safeJsonParse<string[]>(certificate.selectedConclusionStatements, []),
     additionalConclusionStatement: certificate.additionalConclusionStatement || '',
     parameters: certificate.parameters.map((param) => ({
       id: param.id,
@@ -211,7 +212,7 @@ async function getCertificateData(id: string) {
       errorFormula: param.errorFormula || 'A-B',
       showAfterAdjustment: param.showAfterAdjustment || false,
       requiresBinning: param.requiresBinning || false,
-      bins: param.bins ? JSON.parse(param.bins as string) : [],
+      bins: safeJsonParse<ParameterBin[]>(param.bins, []),
       sopReference: param.sopReference || '',
       results: param.results.map((result) => ({
         id: result.id,

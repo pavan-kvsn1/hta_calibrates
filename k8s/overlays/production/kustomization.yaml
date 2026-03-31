@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: hta-calibration-production
+
+namespace: hta-calibration
+
+resources:
+  - ../../base
+
+labels:
+  - pairs:
+      environment: production
+    includeSelectors: false
+
+patches:
+  - path: deployment-patch.yaml
+  - path: configmap-patch.yaml
+  - path: hpa-patch.yaml
+  - path: serviceaccount-patch.yaml

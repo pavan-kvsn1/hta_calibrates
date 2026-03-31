@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { notifyCustomerOnReviewerReply } from '@/lib/services/notifications'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 export async function POST(
   request: NextRequest,
@@ -63,13 +64,9 @@ export async function POST(
     let customerName: string | null = null
 
     if (latestCustomerEvent) {
-      try {
-        const eventData = JSON.parse(latestCustomerEvent.eventData)
-        customerEmail = eventData.customerEmail
-        customerName = eventData.customerName
-      } catch {
-        // Ignore parse errors
-      }
+      const eventData = safeJsonParse<Record<string, string>>(latestCustomerEvent.eventData, {})
+      customerEmail = eventData.customerEmail
+      customerName = eventData.customerName
     }
 
     // If no customer info from event, try to get from latest token

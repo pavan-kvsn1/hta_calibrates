@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { notFound } from 'next/navigation'
 import { TokenReviewClient } from './TokenReviewClient'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 
 // Status badge configuration
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -185,11 +189,11 @@ export default async function CustomerReviewPage({
 
   // Parse JSON fields
   const conclusionStatements = certificate.selectedConclusionStatements
-    ? JSON.parse(certificate.selectedConclusionStatements)
+    ? safeJsonParse<string[]>(certificate.selectedConclusionStatements, [])
     : []
 
   const calibrationStatus = certificate.calibrationStatus
-    ? JSON.parse(certificate.calibrationStatus)
+    ? safeJsonParse<string[]>(certificate.calibrationStatus, [])
     : []
 
   // Get chat thread
@@ -240,7 +244,7 @@ export default async function CustomerReviewPage({
       errorFormula: p.errorFormula,
       showAfterAdjustment: p.showAfterAdjustment,
       requiresBinning: p.requiresBinning,
-      bins: p.bins,
+      bins: p.bins ? (typeof p.bins === 'string' ? p.bins : JSON.stringify(p.bins)) : null,
       sopReference: p.sopReference,
       results: p.results.map((r) => ({
         id: r.id,

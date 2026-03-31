@@ -6,17 +6,37 @@
 #   docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit
 #
 # This will:
-#   1. Build the app in a Linux container
-#   2. Run visual regression tests with --update-snapshots
-#   3. Save baselines to tests/e2e/evals/visual-regression.spec.ts-snapshots/
+#   1. Start PostgreSQL database
+#   2. Build the app in a Linux container
+#   3. Run visual regression tests with --update-snapshots
+#   4. Save baselines to tests/e2e/evals/visual-regression.spec.ts-snapshots/
 #
 # After running, commit the generated snapshot files.
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hta_test
+      POSTGRES_PASSWORD: hta_test_password
+      POSTGRES_DB: hta_calibration_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hta_test -d hta_calibration_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   playwright:
     build:
       context: .
       dockerfile: Dockerfile.playwright
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://hta_test:hta_test_password@postgres:5432/hta_calibration_test
+      NEXTAUTH_SECRET: test-secret-for-snapshots
+      NEXTAUTH_URL: http://localhost:3001
     volumes:
       # Only mount the test snapshots directory to persist generated baselines
       - ./tests/e2e/evals/visual-regression.spec.ts-snapshots:/app/tests/e2e/evals/visual-regression.spec.ts-snapshots

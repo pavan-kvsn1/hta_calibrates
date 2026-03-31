@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // POST /api/admin/internal-requests/[id]/review - Approve or reject an internal request
 export async function POST(
@@ -73,7 +74,7 @@ export async function POST(
 
     // Handle SECTION_UNLOCK specific actions
     if (internalRequest.type === 'SECTION_UNLOCK' && internalRequest.certificateId) {
-      const data = JSON.parse(internalRequest.data)
+      const data = safeJsonParse<{ sections?: string[]; reason?: string }>(internalRequest.data, {})
       const sectionList = data.sections?.join(', ') || 'requested sections'
 
       // Get the certificate's current revision and latest event sequence
@@ -149,7 +150,7 @@ export async function POST(
         id: updatedRequest.id,
         type: updatedRequest.type,
         status: updatedRequest.status,
-        data: JSON.parse(updatedRequest.data),
+        data: safeJsonParse<Record<string, unknown>>(updatedRequest.data, {}),
         certificate: updatedRequest.certificate,
         requestedBy: updatedRequest.requestedBy,
         reviewedBy: updatedRequest.reviewedBy,

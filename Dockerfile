@@ -28,7 +28,8 @@ COPY . .
 
 # Build the application with cache mount for faster rebuilds
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL=file:./prisma/placeholder.db
+# Placeholder DATABASE_URL for build (actual connection comes from runtime env)
+ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
 RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # Stage 3: Production

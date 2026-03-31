@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 import { ReviewerCertificateTable } from './ReviewerCertificateTable'
 
 export interface ReviewCertificateItem {

@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { CustomerSidebar } from '@/components/customer/CustomerSidebar'
 import { CustomerLayoutWrapper } from '@/components/customer/CustomerLayoutWrapper'
 
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
+
 async function getCustomerData(email: string) {
   const customer = await prisma.customerUser.findUnique({
     where: { email },

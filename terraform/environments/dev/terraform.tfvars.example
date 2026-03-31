@@ -2,7 +2,7 @@
 # Copy this file to terraform.tfvars and fill in your values
 
 # REQUIRED: Your GCP project ID
-project_id = "your-gcp-project-id"
+project_id = "hta-calibration-dev1"
 
 # OPTIONAL: Override the default region (asia-south1)
 # region = "asia-south1"

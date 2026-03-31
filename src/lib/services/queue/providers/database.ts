@@ -8,6 +8,7 @@
  * Limitations: Polling latency (~100-500ms), single-process workers
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import {
   QueueService,
@@ -271,7 +272,7 @@ export class DatabaseQueueService implements QueueService {
   private mapToJob(dbJob: {
     id: string
     type: string
-    payload: string
+    payload: Prisma.JsonValue
     status: string
     priority: number
     attempts: number
@@ -281,10 +282,14 @@ export class DatabaseQueueService implements QueueService {
     createdAt: Date
     processedAt: Date | null
   }): Job {
+    // Handle payload - may be string (SQLite legacy) or object (PostgreSQL native JSON)
+    const payload = typeof dbJob.payload === 'string'
+      ? JSON.parse(dbJob.payload)
+      : dbJob.payload
     return {
       id: dbJob.id,
       type: dbJob.type as JobType,
-      payload: JSON.parse(dbJob.payload),
+      payload,
       status: dbJob.status as JobStatus,
       priority: dbJob.priority,
       attempts: dbJob.attempts,

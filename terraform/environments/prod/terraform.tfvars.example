@@ -1,0 +1,12 @@
+# Production Environment - Example Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# REQUIRED: Your GCP project ID
+project_id = "your-gcp-project-id"
+
+# OPTIONAL: Override the default region (asia-south1)
+# region = "asia-south1"
+
+# RECOMMENDED: Restrict GKE master access to your admin IP range
+# Find your IP: curl ifconfig.me
+admin_cidr_block = "YOUR_OFFICE_IP/32"  # e.g., "203.0.113.50/32"

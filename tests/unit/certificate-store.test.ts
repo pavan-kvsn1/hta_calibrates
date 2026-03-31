@@ -83,6 +83,8 @@ describe('useCertificateStore', () => {
         selectedConclusionStatements: [],
         additionalConclusionStatement: '',
         engineerNotes: '',
+        sectionResponses: {},
+        serverUpdatedAt: null,
       },
       isDirty: false,
       isSaving: false,
@@ -512,6 +514,144 @@ describe('useCertificateStore', () => {
 
       expect(useCertificateStore.getState().formData.engineerNotes).toBe('Fixed calibration issue')
       expect(useCertificateStore.getState().isDirty).toBe(true)
+    })
+  })
+
+  describe('serverUpdatedAt tracking', () => {
+    it('starts with serverUpdatedAt as null', () => {
+      const { formData } = useCertificateStore.getState()
+      expect(formData.serverUpdatedAt).toBeNull()
+    })
+
+    it('serverUpdatedAt can be set via loadForm', () => {
+      const timestamp = '2024-01-15T10:30:00.000Z'
+
+      act(() => {
+        useCertificateStore.getState().loadForm({
+          serverUpdatedAt: timestamp,
+        })
+      })
+
+      expect(useCertificateStore.getState().formData.serverUpdatedAt).toBe(timestamp)
+    })
+
+    it('resetForm clears serverUpdatedAt', () => {
+      act(() => {
+        useCertificateStore.getState().loadForm({
+          serverUpdatedAt: '2024-01-15T10:30:00.000Z',
+        })
+      })
+
+      act(() => {
+        useCertificateStore.getState().resetForm()
+      })
+
+      expect(useCertificateStore.getState().formData.serverUpdatedAt).toBeNull()
+    })
+  })
+
+  describe('saveDraft conflict handling', () => {
+    beforeEach(() => {
+      // Reset fetch mock
+      vi.restoreAllMocks()
+    })
+
+    it('returns CONFLICT error on 409 response', async () => {
+      const serverTimestamp = '2024-01-15T12:00:00.000Z'
+
+      // Mock fetch to return 409 Conflict
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        json: async () => ({
+          error: 'CONFLICT',
+          message: 'Certificate was modified by another user',
+          serverUpdatedAt: serverTimestamp,
+        }),
+      })
+
+      // Set up store with a certificate ID
+      act(() => {
+        useCertificateStore.getState().setCertificateId('test-cert-id')
+        useCertificateStore.getState().setFormField('customerName', 'Test')
+      })
+
+      // Attempt to save
+      let result: { success: boolean; error?: string; serverTimestamp?: string }
+      await act(async () => {
+        result = await useCertificateStore.getState().saveDraft()
+      })
+
+      expect(result!.success).toBe(false)
+      expect(result!.error).toBe('CONFLICT')
+      expect(result!.serverTimestamp).toBe(serverTimestamp)
+      expect(useCertificateStore.getState().isSaving).toBe(false)
+    })
+
+    it('includes clientUpdatedAt in request when serverUpdatedAt is set', async () => {
+      const serverTimestamp = '2024-01-15T10:30:00.000Z'
+      let capturedBody: Record<string, unknown> | null = null
+
+      // Mock fetch to capture the request body
+      global.fetch = vi.fn().mockImplementation(async (_url: string, options: { body: string }) => {
+        capturedBody = JSON.parse(options.body)
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            certificate: {
+              id: 'test-cert-id',
+              updatedAt: '2024-01-15T10:31:00.000Z',
+            },
+          }),
+        }
+      })
+
+      // Set up store with serverUpdatedAt
+      act(() => {
+        useCertificateStore.getState().setCertificateId('test-cert-id')
+        useCertificateStore.getState().loadForm({
+          serverUpdatedAt: serverTimestamp,
+        })
+        useCertificateStore.getState().setFormField('customerName', 'Test')
+      })
+
+      // Save
+      await act(async () => {
+        await useCertificateStore.getState().saveDraft()
+      })
+
+      expect(capturedBody).toBeDefined()
+      expect(capturedBody!.clientUpdatedAt).toBe(serverTimestamp)
+    })
+
+    it('updates serverUpdatedAt on successful save', async () => {
+      const newTimestamp = '2024-01-15T10:31:00.000Z'
+
+      // Mock successful response
+      global.fetch = vi.fn().mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          certificate: {
+            id: 'test-cert-id',
+            updatedAt: newTimestamp,
+          },
+        }),
+      })
+
+      // Set up store
+      act(() => {
+        useCertificateStore.getState().setCertificateId('test-cert-id')
+        useCertificateStore.getState().setFormField('customerName', 'Test')
+      })
+
+      // Save
+      await act(async () => {
+        await useCertificateStore.getState().saveDraft()
+      })
+
+      expect(useCertificateStore.getState().formData.serverUpdatedAt).toBe(newTimestamp)
     })
   })
 })

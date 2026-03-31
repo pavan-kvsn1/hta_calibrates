@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
               errorFormula: param.errorFormula || 'A-B',
               showAfterAdjustment: param.showAfterAdjustment || false,
               requiresBinning: param.requiresBinning || false,
-              bins: param.bins && Array.isArray(param.bins) && param.bins.length > 0 ? JSON.stringify(param.bins) : null,
+              bins: param.bins && Array.isArray(param.bins) && param.bins.length > 0 ? param.bins : Prisma.DbNull,
               sopReference: param.sopReference || null,
               masterInstrumentId: param.masterInstrumentId ? String(param.masterInstrumentId) : null,
               sortOrder: i,

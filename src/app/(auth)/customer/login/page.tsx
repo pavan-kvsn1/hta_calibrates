@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { signIn } from 'next-auth/react'
+import { useState, useEffect, Suspense } from 'react'
+import { signIn, getCsrfToken } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +19,12 @@ function CustomerLoginForm() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [loginError, setLoginError] = useState<string | null>(null)
+  const [csrfToken, setCsrfToken] = useState<string | undefined>()
+
+  // Fetch CSRF token on mount
+  useEffect(() => {
+    getCsrfToken().then(setCsrfToken)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,11 +36,21 @@ function CustomerLoginForm() {
         email,
         password,
         redirect: false,
+        csrfToken,
       })
 
       if (result?.error) {
         setLoginError('Invalid email or password')
       } else if (result?.ok) {
+        // Issue refresh token after successful login
+        try {
+          await fetch('/api/auth/issue-refresh-token', {
+            method: 'POST',
+            credentials: 'include',
+          })
+        } catch (err) {
+          console.warn('Failed to issue refresh token:', err)
+        }
         router.push(callbackUrl)
         router.refresh()
       }

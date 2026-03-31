@@ -1,8 +1,12 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { InternalRequestClient } from './InternalRequestClient'
 import { CustomerRequestView } from './CustomerRequestView'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -137,7 +141,7 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
   }
 
   const cert = internalRequest.certificate
-  const requestData = JSON.parse(internalRequest.data)
+  const requestData = safeJsonParse<{ sections: string[]; reason: string }>(internalRequest.data, { sections: [], reason: '' })
 
   // Get currently unlocked sections
   let currentlyUnlockedSections: string[] = []
@@ -165,20 +169,15 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
   })
 
   approvedUnlocks.forEach(unlock => {
-    const unlockData = JSON.parse(unlock.data)
+    const unlockData = safeJsonParse<Record<string, unknown>>(unlock.data, {})
     if (unlockData.sections) {
-      currentlyUnlockedSections = [...new Set([...currentlyUnlockedSections, ...unlockData.sections])]
+      currentlyUnlockedSections = [...new Set([...currentlyUnlockedSections, ...(unlockData.sections as string[])])]
     }
   })
 
   // Parse JSON fields
-  const conclusionStatements = cert.selectedConclusionStatements
-    ? JSON.parse(cert.selectedConclusionStatements)
-    : []
-
-  const calibrationStatus = cert.calibrationStatus
-    ? JSON.parse(cert.calibrationStatus)
-    : []
+  const conclusionStatements = safeJsonParse<string[]>(cert.selectedConclusionStatements, [])
+  const calibrationStatus = safeJsonParse<string[]>(cert.calibrationStatus, [])
 
   // Serialize feedbacks
   const serializedFeedbacks = cert.feedbacks.map((f) => ({
@@ -200,7 +199,7 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
     sequenceNumber: e.sequenceNumber,
     revision: e.revision,
     eventType: e.eventType,
-    eventData: e.eventData,
+    eventData: e.eventData ? (typeof e.eventData === 'string' ? e.eventData : JSON.stringify(e.eventData)) : '',
     userRole: e.userRole,
     createdAt: e.createdAt.toISOString(),
     user: e.user ? {
@@ -271,7 +270,7 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
           errorFormula: p.errorFormula,
           showAfterAdjustment: p.showAfterAdjustment,
           requiresBinning: p.requiresBinning,
-          bins: p.bins,
+          bins: p.bins ? (typeof p.bins === 'string' ? p.bins : JSON.stringify(p.bins)) : null,
           sopReference: p.sopReference,
           results: p.results.map((r) => ({
             id: r.id,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/instruments - Get all active instruments for certificate forms
 export async function GET(request: NextRequest) {
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
       next_due_on: inst.calibrationDueDate
         ? formatDateMMDDYYYY(inst.calibrationDueDate)
         : '',
-      range: inst.rangeData ? JSON.parse(inst.rangeData) : [],
+      range: safeJsonParse<unknown[]>(inst.rangeData, []),
       remarks: inst.remarks || '',
     }))
 

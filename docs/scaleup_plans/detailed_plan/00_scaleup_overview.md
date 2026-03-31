@@ -90,7 +90,7 @@ This document series outlines the comprehensive strategy for scaling the HTA Cal
 │  Phase 1: Testing & CI/CD                                    ████████████░ 95%  │
 │  ─────────────────────────────────────────────────────────────────────────────  │
 │  ✅ Unit tests (7 test files)                                                   │
-│  ✅ Integration tests (12 API test files, SQLite + PostgreSQL)                  │
+│  ✅ Integration tests (12 API test files, PostgreSQL)                           │
 │  ✅ E2E workflow tests (6 comprehensive workflow specs)                         │
 │  ✅ GitHub Actions CI/CD pipeline (ci.yml, nightly.yml, deploy.yml)             │
 │  ✅ Test coverage reporting                                                     │
@@ -141,7 +141,7 @@ This document series outlines the comprehensive strategy for scaling the HTA Cal
 │  │  ─────────────────────────────────────────────────────────────────────  │   │
 │  │                                                                          │   │
 │  │  • Next.js Application (Frontend + API)                                  │   │
-│  │  • SQLite Database (Development) / PostgreSQL (Docker/Production)        │   │
+│  │  • PostgreSQL Database (Docker for local, Cloud SQL for production)      │   │
 │  │  • Local File Storage (PDFs, Signatures)                                 │   │
 │  │  • ✅ Docker containerization complete                                   │   │
 │  │  • ✅ Automated testing pipeline (CI/CD)                                 │   │

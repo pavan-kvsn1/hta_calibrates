@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/instruments/[id] - Get single instrument
 export async function GET(
@@ -54,7 +56,7 @@ export async function GET(
       status,
       computedStatus, // Include computed status for reference
       daysUntilExpiry,
-      rangeData: instrument.rangeData ? JSON.parse(instrument.rangeData) : [],
+      rangeData: safeJsonParse<unknown[]>(instrument.rangeData, []),
     })
   } catch (error) {
     console.error('Error fetching instrument:', error)
@@ -132,8 +134,8 @@ export async function PUT(
             ? (body.calibrationDueDate ? new Date(body.calibrationDueDate) : null)
             : existing.calibrationDueDate,
           rangeData: body.rangeData !== undefined
-            ? (body.rangeData ? JSON.stringify(body.rangeData) : null)
-            : existing.rangeData,
+            ? (body.rangeData ? body.rangeData : Prisma.DbNull)
+            : (existing.rangeData ?? Prisma.DbNull),
           remarks: body.remarks !== undefined ? (body.remarks || null) : existing.remarks,
           status: body.status !== undefined ? (body.status || null) : existing.status,
           isActive: body.isActive !== undefined ? body.isActive : existing.isActive,
@@ -205,7 +207,7 @@ export async function DELETE(
           calibratedAtLocation: existing.calibratedAtLocation,
           reportNo: existing.reportNo,
           calibrationDueDate: existing.calibrationDueDate,
-          rangeData: existing.rangeData,
+          rangeData: existing.rangeData ?? Prisma.DbNull,
           remarks: existing.remarks,
           isActive: false,
           createdById: session!.user.id,

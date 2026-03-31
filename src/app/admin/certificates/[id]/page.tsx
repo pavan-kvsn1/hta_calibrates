@@ -1,7 +1,11 @@
 import { redirect, notFound } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { AdminCertificateClient } from './AdminCertificateClient'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 
 // Status badge configuration
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
@@ -120,13 +124,8 @@ export default async function AdminCertificatePage({ params }: Props) {
     : { hours: 0, status: 'ok' as const }
 
   // Parse JSON fields
-  const conclusionStatements = certificate.selectedConclusionStatements
-    ? JSON.parse(certificate.selectedConclusionStatements)
-    : []
-
-  const calibrationStatus = certificate.calibrationStatus
-    ? JSON.parse(certificate.calibrationStatus)
-    : []
+  const conclusionStatements = safeJsonParse<string[]>(certificate.selectedConclusionStatements, [])
+  const calibrationStatus = safeJsonParse<string[]>(certificate.calibrationStatus, [])
 
   // Get chat threads by type
   const engineerThread = certificate.chatThreads.find(t => t.threadType === 'ASSIGNEE_REVIEWER')
@@ -169,7 +168,7 @@ export default async function AdminCertificatePage({ params }: Props) {
     sequenceNumber: e.sequenceNumber,
     revision: e.revision,
     eventType: e.eventType,
-    eventData: e.eventData,
+    eventData: e.eventData ? (typeof e.eventData === 'string' ? e.eventData : JSON.stringify(e.eventData)) : '',
     userRole: e.userRole,
     createdAt: e.createdAt.toISOString(),
     user: e.user ? {
@@ -229,7 +228,7 @@ export default async function AdminCertificatePage({ params }: Props) {
           errorFormula: p.errorFormula,
           showAfterAdjustment: p.showAfterAdjustment,
           requiresBinning: p.requiresBinning,
-          bins: p.bins,
+          bins: p.bins ? (typeof p.bins === 'string' ? p.bins : JSON.stringify(p.bins)) : null,
           sopReference: p.sopReference,
           results: p.results.map((r) => ({
             id: r.id,

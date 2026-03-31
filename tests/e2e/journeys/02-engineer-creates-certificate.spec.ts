@@ -1,5 +1,6 @@
-import { test, expect, Page } from '@playwright/test'
-import { TEST_USERS, TEST_CERTIFICATE, STATUS_LABELS } from '../fixtures/test-data'
+import { test, expect } from '@playwright/test'
+import { TEST_CERTIFICATE, STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsEngineer } from '../fixtures/test-utils'
 
 /**
  * Workflow Stage 1: Engineer Creates and Fills Certificate
@@ -13,15 +14,6 @@ import { TEST_USERS, TEST_CERTIFICATE, STATUS_LABELS } from '../fixtures/test-da
  * 6. Engineer can add master instruments
  * 7. Certificate is saved with all data
  */
-
-// Helper function to login
-async function loginAsEngineer(page: Page) {
-  await page.goto('/login')
-  await page.fill('input[type="email"], input[name="email"]', TEST_USERS.engineer.email)
-  await page.fill('input[type="password"], input[name="password"]', TEST_USERS.engineer.password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/dashboard/, { timeout: 15000 })
-}
 
 // Generate unique certificate data for each test run
 function generateTestCertData() {

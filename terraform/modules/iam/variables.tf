@@ -35,6 +35,12 @@ variable "k8s_namespace" {
   default     = "hta-calibration"
 }
 
+variable "create_workload_identity_binding" {
+  description = "Whether to create the GKE Workload Identity binding (requires GKE cluster to exist)"
+  type        = bool
+  default     = false
+}
+
 variable "enable_github_workload_identity" {
   description = "Enable GitHub Actions Workload Identity"
   type        = bool

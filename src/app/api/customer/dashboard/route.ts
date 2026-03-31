@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 export async function GET() {
   try {
@@ -142,12 +143,8 @@ export async function GET() {
       ...pendingTokens.map((token) => {
         let adminMessage: string | null = null
         if (token.certificate.events[0]) {
-          try {
-            const data = JSON.parse(token.certificate.events[0].eventData)
-            adminMessage = data.message || null
-          } catch {
-            // ignore
-          }
+          const data = safeJsonParse<Record<string, string>>(token.certificate.events[0].eventData, {})
+          adminMessage = data.message || null
         }
         return {
           id: token.certificate.id,
@@ -201,24 +198,16 @@ export async function GET() {
         let respondedAt: string | null = null
 
         if (customerEvent) {
-          try {
-            const data = JSON.parse(customerEvent.eventData)
-            customerFeedback = data.notes || data.feedback || null
-            feedbackDate = customerEvent.createdAt.toISOString()
-          } catch {
-            // ignore
-          }
+          const data = safeJsonParse<Record<string, string>>(customerEvent.eventData, {})
+          customerFeedback = data.notes || data.feedback || null
+          feedbackDate = customerEvent.createdAt.toISOString()
         }
 
         if (adminEvent) {
-          try {
-            const data = JSON.parse(adminEvent.eventData)
-            adminResponse = data.response || null
-            adminName = adminEvent.user?.name || null
-            respondedAt = adminEvent.createdAt.toISOString()
-          } catch {
-            // ignore
-          }
+          const data = safeJsonParse<Record<string, string>>(adminEvent.eventData, {})
+          adminResponse = data.response || null
+          adminName = adminEvent.user?.name || null
+          respondedAt = adminEvent.createdAt.toISOString()
         }
 
         return {

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 
 // Notification types
@@ -121,7 +122,7 @@ export async function createNotification({
       title: finalTitle,
       message: finalMessage,
       certificateId,
-      data: Object.keys(data).length > 0 ? JSON.stringify(data) : null,
+      data: Object.keys(data).length > 0 ? data : Prisma.DbNull,
     },
   })
 }

@@ -1,9 +1,14 @@
+// PostgreSQL Schema - Primary schema for all environments
+// Local dev: docker-compose.dev.yml
+// CI/Tests: docker-compose.test.yml
+// Production: Cloud SQL PostgreSQL
+
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ====================
@@ -14,11 +19,11 @@ model User {
   id            String   @id @default(uuid())
   email         String   @unique
   name          String
-  passwordHash  String?  // Nullable for Google-only users
-  role            String   @default("ENGINEER") // ENGINEER, ADMIN
-  isAdmin         Boolean  @default(false)      // Legacy: kept for migration
-  adminType       String?  // "MASTER" | "WORKER" (null for non-admins)
-  assignedAdminId String?  // Admin this engineer is assigned to
+  passwordHash  String?
+  role            String   @default("ENGINEER")
+  isAdmin         Boolean  @default(false)
+  adminType       String?
+  assignedAdminId String?
   assignedAdmin   User?    @relation("EngineerToAdmin", fields: [assignedAdminId], references: [id])
   engineers       User[]   @relation("EngineerToAdmin")
   signatureUrl  String?
@@ -26,42 +31,32 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  // Google OAuth fields
-  googleId        String?  @unique  // Google OAuth subject ID
-  authProvider    String   @default("PASSWORD") // PASSWORD or GOOGLE
-  profileImageUrl String?  // From Google profile
+  googleId        String?  @unique
+  authProvider    String   @default("PASSWORD")
+  profileImageUrl String?
 
-  // Certificate relations
   createdCertificates  Certificate[] @relation("CertificateCreator")
   modifiedCertificates Certificate[] @relation("CertificateModifier")
-  reviewedCertificates Certificate[] @relation("CertificateReviewer") // NEW: Certificates assigned for review
+  reviewedCertificates Certificate[] @relation("CertificateReviewer")
 
-  // Event/Revision relations
   events               CertificateEvent[]    @relation("EventActor")
   submittedRevisions   CertificateRevision[] @relation("RevisionSubmitter")
   reviewedRevisions    CertificateRevision[] @relation("RevisionReviewer")
 
-  // Feedback relations
   authoredFeedback     ReviewFeedback[]      @relation("FeedbackAuthor")
   resolvedFeedback     ReviewFeedback[]      @relation("FeedbackResolver")
 
-  // Legacy (for gradual migration)
   signatures           Signature[]
-
-  // Notifications
   notifications        Notification[]
 
-  // Admin relations
   reviewedRegistrations   CustomerRegistration[] @relation("RegistrationReviewer")
-  reviewedRequests        CustomerRequest[]      @relation("RequestReviewer")  // NEW: Customer requests reviewed by this admin
+  reviewedRequests        CustomerRequest[]      @relation("RequestReviewer")
   managedCustomerAccounts CustomerAccount[]      @relation("AdminToCustomerAccount")
   modifiedInstruments     MasterInstrument[]     @relation("InstrumentModifier")
 
-  // Chat relations
   chatMessages         ChatMessage[]
   uploadedUUCImages    UUCImage[]
 
-  // Internal requests relations
   requestedInternalRequests  InternalRequest[] @relation("InternalRequestedBy")
   reviewedInternalRequests   InternalRequest[] @relation("InternalRequestReviewer")
 }
@@ -70,28 +65,26 @@ model CustomerUser {
   id                 String   @id @default(uuid())
   email              String   @unique
   name               String
-  passwordHash       String?  // Nullable until activated (POC workflow)
-  companyName        String?  // Deprecated: use customerAccount.companyName (kept for migration)
-  customerAccountId  String?  // Will become required after data migration
-  isActive           Boolean  @default(false) // Changed: false until activated (POC workflow)
+  passwordHash       String?
+  companyName        String?
+  customerAccountId  String?
+  isActive           Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @default(now()) @updatedAt
 
-  // POC workflow fields
-  isPoc              Boolean   @default(false)  // Is this user the Primary Point of Contact?
-  activatedAt        DateTime?                   // When the user activated their account
-  activationToken    String?   @unique          // Token for account activation
-  activationExpiry   DateTime?                   // When the activation token expires
+  isPoc              Boolean   @default(false)
+  activatedAt        DateTime?
+  activationToken    String?   @unique
+  activationExpiry   DateTime?
 
-  // Relations
   customerAccount    CustomerAccount?  @relation("CustomerUsers", fields: [customerAccountId], references: [id])
-  pocForAccount      CustomerAccount?  @relation("PrimaryPOC")  // Account where this user is POC
+  pocForAccount      CustomerAccount?  @relation("PrimaryPOC")
   signatures         Signature[]
   approvalTokens     ApprovalToken[]
   notifications      Notification[]
   events             CertificateEvent[]
   chatMessages       ChatMessage[]
-  requestedRequests  CustomerRequest[] @relation("RequestedBy")  // Requests initiated by this user
+  requestedRequests  CustomerRequest[] @relation("RequestedBy")
 
   @@index([customerAccountId])
   @@index([activationToken])
@@ -112,15 +105,13 @@ model CustomerAccount {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  // Primary POC (Point of Contact)
   primaryPocId  String?  @unique
   primaryPoc    CustomerUser? @relation("PrimaryPOC", fields: [primaryPocId], references: [id])
 
-  // Relations
   assignedAdmin User?                   @relation("AdminToCustomerAccount", fields: [assignedAdminId], references: [id])
   users         CustomerUser[]          @relation("CustomerUsers")
-  registrations CustomerRegistration[]  // Keep for migration, will be removed later
-  requests      CustomerRequest[]       // NEW: POC-initiated requests
+  registrations CustomerRegistration[]
+  requests      CustomerRequest[]
 
   @@index([companyName])
   @@index([assignedAdminId])
@@ -132,13 +123,13 @@ model CustomerAccount {
 
 model AllowedGoogleEmail {
   id        String   @id @default(uuid())
-  email     String   @unique  // Full email or domain pattern (e.g., "@htaipl.com")
-  type      String   // EMAIL or DOMAIN
-  role      String   @default("ENGINEER")  // Pre-assigned role
-  hodId     String?  // Pre-assigned HoD (for engineers)
-  name      String?  // Pre-filled display name
+  email     String   @unique
+  type      String
+  role      String   @default("ENGINEER")
+  hodId     String?
+  name      String?
   isActive  Boolean  @default(true)
-  createdBy String   // Admin who created this
+  createdBy String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -156,13 +147,12 @@ model CustomerRegistration {
   name              String
   passwordHash      String
   customerAccountId String
-  status            String    @default("PENDING")  // PENDING, APPROVED, REJECTED
+  status            String    @default("PENDING")
   reviewedById      String?
   reviewedAt        DateTime?
   rejectionReason   String?
   createdAt         DateTime  @default(now())
 
-  // Relations
   customerAccount CustomerAccount @relation(fields: [customerAccountId], references: [id])
   reviewedBy      User?           @relation("RegistrationReviewer", fields: [reviewedById], references: [id])
 
@@ -174,17 +164,15 @@ model CustomerRegistration {
 // CUSTOMER REQUESTS (POC-initiated)
 // ====================
 
-// Request types
 enum CustomerRequestType {
-  USER_ADDITION  // POC requesting to add a new user
-  POC_CHANGE     // POC requesting to transfer POC role to another user
+  USER_ADDITION
+  POC_CHANGE
 }
 
-// Request status
 enum CustomerRequestStatus {
-  PENDING   // Awaiting admin review
-  APPROVED  // Request approved
-  REJECTED  // Request denied
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model CustomerRequest {
@@ -192,20 +180,14 @@ model CustomerRequest {
   type              CustomerRequestType
   status            CustomerRequestStatus @default(PENDING)
 
-  // Customer account this request belongs to
   customerAccountId String
   customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id])
 
-  // Who initiated the request (nullable for admin-initiated additions - Decision #5)
   requestedById     String?
   requestedBy       CustomerUser? @relation("RequestedBy", fields: [requestedById], references: [id])
 
-  // Request data (JSON for flexibility)
-  // USER_ADDITION: { name: string, email: string }
-  // POC_CHANGE: { newPocUserId: string, reason: string }
-  data              String  // JSON stored as string for SQLite
+  data              String
 
-  // Review info (who approved/rejected and when)
   reviewedById      String?
   reviewedBy        User?    @relation("RequestReviewer", fields: [reviewedById], references: [id])
   reviewedAt        DateTime?
@@ -226,37 +208,32 @@ model CustomerRequest {
 model MasterInstrument {
   id                   String    @id @default(uuid())
 
-  // Versioning
-  instrumentId         String    // Groups all versions of same instrument
+  instrumentId         String
   version              Int       @default(1)
   isLatest             Boolean   @default(true)
 
-  // Core fields
-  legacyId             Int?      // Original JSON ID for migration tracking
-  category             String    // Electro-Technical, Thermal, Mechanical, Dimensions, Others, Source
+  legacyId             Int?
+  category             String
   description          String
-  make                 String    // Serialized composite: "Ind: X / Sen: Y" for composite values
-  model                String    // Serialized composite
-  assetNumber          String    // Asset tracking number
-  serialNumber         String    // Serialized composite
-  usage                String?   // "For Lab" / "For Site"
-  calibratedAtLocation String?   // Where it was calibrated
-  reportNo             String?   // Calibration report number
-  calibrationDueDate   DateTime? // When recalibration is due
-  rangeData            String?   // JSON array: [{ parameter, minValue, maxValue, unit, uncertainty }, { referenceDoc }]
-  remarks              String?   // Additional notes
-  status               String?   // Explicit status override: UNDER_RECAL, SERVICE_PENDING (null = auto-compute from dates)
+  make                 String
+  model                String
+  assetNumber          String
+  serialNumber         String
+  usage                String?
+  calibratedAtLocation String?
+  reportNo             String?
+  calibrationDueDate   DateTime?
+  rangeData            Json?     // PostgreSQL native JSON
+  remarks              String?
+  status               String?
   isActive             Boolean   @default(true)
 
-  // Audit fields (each version is immutable after creation)
   createdAt            DateTime  @default(now())
-  createdById          String?   // User who created this version
-  changeReason         String?   // "Import", "Manual Edit", "Recalibration Update", etc.
+  createdById          String?
+  changeReason         String?
 
-  // Migration tracking (only relevant for v1 records)
   importedFromJson     Boolean   @default(false)
 
-  // Relations
   createdBy            User?     @relation("InstrumentModifier", fields: [createdById], references: [id])
 
   @@unique([instrumentId, version])
@@ -268,24 +245,21 @@ model MasterInstrument {
 }
 
 // ====================
-// CERTIFICATES (Projection - Current State)
+// CERTIFICATES
 // ====================
 
 model Certificate {
   id                String   @id @default(uuid())
   certificateNumber String   @unique
-  status            String   @default("DRAFT") // DRAFT, PENDING_REVIEW, REVISION_REQUIRED, PENDING_CUSTOMER_APPROVAL, CUSTOMER_REVISION_REQUIRED, PENDING_ADMIN_AUTHORIZATION, AUTHORIZED, APPROVED, REJECTED
+  status            String   @default("DRAFT")
   currentRevision   Int      @default(1)
 
-  // NEW: Reviewer assignment (peer review model)
-  reviewerId        String?  // Engineer assigned to review this certificate
+  reviewerId        String?
   reviewer          User?    @relation("CertificateReviewer", fields: [reviewerId], references: [id])
 
-  // NEW: TAT (Turn Around Time) tracking
-  customerApprovedAt DateTime?  // When customer approved - used for TAT calculation
+  customerApprovedAt DateTime?
 
-  // Section 1: Summary
-  calibratedAt       String?  // LAB, SITE
+  calibratedAt       String?
   srfNumber          String?
   srfDate            DateTime?
   dateOfCalibration  DateTime?
@@ -296,7 +270,6 @@ model Certificate {
   customerName           String?
   customerAddress    String?
 
-  // Section 2: UUC Details
   uucDescription  String?
   uucMake         String?
   uucModel        String?
@@ -305,89 +278,69 @@ model Certificate {
   uucLocationName String?
   uucMachineName  String?
 
-  // Section 4: Environmental Conditions
   ambientTemperature String?
   relativeHumidity   String?
 
-  // Section 6: Remarks
-  calibrationStatus String?  // JSON array stored as string for SQLite
-  stickerOldRemoved String?  // yes, no, na
-  stickerNewAffixed String?  // yes, no, na
-  statusNotes       String?  // Used for customer rejection feedback
+  calibrationStatus Json?     // PostgreSQL native JSON
+  stickerOldRemoved String?
+  stickerNewAffixed String?
+  statusNotes       String?
 
-  // Section 7: Conclusion Statements
-  selectedConclusionStatements String? // JSON array stored as string for SQLite
-  additionalConclusionStatement String? // Custom user-entered conclusion statement
+  selectedConclusionStatements Json?   // PostgreSQL native JSON
+  additionalConclusionStatement String?
 
-  // Metadata
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   createdById      String
   lastModifiedById String
 
-  // Relations
   createdBy        User     @relation("CertificateCreator", fields: [createdById], references: [id])
   lastModifiedBy   User     @relation("CertificateModifier", fields: [lastModifiedById], references: [id])
 
-  // Related data
   parameters        Parameter[]
   masterInstruments CertificateMasterInstrument[]
 
-  // Event sourcing relations
   events    CertificateEvent[]
   revisions CertificateRevision[]
   feedbacks ReviewFeedback[]
 
-  // Customer workflow
   signatures     Signature[]
   approvalTokens ApprovalToken[]
 
-  // Signed PDF
-  signedPdfPath  String?   // Path to stored signed PDF (relative to uploads dir)
+  signedPdfPath  String?
 
-  // OpenSign integration
   openSignDocuments OpenSignDocument[]
-
-  // Signing evidence (Layers 1-4 defensibility)
   signingEvidence SigningEvidence[]
-
-  // Notifications
   notifications  Notification[]
 
-  // NEW: Chat system
   chatThreads    ChatThread[]
-
-  // NEW: UUC reading images
   uucImages      UUCImage[]
-
-  // Internal requests (section unlock requests)
   internalRequests InternalRequest[]
 
   @@index([status])
   @@index([createdById])
-  @@index([reviewerId])  // NEW: Index for reviewer queries
+  @@index([reviewerId])
 }
 
 // ====================
-// CERTIFICATE EVENT (Event Log - Immutable)
+// CERTIFICATE EVENT
 // ====================
 
 model CertificateEvent {
   id             String   @id @default(uuid())
   certificateId  String
-  sequenceNumber Int      // Ordered sequence within certificate
-  revision       Int      // Which revision this event belongs to
+  sequenceNumber Int
+  revision       Int
 
-  eventType String // CERTIFICATE_CREATED, FIELD_UPDATED, BULK_FIELDS_UPDATED, PARAMETER_ADDED, etc.
-  eventData String // JSON payload stored as string for SQLite
+  eventType String
+  eventData Json    // PostgreSQL native JSON
 
-  userId     String?  // For staff events (engineer, HoD, admin)
-  customerId String?  // For customer events
-  userRole   String   // ENGINEER, HOD, ADMIN, CUSTOMER
+  userId     String?
+  customerId String?
+  userRole   String
 
   createdAt DateTime @default(now())
 
-  // Relations
   certificate Certificate      @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   user        User?            @relation("EventActor", fields: [userId], references: [id])
   customer    CustomerUser?    @relation(fields: [customerId], references: [id])
@@ -399,7 +352,7 @@ model CertificateEvent {
 }
 
 // ====================
-// CERTIFICATE REVISION (Snapshots at Workflow Transitions)
+// CERTIFICATE REVISION
 // ====================
 
 model CertificateRevision {
@@ -407,25 +360,21 @@ model CertificateRevision {
   certificateId  String
   revisionNumber Int
 
-  // Full snapshot of certificate data at this revision
-  snapshotData String // JSON stored as string for SQLite
+  snapshotData Json    // PostgreSQL native JSON
 
-  // Workflow metadata
-  status        String    // Status at this revision
+  status        String
   submittedAt   DateTime?
   submittedById String?
   reviewedAt    DateTime?
   reviewedById  String?
-  reviewOutcome String?   // APPROVED, REVISION_REQUIRED, REJECTED
+  reviewOutcome String?
   reviewNotes   String?
 
-  // Event range for this revision
-  fromEventSeq Int // First event sequence in this revision
-  toEventSeq   Int // Last event sequence in this revision
+  fromEventSeq Int
+  toEventSeq   Int
 
   createdAt DateTime @default(now())
 
-  // Relations
   certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   submittedBy User?       @relation("RevisionSubmitter", fields: [submittedById], references: [id])
   reviewedBy  User?       @relation("RevisionReviewer", fields: [reviewedById], references: [id])
@@ -435,18 +384,18 @@ model CertificateRevision {
 }
 
 // ====================
-// REVIEW FEEDBACK (HOD Comments)
+// REVIEW FEEDBACK
 // ====================
 
 model ReviewFeedback {
   id             String  @id @default(uuid())
   certificateId  String
   revisionNumber Int
-  eventId        String? // Optional: link to specific event
+  eventId        String?
 
-  feedbackType  String  // COMMENT, REVISION_REQUEST, APPROVAL_NOTE, REJECTION_REASON
-  targetField   String? // Which field this feedback refers to (optional)
-  targetSection String? // Which section this feedback refers to (optional)
+  feedbackType  String
+  targetField   String?
+  targetSection String?
 
   comment      String
   isResolved   Boolean   @default(false)
@@ -457,7 +406,6 @@ model ReviewFeedback {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
   certificate Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   event       CertificateEvent? @relation(fields: [eventId], references: [id])
   user        User              @relation("FeedbackAuthor", fields: [userId], references: [id])
@@ -487,21 +435,18 @@ model Parameter {
   leastCountUnit  String?
   accuracyValue   String?
   accuracyUnit    String?
-  accuracyType    String  @default("ABSOLUTE") // PERCENT_READING, ABSOLUTE, PERCENT_SCALE
+  accuracyType    String  @default("ABSOLUTE")
   errorFormula    String  @default("A-B")
   showAfterAdjustment Boolean @default(false)
 
-  // Binning support
   requiresBinning Boolean @default(false)
-  bins            String? // JSON array of bin objects
+  bins            Json?   // PostgreSQL native JSON
 
-  // SOP reference and master instrument assignment
   sopReference       String?
-  masterInstrumentId String?  // Reference to JSON master instrument ID (for parameter assignment)
+  masterInstrumentId String?
 
   sortOrder Int @default(0)
 
-  // Relations
   certificate Certificate         @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   results     CalibrationResult[]
   masterInstruments CertificateMasterInstrument[]
@@ -520,14 +465,13 @@ model CalibrationResult {
   errorObserved    Float?
   isOutOfLimit     Boolean @default(false)
 
-  // Relations
   parameter Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
 
   @@index([parameterId])
 }
 
 // ====================
-// MASTER INSTRUMENT LINKS (stores snapshot of instrument details at time of certificate creation)
+// MASTER INSTRUMENT LINKS
 // ====================
 
 model CertificateMasterInstrument {
@@ -535,23 +479,20 @@ model CertificateMasterInstrument {
   certificateId      String
   parameterId        String?
 
-  // Reference to JSON source (not a FK - instruments come from JSON file, not database)
-  masterInstrumentId String   // ID from master-instruments.json
+  masterInstrumentId String
 
-  // Snapshot of instrument details at time of certificate creation
-  category           String?  // Electro-Technical, Thermal, Mechanical, etc.
+  category           String?
   description        String?
   make               String?
   model              String?
   assetNo            String?
   serialNumber       String?
-  calibratedAt       String?  // Where it was calibrated
-  reportNo           String?  // Calibration report number
-  calibrationDueDate String?  // Due date at time of certificate
+  calibratedAt       String?
+  reportNo           String?
+  calibrationDueDate String?
 
   sopReference       String
 
-  // Relations (no FK to MasterInstrument - data comes from JSON)
   certificate      Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   parameter        Parameter?        @relation(fields: [parameterId], references: [id])
 
@@ -565,7 +506,7 @@ model CertificateMasterInstrument {
 model Signature {
   id            String       @id @default(uuid())
   certificateId String
-  signerType    String       // ASSIGNEE, REVIEWER, CUSTOMER
+  signerType    String
   signerName    String
   signerEmail   String
   signatureData String
@@ -573,7 +514,6 @@ model Signature {
   customerId    String?
   signerId      String?
 
-  // Relations
   certificate Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   customer    CustomerUser? @relation(fields: [customerId], references: [id])
   signer      User?         @relation(fields: [signerId], references: [id])
@@ -588,13 +528,12 @@ model ApprovalToken {
   usedAt        DateTime?
   createdAt     DateTime     @default(now())
 
-  // Relations
   certificate Certificate  @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   customer    CustomerUser @relation(fields: [customerId], references: [id])
 }
 
 // ====================
-// AUDIT LOG (General system audit)
+// AUDIT LOG
 // ====================
 
 model AuditLog {
@@ -604,7 +543,7 @@ model AuditLog {
   action     String
   actorId    String?
   actorType  String
-  changes    String?  // JSON stored as string for SQLite
+  changes    Json?    // PostgreSQL native JSON
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
@@ -617,29 +556,22 @@ model AuditLog {
 model Notification {
   id            String   @id @default(uuid())
 
-  // Recipient (one of these will be set)
-  userId        String?  // For staff (Engineer, HoD, Admin)
-  customerId    String?  // For customers
+  userId        String?
+  customerId    String?
 
-  // Content
-  type          String   // NotificationType: REVISION_REQUESTED, CERTIFICATE_APPROVED, SENT_TO_CUSTOMER, SUBMITTED_FOR_REVIEW, ENGINEER_RESPONDED, CUSTOMER_REVISION_REQUEST, CUSTOMER_APPROVED, CERTIFICATE_READY, HOD_REPLIED, CERTIFICATE_FINALIZED
+  type          String
   title         String
   message       String
 
-  // Reference
   certificateId String?
 
-  // Metadata
-  data          String?  // JSON for additional context (e.g., sender name, cert number)
+  data          Json?    // PostgreSQL native JSON
 
-  // Status
   read          Boolean  @default(false)
   readAt        DateTime?
 
-  // Timestamps
   createdAt     DateTime @default(now())
 
-  // Relations
   user          User?         @relation(fields: [userId], references: [id])
   customer      CustomerUser? @relation(fields: [customerId], references: [id])
   certificate   Certificate?  @relation(fields: [certificateId], references: [id])
@@ -657,9 +589,9 @@ model OpenSignDocument {
   id                  String   @id @default(cuid())
   certificateId       String
   openSignDocumentId  String   @unique
-  signerType          String   // REVIEWER, CUSTOMER
+  signerType          String
   signerEmail         String
-  status              String   @default("PENDING") // PENDING, VIEWED, SIGNED, DECLINED, EXPIRED
+  status              String   @default("PENDING")
   signingUrl          String?
   signedPdfUrl        String?
   auditTrailUrl       String?
@@ -673,23 +605,21 @@ model OpenSignDocument {
 }
 
 // ====================
-// SIGNING EVIDENCE (Layers 1-4 Defensibility)
+// SIGNING EVIDENCE
 // ====================
 
 model SigningEvidence {
   id              String   @id @default(cuid())
   certificateId   String
-  signatureId     String?  // Links to Signature record (null for non-signing events)
-  revision        Int      // Certificate revision number at time of signing
+  signatureId     String?
+  revision        Int
 
-  // Chain integrity
-  sequenceNumber  Int      // Monotonically increasing per certificate
-  previousHash    String   // SHA-256 of previous record (or "GENESIS")
-  recordHash      String   // SHA-256 of this record's evidence field
+  sequenceNumber  Int
+  previousHash    String
+  recordHash      String
 
-  // Evidence payload (immutable after creation)
-  eventType       String   // ASSIGNEE_SIGNED, REVIEWER_SIGNED, CUSTOMER_SIGNED
-  evidence        String   // JSON blob with all captured evidence
+  eventType       String
+  evidence        Json     // PostgreSQL native JSON
 
   createdAt       DateTime @default(now())
 
@@ -707,10 +637,9 @@ model SigningEvidence {
 model ChatThread {
   id            String   @id @default(uuid())
   certificateId String
-  threadType    String   // "ASSIGNEE_REVIEWER" | "REVIEWER_CUSTOMER"
+  threadType    String
   createdAt     DateTime @default(now())
 
-  // Relations
   certificate   Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   messages      ChatMessage[]
 
@@ -721,14 +650,13 @@ model ChatThread {
 model ChatMessage {
   id           String   @id @default(uuid())
   threadId     String
-  senderId     String?  // User ID (staff: engineer, admin)
-  customerId   String?  // CustomerUser ID (for customer messages)
-  senderType   String   // "ASSIGNEE" | "REVIEWER" | "CUSTOMER" | "ADMIN"
+  senderId     String?
+  customerId   String?
+  senderType   String
   content      String
   createdAt    DateTime @default(now())
   readAt       DateTime?
 
-  // Relations
   thread       ChatThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
   sender       User?            @relation(fields: [senderId], references: [id])
   customer     CustomerUser?    @relation(fields: [customerId], references: [id])
@@ -745,10 +673,9 @@ model ChatAttachment {
   fileName    String
   fileSize    Int
   mimeType    String
-  storagePath String   // Path in storage (local or cloud)
+  storagePath String
   createdAt   DateTime @default(now())
 
-  // Relations
   message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
@@ -763,14 +690,13 @@ model UUCImage {
   certificateId String
   fileName      String
   fileSize      Int
-  mimeType      String   // "image/jpeg" | "image/png" | "image/heic"
-  storagePath   String   // Path in storage (local or cloud)
-  caption       String?  // Optional description
+  mimeType      String
+  storagePath   String
+  caption       String?
   sortOrder     Int      @default(0)
   uploadedById  String
   createdAt     DateTime @default(now())
 
-  // Relations
   certificate   Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   uploadedBy    User        @relation(fields: [uploadedById], references: [id])
 
@@ -778,19 +704,19 @@ model UUCImage {
 }
 
 // ====================
-// JOB QUEUE (Database-backed queue for local/MVP)
+// JOB QUEUE
 // ====================
 
 model JobQueue {
   id           String    @id @default(uuid())
-  type         String    // Job type: "chat:message:deliver", "notification:send", "email:send", etc.
-  payload      String    // JSON payload
-  status       String    @default("pending") // pending, processing, completed, failed, cancelled
-  priority     Int       @default(0)         // Higher = processed first
+  type         String
+  payload      Json      // PostgreSQL native JSON
+  status       String    @default("pending")
+  priority     Int       @default(0)
   attempts     Int       @default(0)
   maxRetries   Int       @default(3)
-  error        String?   // Error message if failed
-  scheduledFor DateTime  @default(now())     // When to process (for delayed jobs)
+  error        String?
+  scheduledFor DateTime  @default(now())
   createdAt    DateTime  @default(now())
   processedAt  DateTime?
 
@@ -799,16 +725,16 @@ model JobQueue {
 }
 
 // ====================
-// REALTIME EVENTS (Polling-based realtime for local/MVP)
+// REALTIME EVENTS
 // ====================
 
 model RealtimeEvent {
   id          String   @id @default(uuid())
-  userId      String?  // Recipient user ID (staff)
-  customerId  String?  // Recipient customer ID
-  channel     String   // Channel name: "user:{id}", "certificate:{id}", "thread:{id}"
-  type        String   // Event type: "chat:message", "certificate:status", "notification"
-  data        String   // JSON event data
+  userId      String?
+  customerId  String?
+  channel     String
+  type        String
+  data        Json     // PostgreSQL native JSON
   delivered   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
@@ -818,16 +744,13 @@ model RealtimeEvent {
 }
 
 // ====================
-// INTERNAL REQUESTS (Engineer-initiated)
+// INTERNAL REQUESTS
 // ====================
 
-// Request types for internal staff
 enum InternalRequestType {
-  SECTION_UNLOCK  // Engineer requesting to unlock additional sections
-  // Future: OTHER_TYPES
+  SECTION_UNLOCK
 }
 
-// Request status
 enum InternalRequestStatus {
   PENDING
   APPROVED
@@ -839,23 +762,18 @@ model InternalRequest {
   type              InternalRequestType
   status            InternalRequestStatus @default(PENDING)
 
-  // Who made the request
   requestedById     String
   requestedBy       User                  @relation("InternalRequestedBy", fields: [requestedById], references: [id])
 
-  // Related certificate (for SECTION_UNLOCK type)
   certificateId     String?
   certificate       Certificate?          @relation(fields: [certificateId], references: [id])
 
-  // Request data (JSON)
-  // SECTION_UNLOCK: { sections: string[], reason: string }
   data              String
 
-  // Review info
   reviewedById      String?
   reviewedBy        User?                 @relation("InternalRequestReviewer", fields: [reviewedById], references: [id])
   reviewedAt        DateTime?
-  adminNote         String?               // Optional note from admin
+  adminNote         String?
 
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
@@ -863,4 +781,30 @@ model InternalRequest {
   @@index([certificateId])
   @@index([status])
   @@index([type])
+}
+
+// ====================
+// REFRESH TOKENS (Auth)
+// ====================
+
+model RefreshToken {
+  id            String    @id @default(uuid())
+  token         String    @unique  // Hashed refresh token
+  userId        String?   // For staff users
+  customerId    String?   // For customer users
+  userType      String    // "STAFF" | "CUSTOMER"
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?   // "LOGOUT", "PASSWORD_CHANGE", "ADMIN_REVOKE", "TOKEN_ROTATION"
+  replacedById  String?   // New token ID if rotated
+
+  // Device/session info for security
+  userAgent     String?
+  ipAddress     String?
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([token])
+  @@index([expiresAt])
 }

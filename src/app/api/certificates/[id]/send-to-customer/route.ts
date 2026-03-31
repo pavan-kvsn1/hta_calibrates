@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { notifyOnSentToCustomer } from '@/lib/services/notifications'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 export async function POST(
   request: NextRequest,
@@ -225,7 +226,7 @@ export async function GET(
       })
     }
 
-    const eventData = sentEvent ? JSON.parse(sentEvent.eventData) : null
+    const eventData = safeJsonParse<Record<string, string>>(sentEvent?.eventData, {})
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
     return NextResponse.json({

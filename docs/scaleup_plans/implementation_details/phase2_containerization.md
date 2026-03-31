@@ -107,7 +107,7 @@ CMD ["sh", "-c", "PORT=3001 npm start & sleep 20 && npx playwright test tests/e2
 |---------|----------------|
 | Base image | `mcr.microsoft.com/playwright:v1.58.2-noble` |
 | Browser dependencies | Pre-installed (Chromium, Firefox, WebKit) |
-| Database | SQLite (embedded for testing) |
+| Database | PostgreSQL (service container) |
 | Output | Snapshot files mounted to host |
 
 #### Usage

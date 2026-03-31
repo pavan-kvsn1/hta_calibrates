@@ -5,20 +5,18 @@
  * and handles schema migration before tests run.
  *
  * Uses Prisma 7 driver adapter pattern for PostgreSQL.
- * Imports from client-postgres which is generated from schema.postgres.prisma
  */
 
 import { beforeAll, afterAll, beforeEach } from 'vitest'
 import { execSync } from 'child_process'
-// Import from PostgreSQL-specific client generated from schema.postgres.prisma
-// @ts-expect-error - client-postgres is generated at runtime
-import { PrismaClient } from '.prisma/client-postgres'
+import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
 
 // PostgreSQL connection string
+// CI uses port 5432 (standard), local docker-compose.test.yml uses 5433
 const DATABASE_URL = process.env.DATABASE_URL ||
-  'postgresql://hta_test:hta_test_password@localhost:5433/hta_calibration_test'
+  'postgresql://hta_test:hta_test_password@localhost:5432/hta_calibration_test'
 
 // Set DATABASE_URL environment variable for Prisma CLI commands
 process.env.DATABASE_URL = DATABASE_URL
@@ -64,7 +62,7 @@ beforeAll(async () => {
     // Push schema to database (creates tables if needed)
     console.log('📦 Pushing schema to PostgreSQL...')
     execSync(
-      'npx prisma db push --schema=prisma/schema.postgres.prisma --accept-data-loss',
+      'npx prisma db push --accept-data-loss',
       {
         stdio: 'pipe',
         env: { ...process.env, DATABASE_URL },

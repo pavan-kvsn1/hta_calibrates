@@ -789,22 +789,252 @@ variable "database_password" {
 
 ---
 
+---
+
+## Part 7: Local Development vs Cloud
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    LOCAL DEVELOPMENT vs CLOUD                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  You DON'T use Terraform or cloud resources for local development!          │
+│  Everything runs on your machine instead.                                   │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  COMPARISON:                                                                │
+│  ═══════════                                                                │
+│                                                                             │
+│  ┌────────────────────┬─────────────────────┬─────────────────────┐        │
+│  │ Component          │ Local Development   │ Cloud (Terraform)   │        │
+│  ├────────────────────┼─────────────────────┼─────────────────────┤        │
+│  │ Database           │ PostgreSQL          │ Cloud SQL           │        │
+│  │                    │ (Docker Compose)    │ (managed Postgres)  │        │
+│  ├────────────────────┼─────────────────────┼─────────────────────┤        │
+│  │ Secrets            │ .env file           │ Secret Manager      │        │
+│  │                    │ (local only)        │ (encrypted storage) │        │
+│  ├────────────────────┼─────────────────────┼─────────────────────┤        │
+│  │ File Storage       │ Local folder        │ GCS Buckets         │        │
+│  │                    │ (./uploads/)        │ (cloud storage)     │        │
+│  ├────────────────────┼─────────────────────┼─────────────────────┤        │
+│  │ App Server         │ npm run dev         │ GKE Cluster         │        │
+│  │                    │ (localhost:3000)    │ (Kubernetes)        │        │
+│  ├────────────────────┼─────────────────────┼─────────────────────┤        │
+│  │ Message Queue      │ Works directly or   │ Cloud Pub/Sub or    │        │
+│  │ (WebSockets/Chat)  │ local Redis         │ Redis (Memorystore) │        │
+│  └────────────────────┴─────────────────────┴─────────────────────┘        │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  LOCAL SETUP:                                                               │
+│  ════════════                                                               │
+│                                                                             │
+│  1. Database (PostgreSQL via Docker Compose):                               │
+│     $ docker compose up -d postgres                                         │
+│                                                                             │
+│     # .env                                                                  │
+│     DATABASE_URL="postgresql://postgres:localpass@localhost:5432/hta"       │
+│                                                                             │
+│  2. Secrets (just put in .env):                                             │
+│     # .env                                                                  │
+│     NEXTAUTH_SECRET="any-random-string-here"                                │
+│                                                                             │
+│  3. Run the app:                                                            │
+│     $ npm run dev                                                           │
+│     → Opens at http://localhost:3000                                        │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  WHEN TO USE EACH:                                                          │
+│  ═════════════════                                                          │
+│                                                                             │
+│  LOCAL: Writing code, testing features, debugging                           │
+│  CLOUD DEV: Testing with real cloud services, integration testing           │
+│  CLOUD PROD: Running the actual application for real users                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Part 8: Common Errors and Fixes
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    COMMON TERRAFORM ERRORS                                   │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ERROR 1: "Output not found"                                                │
+│  ═══════════════════════════                                                │
+│                                                                             │
+│  Error: Output "get_credentials_command" not found                          │
+│                                                                             │
+│  CAUSE: You ran "terraform output" but "terraform apply" hasn't run yet,    │
+│         or you're in the wrong directory.                                   │
+│                                                                             │
+│  FIX:                                                                       │
+│  $ cd terraform/environments/dev    # Make sure you're in right folder      │
+│  $ terraform apply                  # Create the resources first            │
+│  $ terraform output                 # Now outputs will work                 │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  ERROR 2: "Identity Pool does not exist"                                    │
+│  ═══════════════════════════════════════                                    │
+│                                                                             │
+│  Error: Identity Pool does not exist (project.svc.id.goog)                  │
+│                                                                             │
+│  CAUSE: Workload Identity binding is trying to run BEFORE the GKE cluster   │
+│         is created. The identity pool only exists after GKE is created.     │
+│                                                                             │
+│  FIX: This is a dependency ordering issue in the Terraform code.            │
+│  The Workload Identity binding must have "depends_on = [module.gke]"        │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  ERROR 3: "Invalid authentication credentials"                              │
+│  ═════════════════════════════════════════════                              │
+│                                                                             │
+│  Error: Request had invalid authentication credentials                      │
+│                                                                             │
+│  CAUSE: Your Google Cloud login has expired.                                │
+│                                                                             │
+│  FIX:                                                                       │
+│  $ gcloud auth login                                                        │
+│  $ gcloud auth application-default login                                    │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  ERROR 4: "API not enabled"                                                 │
+│  ══════════════════════════                                                 │
+│                                                                             │
+│  Error: googleapi: Error 403: API not enabled for project                   │
+│                                                                             │
+│  CAUSE: Required Google Cloud API isn't turned on.                          │
+│                                                                             │
+│  FIX: Enable the API (Terraform usually does this automatically):           │
+│  $ gcloud services enable compute.googleapis.com                            │
+│  $ gcloud services enable container.googleapis.com                          │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  ERROR 5: "Resource already exists"                                         │
+│  ═══════════════════════════════════                                        │
+│                                                                             │
+│  Error: Resource already exists                                             │
+│                                                                             │
+│  CAUSE: Resource was created outside Terraform, or state is out of sync.    │
+│                                                                             │
+│  FIX: Import existing resource into Terraform state:                        │
+│  $ terraform import google_storage_bucket.my_bucket my-bucket-name          │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  ERROR 6: "Quota exceeded"                                                  │
+│  ═════════════════════════                                                  │
+│                                                                             │
+│  Error: Quota 'CPUS' exceeded                                               │
+│                                                                             │
+│  CAUSE: Your GCP project doesn't have enough quota for the resources.       │
+│                                                                             │
+│  FIX: Request quota increase in GCP Console → IAM & Admin → Quotas          │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Part 9: Step-by-Step Deployment Guide
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    DEPLOYMENT CHECKLIST                                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  PREREQUISITES:                                                             │
+│  ══════════════                                                             │
+│  □ Google Cloud account with billing enabled                                │
+│  □ gcloud CLI installed                                                     │
+│  □ Terraform installed (v1.5+)                                              │
+│  □ Your GCP project ID (e.g., "hta-calibration-prod")                       │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  STEP 1: AUTHENTICATE                                                       │
+│  ════════════════════                                                       │
+│                                                                             │
+│  $ gcloud auth login                                                        │
+│  $ gcloud auth application-default login                                    │
+│  $ gcloud config set project YOUR_PROJECT_ID                                │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  STEP 2: DEPLOY SHARED RESOURCES                                            │
+│  ═══════════════════════════════                                            │
+│                                                                             │
+│  $ cd terraform/shared                                                      │
+│  $ cp terraform.tfvars.example terraform.tfvars                             │
+│  $ # Edit terraform.tfvars → add your project_id                            │
+│  $ terraform init                                                           │
+│  $ terraform plan      # Review what will be created                        │
+│  $ terraform apply     # Type "yes" to confirm                              │
+│                                                                             │
+│  CREATES: Docker registry, Terraform state bucket                           │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  STEP 3: DEPLOY DEV ENVIRONMENT                                             │
+│  ══════════════════════════════                                             │
+│                                                                             │
+│  $ cd terraform/environments/dev                                            │
+│  $ cp terraform.tfvars.example terraform.tfvars                             │
+│  $ # Edit terraform.tfvars → add your project_id                            │
+│  $ terraform init                                                           │
+│  $ terraform plan      # Review what will be created                        │
+│  $ terraform apply     # Type "yes" to confirm (takes ~15 minutes)          │
+│                                                                             │
+│  CREATES: VPC, GKE cluster, Cloud SQL, storage buckets, IAM, secrets        │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  STEP 4: CONNECT TO CLUSTER                                                 │
+│  ══════════════════════════                                                 │
+│                                                                             │
+│  $ terraform output get_credentials_command                                 │
+│  # Copy and run the output command, OR:                                     │
+│  $ gcloud container clusters get-credentials hta-calibration-dev \          │
+│      --region asia-south1 --project YOUR_PROJECT_ID                         │
+│                                                                             │
+│  $ kubectl get nodes   # Verify connection works                            │
+│                                                                             │
+│  ─────────────────────────────────────────────────────────────────────────  │
+│                                                                             │
+│  STEP 5: DEPLOY APPLICATION                                                 │
+│  ══════════════════════════                                                 │
+│                                                                             │
+│  $ kubectl apply -k k8s/overlays/development                                │
+│  $ kubectl get pods -n hta-calibration   # Check if running                 │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Summary
 
 This implementation provides:
 
-1. **Networking**: VPC, subnets, NAT, firewall rules
-2. **GKE**: Managed Kubernetes cluster with autoscaling
-3. **Cloud SQL**: PostgreSQL with high availability
-4. **Storage**: Buckets for certificates, signatures, backups
+1. **Shared Resources**: Docker registry, Terraform state bucket
+2. **Networking**: VPC, subnets, NAT, firewall rules
+3. **GKE**: Managed Kubernetes cluster with autoscaling
+4. **Cloud SQL**: PostgreSQL with high availability
+5. **Storage**: Buckets for certificates, signatures, backups
 
-Deploy with:
-```bash
-cd terraform/environments/prod
-terraform init
-terraform plan
-terraform apply
-```
+**Key Points:**
+- Deploy `shared/` FIRST, then `environments/dev`
+- Local development doesn't need cloud resources
+- Re-authenticate with `gcloud auth login` if you get auth errors
 
 ---
 

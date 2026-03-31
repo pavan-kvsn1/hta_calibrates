@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { detectCertificateChanges, generateChangeSummary } from '@/lib/utils/change-detection'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -89,6 +91,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const body = await request.json()
 
+    // Extract clientUpdatedAt for optimistic concurrency control
+    const { clientUpdatedAt, ...bodyWithoutTimestamp } = body
+
     // Get existing certificate
     const existingCert = await prisma.certificate.findUnique({
       where: { id },
@@ -101,6 +106,21 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     if (!existingCert) {
       return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
+    }
+
+    // Optimistic concurrency check
+    if (clientUpdatedAt) {
+      const clientTs = new Date(clientUpdatedAt).getTime()
+      const serverTs = existingCert.updatedAt.getTime()
+
+      // Allow 1 second tolerance for timing differences
+      if (serverTs - clientTs > 1000) {
+        return NextResponse.json({
+          error: 'CONFLICT',
+          message: 'Certificate was modified by another user',
+          serverUpdatedAt: existingCert.updatedAt.toISOString(),
+        }, { status: 409 })
+      }
     }
 
     // Check ownership
@@ -226,7 +246,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
               errorFormula: param.errorFormula || 'A-B',
               showAfterAdjustment: param.showAfterAdjustment || false,
               requiresBinning: param.requiresBinning || false,
-              bins: param.bins && Array.isArray(param.bins) && param.bins.length > 0 ? JSON.stringify(param.bins) : null,
+              bins: param.bins && Array.isArray(param.bins) && param.bins.length > 0 ? param.bins : Prisma.DbNull,
               sopReference: param.sopReference || null,
               masterInstrumentId: param.masterInstrumentId ? String(param.masterInstrumentId) : null,
               sortOrder: i,
@@ -282,21 +302,30 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         }
       }
 
-      // Create event for the update
-      await tx.certificateEvent.create({
-        data: {
-          certificateId: id,
-          sequenceNumber: nextSequence,
-          revision: cert.currentRevision,
-          eventType: 'BULK_FIELDS_UPDATED',
-          eventData: JSON.stringify({
-            note: 'Draft saved',
-            fieldsUpdated: Object.keys(body).length,
-          }),
-          userId: session.user.id,
-          userRole: session.user.role,
-        },
-      })
+      // Detect field-level changes for audit logging
+      const changeSet = detectCertificateChanges(
+        existingCert as unknown as Record<string, unknown>,
+        body
+      )
+
+      // Create event for the update with detailed change tracking
+      if (changeSet.hasChanges) {
+        await tx.certificateEvent.create({
+          data: {
+            certificateId: id,
+            sequenceNumber: nextSequence,
+            revision: cert.currentRevision,
+            eventType: 'FIELDS_UPDATED',
+            eventData: JSON.stringify({
+              changes: changeSet.certificateFields,
+              parameters: changeSet.parameters,
+              summary: generateChangeSummary(changeSet),
+            }),
+            userId: session.user.id,
+            userRole: session.user.role,
+          },
+        })
+      }
 
       return cert
     })

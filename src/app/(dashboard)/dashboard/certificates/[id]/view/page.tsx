@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatSidebar } from '@/components/chat/ChatSidebar'
 import { cn } from '@/lib/utils'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 import { getConclusionText } from '@/components/pdf/pdf-utils'
 import { CALIBRATION_STATUS_OPTIONS } from '@/components/forms/RemarksSection'
 import { FeedbackTimeline } from '@/components/feedback/shared'
@@ -174,20 +175,16 @@ export default function CertificateViewPage() {
             .sort((a: ApiEvent, b: ApiEvent) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
 
           if (customerEvent) {
-            try {
-              const eventData = JSON.parse(customerEvent.eventData)
-              setCustomerFeedback({
-                notes: eventData.notes || '',
-                sectionFeedbacks: eventData.sectionFeedbacks || null,
-                generalNotes: eventData.generalNotes || null,
-                customerName: eventData.customerName || 'Customer',
-                customerEmail: eventData.customerEmail || '',
-                requestedAt: eventData.requestedAt || customerEvent.createdAt,
-                revision: customerEvent.revision,
-              })
-            } catch {
-              // If parsing fails, ignore
-            }
+            const eventData = safeJsonParse<Record<string, unknown>>(customerEvent.eventData, {})
+            setCustomerFeedback({
+              notes: (eventData.notes as string) || '',
+              sectionFeedbacks: (eventData.sectionFeedbacks as { section: string; comment: string }[] | null) || null,
+              generalNotes: (eventData.generalNotes as string | null) || null,
+              customerName: (eventData.customerName as string) || 'Customer',
+              customerEmail: (eventData.customerEmail as string) || '',
+              requestedAt: (eventData.requestedAt as string) || customerEvent.createdAt,
+              revision: customerEvent.revision,
+            })
           }
         }
       } catch (err) {
@@ -247,12 +244,8 @@ export default function CertificateViewPage() {
   }
 
   const statusConfig = STATUS_CONFIG[certificate.status] || STATUS_CONFIG.DRAFT
-  const calibrationStatus = certificate.calibrationStatus
-    ? JSON.parse(certificate.calibrationStatus)
-    : []
-  const conclusionStatements = certificate.selectedConclusionStatements
-    ? JSON.parse(certificate.selectedConclusionStatements)
-    : []
+  const calibrationStatus = safeJsonParse<string[]>(certificate.calibrationStatus, [])
+  const conclusionStatements = safeJsonParse<string[]>(certificate.selectedConclusionStatements, [])
   const feedbacks = certificate.feedbacks || []
 
   // Check if any results are out of limit

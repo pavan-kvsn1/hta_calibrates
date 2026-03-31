@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { safeJsonParse } from '@/lib/utils/safe-json'
 
 // GET /api/admin/internal-requests - List all internal requests
 export async function GET(request: NextRequest) {
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
         id: r.id,
         type: r.type,
         status: r.status,
-        data: JSON.parse(r.data),
+        data: safeJsonParse<Record<string, unknown>>(r.data, {}),
         certificate: r.certificate,
         requestedBy: r.requestedBy,
         reviewedBy: r.reviewedBy,

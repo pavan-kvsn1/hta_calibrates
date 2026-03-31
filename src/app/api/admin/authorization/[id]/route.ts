@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
 import { parseUserAgent, type SigningMetadata } from '@/components/pdf/pdf-utils'
+import { safeJsonParse } from '@/lib/utils/safe-json'
+import type { ParameterBin } from '@/lib/stores/certificate-store'
 
 interface RevisionHistoryItem {
   id: string
@@ -69,12 +71,7 @@ export async function GET(
     })
 
     const revisionHistory: RevisionHistoryItem[] = events.map(event => {
-      let eventData: Record<string, string> = {}
-      try {
-        eventData = JSON.parse(event.eventData)
-      } catch {
-        eventData = {}
-      }
+      const eventData = safeJsonParse<Record<string, string>>(event.eventData, {})
 
       let type: RevisionHistoryItem['type'] = 'sent_to_customer'
       let message = ''
@@ -138,18 +135,15 @@ export async function GET(
 
       if (!evidence) return undefined
 
-      try {
-        const parsed = JSON.parse(evidence.evidence)
-        return {
-          signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
-          ipAddress: parsed.ipAddress,
-          timezone: parsed.timezone,
-          deviceInfo: parseUserAgent(parsed.userAgent || ''),
-        }
-      } catch {
-        return {
-          signedAt: evidence.createdAt.toISOString(),
-        }
+      const parsed = safeJsonParse<Record<string, string>>(evidence.evidence, {})
+      if (Object.keys(parsed).length === 0) {
+        return { signedAt: evidence.createdAt.toISOString() }
+      }
+      return {
+        signedAt: parsed.serverTimestamp || evidence.createdAt.toISOString(),
+        ipAddress: parsed.ipAddress,
+        timezone: parsed.timezone,
+        deviceInfo: parseUserAgent(parsed.userAgent || ''),
       }
     }
 
@@ -275,7 +269,7 @@ export async function GET(
         accuracyUnit: param.accuracyUnit || '',
         accuracyType: param.accuracyType || 'ABSOLUTE',
         requiresBinning: param.requiresBinning || false,
-        bins: param.bins ? JSON.parse(param.bins as string) : [],
+        bins: safeJsonParse<ParameterBin[]>(param.bins, []),
         errorFormula: param.errorFormula || 'A-B',
         showAfterAdjustment: param.showAfterAdjustment || false,
         masterInstrumentId: param.masterInstrumentId ? parseInt(param.masterInstrumentId) : null,
@@ -307,15 +301,11 @@ export async function GET(
       })),
       ambientTemperature: certificate.ambientTemperature || '',
       relativeHumidity: certificate.relativeHumidity || '',
-      calibrationStatus: certificate.calibrationStatus
-        ? JSON.parse(certificate.calibrationStatus as string)
-        : [],
+      calibrationStatus: safeJsonParse<string[]>(certificate.calibrationStatus, []),
       stickerOldRemoved: certificate.stickerOldRemoved || null,
       stickerNewAffixed: certificate.stickerNewAffixed || null,
       statusNotes: certificate.statusNotes || '',
-      selectedConclusionStatements: certificate.selectedConclusionStatements
-        ? JSON.parse(certificate.selectedConclusionStatements as string)
-        : [],
+      selectedConclusionStatements: safeJsonParse<string[]>(certificate.selectedConclusionStatements, []),
       additionalConclusionStatement: certificate.additionalConclusionStatement || '',
       engineerNotes: '',
     }

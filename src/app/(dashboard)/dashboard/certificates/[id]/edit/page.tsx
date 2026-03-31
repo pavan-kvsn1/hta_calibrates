@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ChatSidebar } from '@/components/chat/ChatSidebar'
 import { SectionUnlockRequest } from '@/components/engineer/SectionUnlockRequest'
+import { ConflictResolutionDialog } from '@/components/certificates'
 
 const SECTIONS: { id: string; label: string; showWhenNotDraft?: boolean }[] = [
   { id: 'summary', label: 'Summary' },
@@ -307,6 +308,7 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     certificateNumber: apiData.certificateNumber,
     status: apiData.status as CertificateFormData['status'],
     lastSaved: new Date(apiData.updatedAt),
+    serverUpdatedAt: apiData.updatedAt,  // Track server timestamp for optimistic concurrency control
     calibratedAt: (apiData.calibratedAt || 'LAB') as 'LAB' | 'SITE',
     srfNumber: apiData.srfNumber || '',
     srfDate: apiData.srfDate ? apiData.srfDate.split('T')[0] : '',
@@ -457,6 +459,12 @@ export default function EditCertificatePage() {
     revision?: number
   } | null>(null)
 
+  // Conflict resolution state
+  const [conflictState, setConflictState] = useState<{
+    hasConflict: boolean
+    serverTimestamp: Date | null
+  } | null>(null)
+
   // Fetch unlock requests when certificate is in REVISION_REQUIRED status
   useEffect(() => {
     async function fetchUnlockRequests() {
@@ -586,7 +594,15 @@ export default function EditCertificatePage() {
     setSaveError(null)
     const result = await saveDraft()
     if (!result.success) {
-      setSaveError(result.error || 'Failed to save')
+      // Handle conflict error
+      if (result.error === 'CONFLICT') {
+        setConflictState({
+          hasConflict: true,
+          serverTimestamp: result.serverTimestamp ? new Date(result.serverTimestamp) : null,
+        })
+      } else {
+        setSaveError(result.error || 'Failed to save')
+      }
     }
   }, [isDirty, saveDraft])
 
@@ -995,6 +1011,21 @@ export default function EditCertificatePage() {
           certificateStatus={formData.status}
         />
       </div>
+
+      {/* Conflict Resolution Dialog */}
+      <ConflictResolutionDialog
+        open={conflictState?.hasConflict ?? false}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConflictState(null)
+          }
+        }}
+        serverTimestamp={conflictState?.serverTimestamp ?? null}
+        onRefresh={() => {
+          // Reload the page to get the latest data
+          window.location.reload()
+        }}
+      />
     </div>
   )
 }

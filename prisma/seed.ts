@@ -1,15 +1,14 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
-import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3'
+import { PrismaPg } from '@prisma/adapter-pg'
 import bcrypt from 'bcryptjs'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as crypto from 'crypto'
 
-// For Prisma 7, use the SQLite adapter with options
-// Read from DATABASE_URL env var, fallback to dev.db for local development
-const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL || 'file:./dev.db',
-})
+// PostgreSQL adapter for all environments
+const connectionString = process.env.DATABASE_URL || 'postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration'
+const adapter = new PrismaPg({ connectionString })
 const prisma = new PrismaClient({ adapter })
 
 // Interface for master instruments JSON
@@ -51,72 +50,10 @@ function parseDate(dateStr: string | undefined): Date | null {
 async function main() {
   console.log('Seeding database...')
 
-  // Create two Admin/Reviewer users (formerly HoD)
+  // Create MASTER admin (super admin - full control)
   const adminPassword = await bcrypt.hash('admin123', 12)
 
-  const reviewer1 = await prisma.user.upsert({
-    where: { email: 'kiran@htaipl.com' },
-    update: {},
-    create: {
-      email: 'kiran@htaipl.com',
-      name: 'Kiran Kumar',
-      passwordHash: adminPassword,
-      role: 'ADMIN',
-      authProvider: 'PASSWORD',
-      isActive: true,
-    },
-  })
-  console.log('Created Reviewer 1:', reviewer1.email)
-
-  const reviewer2 = await prisma.user.upsert({
-    where: { email: 'rajesh@htaipl.com' },
-    update: {},
-    create: {
-      email: 'rajesh@htaipl.com',
-      name: 'Rajesh Sharma',
-      passwordHash: adminPassword,
-      role: 'ADMIN',
-      authProvider: 'PASSWORD',
-      isActive: true,
-    },
-  })
-  console.log('Created Reviewer 2:', reviewer2.email)
-
-  // Create Engineer users - each assigned to a different Admin/Reviewer
-  const engineerPassword = await bcrypt.hash('engineer123', 12)
-
-  const engineer1 = await prisma.user.upsert({
-    where: { email: 'thiyagarajan@htaipl.com' },
-    update: { assignedAdminId: reviewer1.id },
-    create: {
-      email: 'thiyagarajan@htaipl.com',
-      name: 'Thiyagarajan',
-      passwordHash: engineerPassword,
-      role: 'ENGINEER',
-      authProvider: 'PASSWORD',
-      assignedAdminId: reviewer1.id,
-      isActive: true,
-    },
-  })
-  console.log('Created Engineer:', engineer1.email, '-> Reports to:', reviewer1.name)
-
-  const engineer2 = await prisma.user.upsert({
-    where: { email: 'chandrashekar@htaipl.com' },
-    update: { assignedAdminId: reviewer2.id },
-    create: {
-      email: 'chandrashekar@htaipl.com',
-      name: 'Chandrashekar',
-      passwordHash: engineerPassword,
-      role: 'ENGINEER',
-      authProvider: 'PASSWORD',
-      assignedAdminId: reviewer2.id,
-      isActive: true,
-    },
-  })
-  console.log('Created Engineer:', engineer2.email, '-> Reports to:', reviewer2.name)
-
-  // Create Super Admin user
-  const superAdmin = await prisma.user.upsert({
+  const masterAdmin = await prisma.user.upsert({
     where: { email: 'admin@htaipl.com' },
     update: {},
     create: {
@@ -124,11 +61,77 @@ async function main() {
       name: 'Hemanth Kumar',
       passwordHash: adminPassword,
       role: 'ADMIN',
+      adminType: 'MASTER',
+      isAdmin: false, // Matches reference DB
       authProvider: 'PASSWORD',
       isActive: true,
     },
   })
-  console.log('Created Super Admin:', superAdmin.email)
+  console.log('Created MASTER Admin:', masterAdmin.email)
+
+  // Create Engineer users - all assigned to the master admin
+  const engineerPassword = await bcrypt.hash('engineer123', 12)
+
+  const engineer1 = await prisma.user.upsert({
+    where: { email: 'kiran@htaipl.com' },
+    update: { assignedAdminId: masterAdmin.id },
+    create: {
+      email: 'kiran@htaipl.com',
+      name: 'Kiran Kumar',
+      passwordHash: engineerPassword,
+      role: 'ENGINEER',
+      authProvider: 'PASSWORD',
+      assignedAdminId: masterAdmin.id,
+      isActive: true,
+    },
+  })
+  console.log('Created Engineer:', engineer1.email, '-> Reports to:', masterAdmin.name)
+
+  const engineer2 = await prisma.user.upsert({
+    where: { email: 'rajesh@htaipl.com' },
+    update: { assignedAdminId: masterAdmin.id },
+    create: {
+      email: 'rajesh@htaipl.com',
+      name: 'Rajesh Sharma',
+      passwordHash: engineerPassword,
+      role: 'ENGINEER',
+      authProvider: 'PASSWORD',
+      assignedAdminId: masterAdmin.id,
+      isActive: true,
+    },
+  })
+  console.log('Created Engineer:', engineer2.email, '-> Reports to:', masterAdmin.name)
+
+  const engineer3 = await prisma.user.upsert({
+    where: { email: 'thiyagarajan@htaipl.com' },
+    update: { assignedAdminId: masterAdmin.id },
+    create: {
+      email: 'thiyagarajan@htaipl.com',
+      name: 'Thiyagarajan',
+      passwordHash: engineerPassword,
+      role: 'ENGINEER',
+      authProvider: 'PASSWORD',
+      assignedAdminId: masterAdmin.id,
+      isActive: true,
+    },
+  })
+  console.log('Created Engineer:', engineer3.email, '-> Reports to:', masterAdmin.name)
+
+  const engineer4 = await prisma.user.upsert({
+    where: { email: 'chandrashekar@htaipl.com' },
+    update: { assignedAdminId: masterAdmin.id },
+    create: {
+      email: 'chandrashekar@htaipl.com',
+      name: 'Chandrashekar',
+      passwordHash: engineerPassword,
+      role: 'ENGINEER',
+      authProvider: 'PASSWORD',
+      assignedAdminId: masterAdmin.id,
+      isActive: true,
+    },
+  })
+  console.log('Created Engineer:', engineer4.email, '-> Reports to:', masterAdmin.name)
+
 
   // ==================
   // CUSTOMER ACCOUNTS
@@ -144,11 +147,11 @@ async function main() {
       address: '123 Test Street, Bangalore',
       contactEmail: 'contact@testcompany.com',
       contactPhone: '+91-9876543210',
-      assignedAdminId: reviewer1.id,
+      assignedAdminId: masterAdmin.id,
       isActive: true,
     },
   })
-  console.log('Created Customer Account:', customerAccount1.companyName, '-> Assigned to:', reviewer1.name)
+  console.log('Created Customer Account:', customerAccount1.companyName, '-> Assigned to:', masterAdmin.name)
 
   const customerAccount2 = await prisma.customerAccount.upsert({
     where: { companyName: 'Beta Corporation' },
@@ -158,11 +161,11 @@ async function main() {
       address: '456 Beta Avenue, Mumbai',
       contactEmail: 'info@betacorp.com',
       contactPhone: '+91-8765432109',
-      assignedAdminId: reviewer2.id,
+      assignedAdminId: masterAdmin.id,
       isActive: true,
     },
   })
-  console.log('Created Customer Account:', customerAccount2.companyName, '-> Assigned to:', reviewer2.name)
+  console.log('Created Customer Account:', customerAccount2.companyName, '-> Assigned to:', masterAdmin.name)
 
   // Create Customer users linked to their accounts
   const customerPassword = await bcrypt.hash('customer123', 12)
@@ -177,9 +180,18 @@ async function main() {
       companyName: 'Test Company Pvt Ltd', // Kept for backward compatibility
       customerAccountId: customerAccount1.id,
       isActive: true,
+      isPoc: true, // This user is the primary POC
+      activatedAt: new Date(),
     },
   })
-  console.log('Created Customer:', customer1.email, '-> Account:', customerAccount1.companyName)
+  console.log('Created Customer (POC):', customer1.email, '-> Account:', customerAccount1.companyName)
+
+  // Link customer1 as the primary POC for customerAccount1
+  await prisma.customerAccount.update({
+    where: { id: customerAccount1.id },
+    data: { primaryPocId: customer1.id },
+  })
+  console.log('Set primary POC for', customerAccount1.companyName, ':', customer1.email)
 
   const customer2 = await prisma.customerUser.upsert({
     where: { email: 'beta@betacorp.com' },
@@ -191,9 +203,18 @@ async function main() {
       companyName: 'Beta Corporation',
       customerAccountId: customerAccount2.id,
       isActive: true,
+      isPoc: true, // This user is the primary POC
+      activatedAt: new Date(),
     },
   })
-  console.log('Created Customer:', customer2.email, '-> Account:', customerAccount2.companyName)
+  console.log('Created Customer (POC):', customer2.email, '-> Account:', customerAccount2.companyName)
+
+  // Link customer2 as the primary POC for customerAccount2
+  await prisma.customerAccount.update({
+    where: { id: customerAccount2.id },
+    data: { primaryPocId: customer2.id },
+  })
+  console.log('Set primary POC for', customerAccount2.companyName, ':', customer2.email)
 
   // ==================
   // GOOGLE OAUTH WHITELIST
@@ -208,12 +229,12 @@ async function main() {
       email: '@htaipl.com',
       type: 'DOMAIN',
       role: 'ENGINEER',
-      hodId: reviewer1.id, // Default Admin for domain-based logins
+      hodId: masterAdmin.id, // Default Admin for domain-based logins
       isActive: true,
-      createdBy: superAdmin.id,
+      createdBy: masterAdmin.id,
     },
   })
-  console.log('Created domain whitelist: @htaipl.com -> ENGINEER (default Admin: Kiran)')
+  console.log('Created domain whitelist: @htaipl.com -> ENGINEER (default Admin: Hemanth)')
 
   await prisma.allowedGoogleEmail.upsert({
     where: { email: 'admin@htaipl.com' },
@@ -224,7 +245,7 @@ async function main() {
       role: 'ADMIN',
       name: 'Hemanth Kumar',
       isActive: true,
-      createdBy: superAdmin.id,
+      createdBy: masterAdmin.id,
     },
   })
   console.log('Created email whitelist: admin@htaipl.com -> ADMIN')
@@ -334,13 +355,13 @@ async function main() {
   }
 
   console.log('\n--- Test Credentials ---')
-  console.log('Engineer 1: thiyagarajan@htaipl.com / engineer123 (Reports to Kiran)')
-  console.log('Engineer 2: chandrashekar@htaipl.com / engineer123 (Reports to Rajesh)')
-  console.log('Admin/Reviewer 1: kiran@htaipl.com / admin123 (Manages Thiyagarajan)')
-  console.log('Admin/Reviewer 2: rajesh@htaipl.com / admin123 (Manages Chandrashekar)')
-  console.log('Super Admin: admin@htaipl.com / admin123')
-  console.log('Customer 1: customer@example.com / customer123 (Test Company Pvt Ltd)')
-  console.log('Customer 2: beta@betacorp.com / customer123 (Beta Corporation)')
+  console.log('MASTER Admin: admin@htaipl.com / admin123 (Full control)')
+  console.log('Engineer 1: kiran@htaipl.com / engineer123')
+  console.log('Engineer 2: rajesh@htaipl.com / engineer123')
+  console.log('Engineer 3: thiyagarajan@htaipl.com / engineer123')
+  console.log('Engineer 4: chandrashekar@htaipl.com / engineer123')
+  console.log('Customer POC 1: customer@example.com / customer123 (Test Company Pvt Ltd)')
+  console.log('Customer POC 2: beta@betacorp.com / customer123 (Beta Corporation)')
   console.log('------------------------\n')
 
   console.log('Seeding completed!')

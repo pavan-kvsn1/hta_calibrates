@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { TEST_USERS } from '../fixtures/test-data'
+import { loginAsEngineer, loginAsAdmin, loginAsCustomer } from '../fixtures/test-utils'
 
 /**
  * Visual Regression Tests
@@ -46,11 +46,7 @@ test.describe('Visual Regression - Public Pages', () => {
 
 test.describe('Visual Regression - Engineer Dashboard', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.engineer.email)
-    await page.fill('input[type="password"]', TEST_USERS.engineer.password)
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    await loginAsEngineer(page)
   })
 
   test('engineer dashboard visual snapshot', async ({ page }) => {
@@ -99,11 +95,7 @@ test.describe('Visual Regression - Engineer Dashboard', () => {
 
 test.describe('Visual Regression - Admin Dashboard', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
-    await page.fill('input[type="password"]', TEST_USERS.admin.password)
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/admin|dashboard/, { timeout: 10000 })
+    await loginAsAdmin(page)
   })
 
   test('Admin dashboard visual snapshot', async ({ page }) => {
@@ -124,11 +116,7 @@ test.describe('Visual Regression - Admin Dashboard', () => {
 
 test.describe('Visual Regression - Customer Portal', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/customer/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.customer.email)
-    await page.fill('input[type="password"]', TEST_USERS.customer.password)
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/customer\/dashboard/, { timeout: 10000 })
+    await loginAsCustomer(page)
   })
 
   test('customer dashboard visual snapshot', async ({ page }) => {

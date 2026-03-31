@@ -1,0 +1,24 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: hta-calibration-cert
+  namespace: hta-calibration
+spec:
+  domains:
+    - http://34.180.25.98       # TODO: Replace with your actual domain
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hta-calibration-ingress
+  namespace: hta-calibration
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: hta-calibration-ip
+    networking.gke.io/managed-certificates: hta-calibration-cert
+spec:
+  defaultBackend:
+    service:
+      name: hta-web
+      port:
+        number: 80

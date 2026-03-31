@@ -2,6 +2,9 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 import { CertificateTable, CertificateListItem } from '@/components/dashboard/CertificateTable'
 import { Button } from '@/components/ui/button'
 import { Plus, FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react'

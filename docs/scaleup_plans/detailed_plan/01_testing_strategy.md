@@ -192,27 +192,27 @@ Integration tests verify that multiple units work together correctly.
 │                        TEST DATABASE APPROACH                                    │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │                                                                                 │
-│  OPTION A: In-Memory SQLite (Recommended for Speed)                             │
-│  ══════════════════════════════════════════════════                             │
+│  POSTGRESQL FOR ALL ENVIRONMENTS                                                │
+│  ════════════════════════════════                                               │
 │                                                                                 │
-│  • Each test file gets fresh database                                           │
-│  • Migrations run before each test suite                                        │
-│  • No cleanup needed - database destroyed after tests                           │
-│  • Fastest execution time                                                       │
+│  We use PostgreSQL consistently across all environments:                        │
 │                                                                                 │
-│  OPTION B: Docker PostgreSQL (Recommended for Parity)                           │
-│  ═════════════════════════════════════════════════════                          │
+│  • Local Development: Docker Compose (docker-compose.dev.yml)                   │
+│  • CI/CD Pipeline: GitHub Actions service container (postgres:16-alpine)        │
+│  • Production: Google Cloud SQL (PostgreSQL 16)                                 │
 │                                                                                 │
-│  • Matches production database exactly                                          │
-│  • Run via Docker Compose in CI                                                 │
-│  • Slower but catches Postgres-specific issues                                  │
-│  • Use for critical workflow tests                                              │
+│  BENEFITS:                                                                      │
+│  ─────────                                                                      │
+│  • Production parity: Tests match production database exactly                   │
+│  • Native JSON support: PostgreSQL handles JSONB natively                       │
+│  • No adapter switching: Single Prisma schema and adapter                       │
+│  • Catches DB-specific issues early                                             │
 │                                                                                 │
-│  RECOMMENDED HYBRID APPROACH:                                                   │
-│  ────────────────────────────                                                   │
-│  • Unit tests & fast integration: SQLite                                        │
-│  • Critical path integration: PostgreSQL in Docker                              │
-│  • CI pipeline runs both                                                        │
+│  TEST ISOLATION:                                                                │
+│  ───────────────                                                                │
+│  • Each test file gets clean database state                                     │
+│  • Tests run sequentially to prevent conflicts                                  │
+│  • Automatic cleanup between test runs                                          │
 │                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -574,18 +574,14 @@ This section documents the actual implementation of the testing strategy as of M
 
 ### Integration Test Database Configuration
 
-**SQLite Testing** (Default - Fast):
+**PostgreSQL Testing** (All Environments):
 - Config: `vitest.integration.config.ts`
-- Database: `file:./test-{uuid}.db` (isolated per test run)
+- Schema: `prisma/schema.prisma` (PostgreSQL-only)
+- Local: Docker Compose (`docker-compose.test.yml`) on port 5433
+- CI: GitHub Actions service container (`postgres:16-alpine`)
 - Command: `npm run test:integration`
 - Execution: Sequential to prevent conflicts
 - Timeout: 30 seconds
-
-**PostgreSQL Testing** (Production Parity):
-- Config: `vitest.integration.postgres.config.ts`
-- Schema: `prisma/schema.postgres.prisma`
-- Command: `npm run test:integration:postgres`
-- CI Service Container: `postgres:16-alpine` on port 5433
 - Health checks: `pg_isready` with 5 retries
 
 ### Visual Regression Test Configuration
@@ -869,8 +865,7 @@ document.querySelectorAll('h1, h2, h3').forEach(el => {
 │  ────────────────────────┼────────────┼──────────┼─────────────┼─────────│     │
 │  Unit Tests (fast)       │     ✓      │    ✓     │      ✓      │    ✓    │     │
 │  Unit Tests (full)       │            │    ✓     │      ✓      │    ✓    │     │
-│  Integration (SQLite)    │            │    ✓     │      ✓      │    ✓    │     │
-│  Integration (Postgres)  │            │          │      ✓      │    ✓    │     │
+│  Integration (Postgres)  │            │    ✓     │      ✓      │    ✓    │     │
 │  E2E (smoke)             │            │    ✓     │      ✓      │    ✓    │     │
 │  E2E (full)              │            │          │      ✓      │    ✓    │     │
 │  Performance evals       │            │          │      ✓      │    ✓    │     │
