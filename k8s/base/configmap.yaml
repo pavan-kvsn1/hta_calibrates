@@ -9,9 +9,9 @@ metadata:
 data:
   NODE_ENV: "production"
   PORT: "3000"
-  NEXTAUTH_URL: "http://34.180.4.228"
+  NEXTAUTH_URL: "http://34.93.30.240"
   AUTH_URL: "http://34.180.4.228"
   AUTH_TRUST_HOST: "true"
-  GCS_CERTIFICATES_BUCKET: "hta-calibration-prod-certificates-dev"
-  GCS_SIGNATURES_BUCKET: "hta-calibration-prod-signatures-dev"
-  GCS_UPLOADS_BUCKET: "hta-calibration-prod-uploads-dev"
+  GCS_CERTIFICATES_BUCKET: "hta-calibration-dev1-certificates-dev"
+  GCS_SIGNATURES_BUCKET: "hta-calibration-dev1-signatures-dev"
+  GCS_UPLOADS_BUCKET: "hta-calibration-dev1-uploads-dev"

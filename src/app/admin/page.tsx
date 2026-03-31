@@ -1,5 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
 import {
   Building2,
   Users,

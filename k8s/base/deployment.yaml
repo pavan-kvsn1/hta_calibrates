@@ -22,7 +22,7 @@ spec:
       serviceAccountName: hta-app
       containers:
         - name: hta-web
-          image: asia-south1-docker.pkg.dev/hta-calibration-prod/hta-calibration/app:latest
+          image: asia-south1-docker.pkg.dev/hta-calibration-dev1/hta-calibration/app:latest
           ports:
             - name: http
               containerPort: 3000

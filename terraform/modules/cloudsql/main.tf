@@ -24,7 +24,8 @@ resource "google_sql_database_instance" "main" {
       ipv4_enabled                                  = false
       private_network                               = var.vpc_id
       enable_private_path_for_google_cloud_services = true
-      ssl_mode                                      = "ENCRYPTED_ONLY"  # Require SSL for all connections
+      # Dev uses private VPC (already secure), prod requires SSL encryption
+      ssl_mode                                      = var.environment == "prod" ? "ENCRYPTED_ONLY" : "ALLOW_UNENCRYPTED_AND_ENCRYPTED"
     }
 
     # Backup configuration
@@ -137,7 +138,7 @@ resource "google_sql_database" "app" {
 resource "random_password" "db_password" {
   length           = 32
   special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
+  override_special = "-_"  # Only URL-safe special characters (no encoding needed)
 }
 
 resource "google_sql_user" "app" {

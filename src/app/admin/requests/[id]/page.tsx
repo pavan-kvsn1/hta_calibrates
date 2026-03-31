@@ -5,6 +5,9 @@ import { safeJsonParse } from '@/lib/utils/safe-json'
 import { InternalRequestClient } from './InternalRequestClient'
 import { CustomerRequestView } from './CustomerRequestView'
 
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
+
 interface Props {
   params: Promise<{ id: string }>
   searchParams: Promise<{ type?: string }>

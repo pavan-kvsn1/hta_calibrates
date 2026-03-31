@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/utils/safe-json'
 import { CustomerCertReviewClient } from './CustomerCertReviewClient'
 
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
+
 interface Props {
   params: Promise<{ id: string }>
 }

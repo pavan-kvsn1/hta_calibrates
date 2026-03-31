@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { AdminSidebar } from '@/components/admin/AdminSidebar'
 import { AdminLayoutWrapper } from '@/components/admin/AdminLayoutWrapper'
 
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
+
 async function getSidebarBadges(isMaster: boolean) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)

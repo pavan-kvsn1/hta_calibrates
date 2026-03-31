@@ -7,6 +7,9 @@ import type { ParameterBin } from '@/lib/stores/certificate-store'
 import type { SignatureInfo } from '@/components/certificates'
 import type { CertificateFormData } from './AdminAuthContent'
 
+// Render at runtime, not build time (needs database)
+export const dynamic = 'force-dynamic'
+
 // Status badge configuration
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Draft', className: 'bg-amber-50 text-amber-600 border-amber-100' },
