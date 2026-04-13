@@ -32,7 +32,11 @@
     "test:visual": "playwright test tests/e2e/visual/",
     "test:visual:update": "playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots",
     "test:visual:docker": "docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit",
-    "chromatic": "npm run db:seed && npx playwright test tests/e2e/evals/visual-regression.spec.ts --project=chromium && npx chromatic --playwright --project-token=chpt_0db32ba30b7c67f"
+    "chromatic": "npm run db:seed && npx playwright test tests/e2e/evals/visual-regression.spec.ts --project=chromium && npx chromatic --playwright --project-token=chpt_0db32ba30b7c67f",
+    "test:load": "k6 run --env BASE_URL=http://localhost:3000 tests/load/health-check.js",
+    "test:load:smoke": "k6 run --env PROFILE=smoke tests/load/health-check.js",
+    "test:load:gentle": "k6 run --env PROFILE=gentle tests/load/read-only-workflow.js",
+    "test:load:dashboard": "k6 run --env PROFILE=gentle tests/load/dashboard.js"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

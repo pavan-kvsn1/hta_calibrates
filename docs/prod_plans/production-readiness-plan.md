@@ -26,7 +26,7 @@ This document outlines the implementation plan for twelve critical production fe
 **Infrastructure & Compliance (Planned):**
 9. **CI/CD Pipeline** - Automated testing and deployment ✅
 10. **Environment Management** - Dev/staging/prod separation ✅
-11. **Performance Testing** - Load testing and capacity planning ⚠️
+11. **Performance Testing** - Load testing against production (no staging) ⚠️
 12. **Compliance & Data Privacy** - GDPR, privacy policy, data retention ⚠️
 
 ---
@@ -2625,11 +2625,33 @@ jobs:
 
 | Item | Priority | Description |
 |------|----------|-------------|
-| k6/Artillery tests | HIGH | No realistic load testing tool |
+| k6 load tests | HIGH | No realistic load testing tool |
 | Performance baselines | HIGH | No documented baseline metrics |
-| Staging load tests | MEDIUM | Tests only run locally |
+| Production load tests | MEDIUM | Tests only run locally (no staging env) |
 | Capacity planning | MEDIUM | No documented limits |
 | Database profiling | LOW | No slow query analysis |
+
+#### 11.0.3 Production Testing Strategy
+
+Since there's no staging environment, load tests run directly against production with safety constraints:
+
+| Constraint | Value | Rationale |
+|------------|-------|-----------|
+| **Read-only operations** | GET endpoints only | No data modification |
+| **Max concurrency** | 20 users | Prevent resource exhaustion |
+| **Max duration** | 7 minutes | Limit exposure window |
+| **Scheduling** | Off-peak hours | Nights/weekends |
+| **Monitoring** | Required during tests | Abort if errors spike |
+
+**Safe test suites:**
+- `health-check` - Health endpoints (no auth needed)
+- `read-only-workflow` - Certificate list/view/search
+- `dashboard` - Dashboard stats queries
+
+**Unsafe (avoid on production):**
+- Certificate creation/updates
+- Email triggers
+- Any POST/PUT/DELETE operations
 
 ### 11.1 Recommended Load Testing Setup
 
@@ -2863,10 +2885,15 @@ interface UserDataExport {
 ### Phase 7: Performance & Load Testing (Week 9-10)
 
 - [ ] Set up k6 for realistic load testing
+- [ ] Create production-safe load test scripts (read-only operations)
 - [ ] Document performance baselines
-- [ ] Run load tests against staging environment
+- [ ] Run load tests against production (off-peak, low concurrency)
 - [ ] Create capacity planning documentation
 - [ ] Enable database slow query logging
+- [ ] Create GitHub Actions workflow for scheduled load tests
+
+**Note:** No staging environment - all tests target production with safety constraints.
+See `docs/prod_plans/phase-7-performance-testing.md` for implementation details.
 
 ### Phase 8: Compliance & Data Privacy (Week 10-11)
 

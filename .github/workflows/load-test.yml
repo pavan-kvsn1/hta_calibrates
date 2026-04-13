@@ -1,0 +1,176 @@
+name: Load Tests (Production)
+
+on:
+  # Manual trigger only - production requires explicit action
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Load test profile (all are production-safe)'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke      # 3 users, 2 min - minimal validation
+          - gentle     # 10 users, 6 min - baseline measurement
+          - moderate   # 20 users, 7 min - max safe load
+      test_suite:
+        description: 'Test suite to run'
+        required: true
+        default: 'health-check'
+        type: choice
+        options:
+          - health-check      # Safe - read-only, no auth
+          - read-only         # Safe - GET endpoints only
+          - dashboard         # Safe - stats queries
+          - all-safe          # All production-safe tests
+      confirm_production:
+        description: 'Type "production" to confirm running against prod'
+        required: true
+        type: string
+
+  # Weekly smoke test (Sunday 3 AM UTC - low traffic)
+  schedule:
+    - cron: '0 3 * * 0'
+
+env:
+  K6_VERSION: '0.49.0'
+  BASE_URL: 'https://hta-calibration.com'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Validate production confirmation
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "Scheduled run - proceeding with smoke test"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.confirm_production }}" == "production" ]; then
+            echo "Production confirmation received"
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: You must type 'production' to confirm"
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  load-test:
+    needs: validate
+    if: needs.validate.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          curl -sL https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz | tar xz
+          sudo mv k6-v${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+          k6 version
+
+      - name: Create results directory
+        run: mkdir -p tests/load/results
+
+      - name: Set test parameters
+        id: params
+        run: |
+          # For scheduled runs, use smoke profile
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "profile=smoke" >> $GITHUB_OUTPUT
+            echo "suite=health-check" >> $GITHUB_OUTPUT
+          else
+            echo "profile=${{ github.event.inputs.profile }}" >> $GITHUB_OUTPUT
+            echo "suite=${{ github.event.inputs.test_suite }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log test parameters
+        run: |
+          echo "================================================"
+          echo "  PRODUCTION LOAD TEST"
+          echo "================================================"
+          echo "Target:   ${{ env.BASE_URL }}"
+          echo "Profile:  ${{ steps.params.outputs.profile }}"
+          echo "Suite:    ${{ steps.params.outputs.suite }}"
+          echo "Trigger:  ${{ github.event_name }}"
+          echo "Time:     $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "================================================"
+
+      # =====================================================================
+      # Health Check Test (no auth required)
+      # =====================================================================
+      - name: Run health check tests
+        if: contains(fromJson('["health-check", "all-safe"]'), steps.params.outputs.suite) || github.event_name == 'schedule'
+        run: |
+          echo "Running health check load test..."
+          k6 run \
+            --env BASE_URL=${{ env.BASE_URL }} \
+            --env PROFILE=${{ steps.params.outputs.profile }} \
+            tests/load/health-check.js
+        continue-on-error: true
+
+      # =====================================================================
+      # Read-Only Workflow Test (requires auth)
+      # =====================================================================
+      - name: Run read-only workflow tests
+        if: contains(fromJson('["read-only", "all-safe"]'), steps.params.outputs.suite)
+        run: |
+          echo "Running read-only workflow load test..."
+          k6 run \
+            --env BASE_URL=${{ env.BASE_URL }} \
+            --env PROFILE=${{ steps.params.outputs.profile }} \
+            --env AUTH_TOKEN=${{ secrets.LOAD_TEST_AUTH_TOKEN }} \
+            tests/load/read-only-workflow.js
+        continue-on-error: true
+
+      # =====================================================================
+      # Dashboard Test (requires auth)
+      # =====================================================================
+      - name: Run dashboard tests
+        if: contains(fromJson('["dashboard", "all-safe"]'), steps.params.outputs.suite)
+        run: |
+          echo "Running dashboard load test..."
+          k6 run \
+            --env BASE_URL=${{ env.BASE_URL }} \
+            --env PROFILE=${{ steps.params.outputs.profile }} \
+            --env AUTH_TOKEN=${{ secrets.LOAD_TEST_AUTH_TOKEN }} \
+            tests/load/dashboard.js
+        continue-on-error: true
+
+      # =====================================================================
+      # Upload Results
+      # =====================================================================
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results-${{ github.run_id }}
+          path: tests/load/results/
+          retention-days: 30
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## Load Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Production |" >> $GITHUB_STEP_SUMMARY
+          echo "| Profile | ${{ steps.params.outputs.profile }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | ${{ steps.params.outputs.suite }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Results uploaded as artifacts." >> $GITHUB_STEP_SUMMARY
+
+          # List result files
+          if [ -d "tests/load/results" ] && [ "$(ls -A tests/load/results)" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Result Files" >> $GITHUB_STEP_SUMMARY
+            for f in tests/load/results/*.json; do
+              echo "- $(basename $f)" >> $GITHUB_STEP_SUMMARY
+            done
+          fi
