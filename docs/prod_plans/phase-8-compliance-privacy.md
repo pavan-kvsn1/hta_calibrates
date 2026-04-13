@@ -3,7 +3,7 @@
 **Document Version:** 1.0
 **Created:** 2026-04-13
 **Last Updated:** 2026-04-13
-**Status:** Planning
+**Status:** Complete
 **Estimated Effort:** 6-8 hours
 
 ---
@@ -38,29 +38,32 @@
 
 ### Implementation Checklist
 
-- [ ] Create privacy policy page (`/privacy`)
-- [ ] Create terms of service page (`/terms`)
-- [ ] Implement cookie consent banner
-- [ ] Create user data export feature (GDPR Article 20)
-- [ ] Implement account deletion flow (GDPR Article 17)
-- [ ] Document data retention policies
-- [ ] Create GDPR compliance runbook
-- [ ] Add data processing agreement template
+- [x] Create privacy policy page (`/privacy`) ✅
+- [x] Create terms of service page (`/terms`) ✅
+- [x] Implement cookie consent banner ✅
+- [x] Create user data export feature (GDPR Article 20) ✅
+- [x] Implement account deletion flow (GDPR Article 17) ✅
+- [x] Document data retention policies ✅
+- [x] Create GDPR compliance runbook ✅
+- [x] Add data processing agreement template ✅
 
 ### Files to Create/Modify
 
-| File | Action | Description |
-|------|--------|-------------|
-| `src/app/(public)/privacy/page.tsx` | CREATE | Privacy policy page |
-| `src/app/(public)/terms/page.tsx` | CREATE | Terms of service page |
-| `src/components/cookie-consent.tsx` | CREATE | Cookie consent banner component |
-| `src/app/layout.tsx` | MODIFY | Add cookie consent banner |
-| `src/app/api/customer/data-export/route.ts` | CREATE | Data export API endpoint |
-| `src/app/api/customer/delete-account/route.ts` | CREATE | Account deletion API endpoint |
-| `src/app/(customer)/settings/page.tsx` | MODIFY | Add export/delete buttons |
-| `docs/compliance/data-retention.md` | CREATE | Data retention policies |
-| `docs/compliance/gdpr-procedures.md` | CREATE | GDPR compliance runbook |
-| `docs/compliance/dpa-template.md` | CREATE | Data processing agreement |
+| File | Action | Description | Status |
+|------|--------|-------------|--------|
+| `src/app/(public)/privacy/page.tsx` | CREATE | Privacy policy page | ✅ Done |
+| `src/app/(public)/terms/page.tsx` | CREATE | Terms of service page | ✅ Done |
+| `src/components/cookie-consent.tsx` | CREATE | Cookie consent banner component | ✅ Done |
+| `src/app/layout.tsx` | MODIFY | Add cookie consent banner | ✅ Done |
+| `src/app/api/customer/data-export/route.ts` | CREATE | Data export API endpoint | ✅ Done |
+| `src/app/api/customer/delete-account/route.ts` | CREATE | Account deletion API endpoint | ✅ Done |
+| `src/components/delete-account-dialog.tsx` | CREATE | Account deletion dialog | ✅ Done |
+| `src/emails/AccountDeleted.tsx` | CREATE | Account deleted email template | ✅ Done |
+| `src/app/customer/settings/page.tsx` | MODIFY | Add Data & Privacy section | ✅ Done |
+| `docs/compliance/data-retention.md` | CREATE | Data retention policies | ✅ Done |
+| `docs/compliance/gdpr-procedures.md` | CREATE | GDPR compliance runbook | ✅ Done |
+| `docs/compliance/dpa-template.md` | CREATE | Data processing agreement | ✅ Done |
+| `tests/e2e/evals/compliance.spec.ts` | CREATE | Automated compliance tests | ✅ Done |
 
 ---
 
@@ -83,10 +86,11 @@
 | Secure password storage (bcrypt) | ✅ Implemented | None |
 | HTTPS enforcement | ✅ Implemented | None |
 | Session management | ✅ Implemented | None |
-| Privacy policy | ❌ Missing | Need to create |
-| Cookie consent | ❌ Missing | Need to implement |
-| Data export | ❌ Missing | Need to implement |
-| Account deletion | ❌ Missing | Need to implement |
+| Privacy policy | ✅ Implemented | `/privacy` page |
+| Terms of service | ✅ Implemented | `/terms` page |
+| Cookie consent | ✅ Implemented | Banner in root layout |
+| Data export | ✅ Implemented | `/api/customer/data-export` |
+| Account deletion | ✅ Implemented | `/api/customer/delete-account` |
 | Retention automation | ❌ Missing | Need to document |
 
 ### Applicable Regulations
@@ -672,12 +676,12 @@ Create `docs/compliance/data-retention.md` with:
 
 | Right | Article | Implementation | Status |
 |-------|---------|----------------|--------|
-| Right to be informed | Art. 13-14 | Privacy policy | Pending |
-| Right of access | Art. 15 | Data export | Pending |
+| Right to be informed | Art. 13-14 | Privacy policy | ✅ Implemented |
+| Right of access | Art. 15 | Data export | ✅ Implemented |
 | Right to rectification | Art. 16 | Profile edit | ✅ Exists |
-| Right to erasure | Art. 17 | Account deletion | Pending |
+| Right to erasure | Art. 17 | Account deletion | ✅ Implemented |
 | Right to restrict processing | Art. 18 | Manual process | Documented |
-| Right to data portability | Art. 20 | JSON export | Pending |
+| Right to data portability | Art. 20 | JSON export | ✅ Implemented |
 | Right to object | Art. 21 | Contact form | Documented |
 
 ### Compliance Runbook
@@ -738,36 +742,21 @@ Create `docs/compliance/gdpr-procedures.md` with:
 - [ ] Confirmation email sent
 - [ ] Cannot log in after deletion
 
-### Automated Tests
+### Automated Tests ✅
 
-```typescript
-// tests/e2e/compliance.spec.ts
+**File:** `tests/e2e/evals/compliance.spec.ts`
 
-test.describe('Compliance Features', () => {
-  test('privacy policy page loads', async ({ page }) => {
-    await page.goto('/privacy')
-    await expect(page.getByRole('heading', { name: /privacy policy/i })).toBeVisible()
-  })
+Tests implemented:
+- Privacy policy page accessibility and content
+- Terms of service page accessibility
+- Cookie consent banner appearance and localStorage persistence
+- Data export download and JSON validation
+- Account deletion dialog flow and validation
+- Data & Privacy section visibility in settings
 
-  test('cookie consent banner appears', async ({ page }) => {
-    await page.context().clearCookies()
-    await page.evaluate(() => localStorage.clear())
-    await page.goto('/')
-    await expect(page.getByText(/we use essential cookies/i)).toBeVisible()
-  })
-
-  test('data export downloads JSON', async ({ page }) => {
-    // Login as customer first
-    await loginAsCustomer(page)
-    
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.goto('/api/customer/data-export'),
-    ])
-    
-    expect(download.suggestedFilename()).toMatch(/data-export.*\.json/)
-  })
-})
+Run with:
+```bash
+npx playwright test tests/e2e/evals/compliance.spec.ts
 ```
 
 ---

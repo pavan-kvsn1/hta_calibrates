@@ -352,6 +352,17 @@ jobs:
           echo "| 6-8 | Customer Review | Customer portal, approval, chat |" >> $GITHUB_STEP_SUMMARY
           echo "| 9-12 | Final Approval | Feedback addressing, resubmission |" >> $GITHUB_STEP_SUMMARY
           echo "| 13-16 | Admin Authorization | Requests, instruments, authorization |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Compliance & Evaluation Tests:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Category | Tests |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Privacy & Terms | Page accessibility, content rendering, mobile responsive |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cookie Consent | Banner display, localStorage persistence, acceptance flow |" >> $GITHUB_STEP_SUMMARY
+          echo "| Data Export | Download trigger, JSON validation, data completeness |" >> $GITHUB_STEP_SUMMARY
+          echo "| Account Deletion | Dialog flow, password validation, error handling |" >> $GITHUB_STEP_SUMMARY
+          echo "| Accessibility | WCAG compliance checks |" >> $GITHUB_STEP_SUMMARY
+          echo "| Visual Regression | UI screenshot comparisons |" >> $GITHUB_STEP_SUMMARY
 
   # Job 6: Security Scan
   security-scan:
@@ -423,6 +434,7 @@ jobs:
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Integration Tests (PostgreSQL) | ${{ needs.integration-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| E2E Workflow Tests | ${{ needs.e2e-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compliance Tests (GDPR) | ${{ needs.e2e-tests.result == 'success' && '✅' || '❌' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "## Pipeline Status" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
