@@ -43,8 +43,8 @@ After implementing Phase 7, you will have:
 - [x] Document performance baselines
 - [x] Create GitHub Actions workflow for load tests
 - [x] Create capacity planning documentation
-- [ ] Enable database slow query logging (requires Terraform apply)
-- [ ] Run initial baseline tests
+- [x] Enable database slow query logging (`terraform/modules/cloudsql/main.tf` - requires `terraform apply`)
+- [ ] Run initial baseline tests (post-deployment)
 
 ### Files Created
 
