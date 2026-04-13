@@ -1,18 +1,12 @@
 generator client {
-  provider        = "prisma-client-js"
-  // Enable Prisma Accelerate for connection pooling and query caching
-  // When using Accelerate, set DATABASE_URL to prisma:// URL
-  // and DIRECT_URL to the actual PostgreSQL connection string
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+  // Driver adapters are now stable in Prisma 7 (no longer a preview feature)
 }
 
 datasource db {
   provider = "postgresql"
-  // For Prisma Accelerate: Use prisma:// URL for runtime queries
-  url      = env("DATABASE_URL")
-  // For migrations: Use direct PostgreSQL connection
-  // Only needed when DATABASE_URL is a Prisma Accelerate URL
-  directUrl = env("DIRECT_URL")
+  // Connection URLs configured in prisma.config.ts (Prisma 7+)
+  // Runtime connection handled in src/lib/prisma.ts
 }
 
 model User {
