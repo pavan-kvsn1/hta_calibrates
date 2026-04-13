@@ -2265,152 +2265,165 @@ export default function () {
 
 ## 16. Monitoring Implementation
 
-### 16.1 OpenTelemetry Setup
+> **Note:** We use Sentry (already configured) for error tracking, performance monitoring, and distributed tracing. No need for separate OpenTelemetry setup.
 
-Each service exports traces, metrics, and logs to GCP:
+### 16.1 Sentry Setup for Multi-Service
+
+Each service initializes Sentry with its own service name for distributed tracing:
 
 ```typescript
-// packages/shared/src/telemetry/index.ts
-import { NodeSDK } from '@opentelemetry/sdk-node'
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node'
-import { TraceExporter } from '@google-cloud/opentelemetry-cloud-trace-exporter'
-import { MetricExporter } from '@google-cloud/opentelemetry-cloud-monitoring-exporter'
-import { Resource } from '@opentelemetry/resources'
-import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION } from '@opentelemetry/semantic-conventions'
+// packages/shared/src/sentry/index.ts
+import * as Sentry from '@sentry/node'
 
-export function initTelemetry(serviceName: string, serviceVersion: string) {
-  const sdk = new NodeSDK({
-    resource: new Resource({
-      [SEMRESATTRS_SERVICE_NAME]: serviceName,
-      [SEMRESATTRS_SERVICE_VERSION]: serviceVersion,
-      'service.environment': process.env.NODE_ENV,
-    }),
-    traceExporter: new TraceExporter(),
-    metricExporter: new MetricExporter(),
-    instrumentations: [
-      getNodeAutoInstrumentations({
-        '@opentelemetry/instrumentation-http': {
-          ignoreIncomingPaths: ['/health', '/ready'],
-        },
-        '@opentelemetry/instrumentation-fs': { enabled: false },
-      }),
+export function initSentry(serviceName: 'web' | 'api' | 'worker') {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV,
+    release: process.env.npm_package_version,
+    
+    // Service identification for distributed tracing
+    serverName: serviceName,
+    
+    // Performance monitoring
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+    
+    // Profile 10% of sampled transactions
+    profilesSampleRate: 0.1,
+    
+    integrations: [
+      // Auto-instrument HTTP, database, etc.
+      ...Sentry.autoDiscoverNodePerformanceMonitoringIntegrations(),
     ],
+    
+    // Filter out health check noise
+    beforeSendTransaction(event) {
+      if (event.transaction?.includes('/health') || event.transaction?.includes('/ready')) {
+        return null
+      }
+      return event
+    },
   })
-
-  sdk.start()
-  
-  process.on('SIGTERM', () => sdk.shutdown())
-  
-  return sdk
 }
+
+export { Sentry }
 ```
 
 ### 16.2 Service Instrumentation
 
 ```typescript
 // apps/api/src/index.ts
-import { initTelemetry } from '@hta/shared/telemetry'
+import { initSentry, Sentry } from '@hta/shared/sentry'
 
-// Initialize before other imports
-initTelemetry('hta-api', process.env.npm_package_version || '0.0.0')
+// Initialize Sentry before other imports
+initSentry('api')
 
-// Continue with app setup
 import { createApp } from './app'
 const app = createApp()
+
+// Wrap with Sentry error handler
+app.setErrorHandler((error, request, reply) => {
+  Sentry.captureException(error)
+  reply.status(500).send({ error: 'Internal Server Error' })
+})
 ```
 
 ```typescript
 // apps/web/src/instrumentation.ts (Next.js instrumentation hook)
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { initTelemetry } = await import('@hta/shared/telemetry')
-    initTelemetry('hta-web', process.env.npm_package_version || '0.0.0')
+    const { initSentry } = await import('@hta/shared/sentry')
+    initSentry('web')
   }
 }
 ```
 
-### 16.3 Distributed Tracing
-
-Trace context propagation between services:
-
 ```typescript
-// packages/shared/src/http-client.ts
-import { context, propagation, trace } from '@opentelemetry/api'
+// apps/worker/src/index.ts
+import { initSentry, Sentry } from '@hta/shared/sentry'
 
-export async function fetchWithTracing(url: string, options: RequestInit = {}) {
-  const tracer = trace.getTracer('hta-http-client')
-  
-  return tracer.startActiveSpan(`HTTP ${options.method || 'GET'}`, async (span) => {
-    const headers: Record<string, string> = { ...(options.headers as Record<string, string>) }
-    
-    // Inject trace context into headers
-    propagation.inject(context.active(), headers)
-    
+initSentry('worker')
+
+// Wrap job processing with Sentry
+async function processJobWithSentry(jobName: string, fn: () => Promise<void>) {
+  return Sentry.startSpan({ name: jobName, op: 'job' }, async () => {
     try {
-      const response = await fetch(url, { ...options, headers })
-      span.setAttribute('http.status_code', response.status)
-      return response
+      await fn()
     } catch (error) {
-      span.recordException(error as Error)
+      Sentry.captureException(error)
       throw error
-    } finally {
-      span.end()
     }
   })
 }
 ```
 
-### 16.4 Service-Specific Metrics
+### 16.3 Distributed Tracing
+
+Sentry automatically propagates trace context via `sentry-trace` and `baggage` headers. For custom HTTP clients:
 
 ```typescript
-// packages/shared/src/telemetry/metrics.ts
-import { metrics } from '@opentelemetry/api'
+// packages/shared/src/http-client.ts
+import * as Sentry from '@sentry/node'
 
-const meter = metrics.getMeter('hta-app')
-
-// API Metrics
-export const apiMetrics = {
-  requestDuration: meter.createHistogram('http.server.duration', {
-    description: 'HTTP request duration',
-    unit: 'ms',
-  }),
-  requestCount: meter.createCounter('http.server.requests', {
-    description: 'Total HTTP requests',
-  }),
-  activeRequests: meter.createUpDownCounter('http.server.active_requests', {
-    description: 'Active HTTP requests',
-  }),
-  errorCount: meter.createCounter('http.server.errors', {
-    description: 'HTTP error count',
-  }),
+export async function fetchWithTracing(url: string, options: RequestInit = {}) {
+  return Sentry.startSpan(
+    { name: `HTTP ${options.method || 'GET'} ${new URL(url).pathname}`, op: 'http.client' },
+    async (span) => {
+      // Sentry injects trace headers automatically with fetch instrumentation
+      const response = await fetch(url, options)
+      
+      span?.setAttributes({
+        'http.status_code': response.status,
+        'http.url': url,
+      })
+      
+      return response
+    }
+  )
 }
+```
 
-// Database Metrics
-export const dbMetrics = {
-  queryDuration: meter.createHistogram('db.query.duration', {
-    description: 'Database query duration',
-    unit: 'ms',
-  }),
-  connectionPoolSize: meter.createObservableGauge('db.pool.size', {
-    description: 'Connection pool size',
-  }),
-  connectionPoolWaiting: meter.createObservableGauge('db.pool.waiting', {
-    description: 'Connections waiting',
-  }),
-}
+### 16.4 Custom Metrics via Sentry
 
-// Worker Metrics
-export const workerMetrics = {
-  jobsProcessed: meter.createCounter('worker.jobs.processed', {
-    description: 'Jobs processed',
-  }),
-  jobDuration: meter.createHistogram('worker.job.duration', {
-    description: 'Job processing duration',
-    unit: 'ms',
-  }),
-  queueDepth: meter.createObservableGauge('worker.queue.depth', {
-    description: 'Jobs in queue',
-  }),
+```typescript
+// packages/shared/src/metrics.ts
+import * as Sentry from '@sentry/node'
+
+// Track custom metrics using Sentry's metrics API
+export const metrics = {
+  // API Metrics
+  trackApiRequest(route: string, duration: number, statusCode: number) {
+    Sentry.metrics.distribution('api.request.duration', duration, {
+      unit: 'millisecond',
+      tags: { route, status: String(statusCode) },
+    })
+    Sentry.metrics.increment('api.request.count', 1, {
+      tags: { route, status: String(statusCode) },
+    })
+  },
+
+  // Database Metrics
+  trackDbQuery(operation: string, duration: number) {
+    Sentry.metrics.distribution('db.query.duration', duration, {
+      unit: 'millisecond',
+      tags: { operation },
+    })
+  },
+
+  // Worker Metrics
+  trackJobProcessed(jobType: string, duration: number, success: boolean) {
+    Sentry.metrics.distribution('worker.job.duration', duration, {
+      unit: 'millisecond',
+      tags: { job_type: jobType, success: String(success) },
+    })
+    Sentry.metrics.increment('worker.job.count', 1, {
+      tags: { job_type: jobType, success: String(success) },
+    })
+  },
+
+  // Queue depth (call periodically)
+  trackQueueDepth(depth: number) {
+    Sentry.metrics.gauge('worker.queue.depth', depth)
+  },
 }
 ```
 
@@ -2419,6 +2432,7 @@ export const workerMetrics = {
 ```typescript
 // packages/shared/src/logger.ts
 import pino from 'pino'
+import * as Sentry from '@sentry/node'
 
 const isProduction = process.env.NODE_ENV === 'production'
 
@@ -2437,19 +2451,25 @@ export function createLogger(name: string) {
       : {
           transport: { target: 'pino-pretty' },
         }),
-    // Include trace context in logs
+    // Include Sentry trace context in logs
     mixin() {
-      const span = trace.getActiveSpan()
+      const span = Sentry.getActiveSpan()
       if (span) {
         const { traceId, spanId } = span.spanContext()
         return {
-          'logging.googleapis.com/trace': `projects/${process.env.GCP_PROJECT_ID}/traces/${traceId}`,
-          'logging.googleapis.com/spanId': spanId,
+          'trace_id': traceId,
+          'span_id': spanId,
         }
       }
       return {}
     },
   })
+}
+
+// Also send errors to Sentry
+export function logError(logger: pino.Logger, error: Error, context?: Record<string, unknown>) {
+  logger.error({ error, ...context }, error.message)
+  Sentry.captureException(error, { extra: context })
 }
 ```
 
@@ -4053,3 +4073,4 @@ Initiate rollback if:
 | 1.1 | 2026-04-13 | Added Docker, GitHub Actions, expanded Testing sections |
 | 1.2 | 2026-04-13 | Added Monitoring, Secrets, Performance, Compliance sections |
 | 1.3 | 2026-04-13 | Added existing feature migration inventory (Phases 1-4), expanded shared packages migration, notification processing in Worker |
+| 1.4 | 2026-04-13 | Replaced OpenTelemetry with Sentry for monitoring (already configured) |
