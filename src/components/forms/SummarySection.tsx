@@ -3,10 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FlaskConical, Factory, Calendar, AlertTriangle, CheckCircle2, Loader2, FileText, UserCheck } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FormSection } from './FormSection'
 import { ReviewerSelect } from './ReviewerSelect'
+import { CustomerAutocomplete } from './CustomerAutocomplete'
 import { useCertificateStore } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
 
@@ -89,11 +89,11 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
       feedbackSlot={feedbackSlot}
       disabled={disabled}
     >
-      <div className="space-y-8">
+      <div className="space-y-4 p-5 rounded-xl border border-slate-300 bg-section-inner">
         {isNewCertificate ? (
           <>
             {/* Certificate Number - Editable */}
-            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <div className="bg-white rounded-xl p-4 border border-slate-200">
               <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                 Certificate Number <span className="text-red-500">*</span>
               </Label>
@@ -107,7 +107,7 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                   onChange={(e) => setFormField('certificateNumber', e.target.value)}
                   placeholder="e.g., HTA/12345/24/01"
                   className={cn(
-                    "w-full rounded-xl border-slate-200 h-12 pl-12 pr-12 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs",
+                    "w-full rounded-xl border-slate-300 h-12 pl-12 pr-12 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs",
                     numberExists === true && "border-amber-500 focus:border-amber-500 focus:ring-amber-500 font-semibold text-xs md:text-xs",
                     numberExists === false && formData.certificateNumber.length >= 3 && "border-green-500 focus:border-green-500 focus:ring-green-500"
                   )}
@@ -143,20 +143,10 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
             </div>
 
             {/* Reviewer Selection - Editable */}
-            <div className="bg-purple-50/50 rounded-2xl p-6 border border-purple-100 shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <UserCheck className="size-5 text-purple-600" />
-                </div>
-                <div>
-                  <Label className="block text-xs font-bold text-purple-700 uppercase tracking-wider">
-                    Assign Reviewer <span className="text-red-500">*</span>
-                  </Label>
-                  <p className="text-[10px] text-purple-500 mt-0.5">
-                    Select an engineer or admin to review this certificate
-                  </p>
-                </div>
-              </div>
+            <div className="bg-white rounded-xl p-4 border border-slate-200">
+              <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+                Assign Reviewer <span className="text-red-500">*</span>
+              </Label>
               <ReviewerSelect
                 value={formData.reviewerId}
                 onChange={(reviewerId) => setFormField('reviewerId', reviewerId)}
@@ -165,8 +155,8 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
             </div>
 
             {/* Calibrated At - Editable */}
-            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
-              <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+            <div className="bg-white rounded-xl p-4 border border-slate-200">
+              <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                 Calibrated At <span className="text-red-500">*</span>
               </Label>
               <div className="flex flex-wrap gap-4">
@@ -183,7 +173,7 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                     "p-4 rounded-xl border-2 bg-white transition-all text-center",
                     formData.calibratedAt === 'LAB'
                       ? "border-primary bg-primary/5"
-                      : "border-slate-100"
+                      : "border-slate-300"
                   )}>
                     <FlaskConical className={cn(
                       "size-6 mx-auto mb-2",
@@ -211,7 +201,7 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                     "p-4 rounded-xl border-2 bg-white transition-all text-center",
                     formData.calibratedAt === 'SITE'
                       ? "border-primary bg-primary/5"
-                      : "border-slate-100"
+                      : "border-slate-300"
                   )}>
                     <Factory className={cn(
                       "size-6 mx-auto mb-2",
@@ -275,7 +265,7 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
 
         {/* SRF Details */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-slate-50/50 rounded-2xl p-3 pb-5 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-xl p-4 border border-slate-200">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               SRF Number <span className="text-red-500">*</span>
             </Label>
@@ -284,10 +274,10 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
               value={formData.srfNumber}
               onChange={(e) => setFormField('srfNumber', e.target.value)}
               placeholder="Enter SRF Number"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs"
             />
           </div>
-          <div className="bg-slate-50/50 rounded-2xl p-3 pb-5 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-xl p-4 border border-slate-200">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               SRF Date <span className="text-red-500">*</span>
             </Label>
@@ -295,16 +285,16 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
               type="date"
               value={formData.srfDate}
               onChange={(e) => setFormField('srfDate', e.target.value)}
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-semibold text-xs md:text-xs"
             />
           </div>
         </div>
 
         {/* Date and Tenure Row */}
-        <div className={cn("grid gap-8", isNewCertificate ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
+        <div className={cn("grid gap-4", isNewCertificate ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1")}>
           {/* Date of Calibration - Only editable for DRAFT */}
           {isNewCertificate && (
-            <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+            <div className="bg-white rounded-xl p-4 border border-slate-200">
               <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
                 Date of Calibration <span className="text-red-500">*</span>
               </Label>
@@ -312,13 +302,13 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                 type="date"
                 value={formData.dateOfCalibration}
                 onChange={(e) => setFormField('dateOfCalibration', e.target.value)}
-                className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary"
+                className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary"
               />
             </div>
           )}
 
           {/* Calibration Tenure */}
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-xl p-4 border border-slate-200">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               Calibration Tenure
             </Label>
@@ -329,10 +319,10 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                   type="button"
                   onClick={() => setFormField('calibrationTenure', tenure)}
                   className={cn(
-                    "flex-1 py-2.5 rounded-lg font-bold text-sm transition-all",
+                    "flex-1 py-2.5 rounded-lg font-bold text-sm transition-all border",
                     formData.calibrationTenure === tenure
-                      ? "bg-primary text-white"
-                      : "border border-slate-200 hover:bg-slate-50"
+                      ? "bg-primary text-white border-primary"
+                      : "border-slate-300 hover:bg-slate-50"
                   )}
                 >
                   {tenure} Mo
@@ -411,10 +401,10 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
                         type="button"
                         onClick={() => setFormField('dueDateAdjustment', days)}
                         className={cn(
-                          "w-10 h-8 rounded-lg text-xs font-bold transition-all",
+                          "w-10 h-8 rounded-lg text-xs font-bold transition-all border",
                           formData.dueDateAdjustment === days
-                            ? "bg-primary text-white"
-                            : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                            ? "bg-primary text-white border-primary"
+                            : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
                         )}
                       >
                         {days === 0 ? '0' : days}
@@ -428,31 +418,21 @@ export function SummarySection({ isNewCertificate = true, certificateId, reviewe
         </div>
 
         {/* Customer Information */}
-        <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm space-y-6">
-          <div>
-            <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              Customer Name <span className="text-red-500">*</span>
-            </Label>
-            <Input
-              type="text"
-              value={formData.customerName}
-              onChange={(e) => setFormField('customerName', e.target.value)}
-              placeholder="Enter customer name"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-semibold"
-            />
-          </div>
-          <div>
-            <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-              Full Address <span className="text-red-500">*</span>
-            </Label>
-            <Textarea
-              value={formData.customerAddress}
-              onChange={(e) => setFormField('customerAddress', e.target.value)}
-              placeholder="Enter customer address"
-              rows={3}
-              className="w-full rounded-xl border-slate-200 px-4 py-3 focus:ring-primary focus:border-primary font-medium"
-            />
-          </div>
+        <div className="bg-white rounded-xl p-4 border border-slate-200">
+          <CustomerAutocomplete
+            value={formData.customerName}
+            address={formData.customerAddress}
+            contactName={formData.customerContactName}
+            contactEmail={formData.customerContactEmail}
+            onCustomerSelect={(customer) => {
+              setFormField('customerName', customer.name)
+              setFormField('customerAddress', customer.address)
+            }}
+            onNameChange={(name) => setFormField('customerName', name)}
+            onAddressChange={(address) => setFormField('customerAddress', address)}
+            onContactNameChange={(name) => setFormField('customerContactName', name)}
+            onContactEmailChange={(email) => setFormField('customerContactEmail', email)}
+          />
         </div>
       </div>
     </FormSection>

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { notifyCustomerOnRegistrationRejected } from '@/lib/services/notifications'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('registrations')
 
 // POST /api/admin/registrations/[id]/reject - Reject customer registration (Master Admin only)
 export async function POST(
@@ -68,7 +71,7 @@ export async function POST(
       message: 'Registration rejected',
     })
   } catch (error) {
-    console.error('Error rejecting registration:', error)
+    logger.error({ err: error }, 'Failed to reject registration')
     return NextResponse.json(
       { error: 'Failed to reject registration' },
       { status: 500 }

@@ -6,6 +6,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-section-inner: var(--section-inner);
+  --color-card-contents: var(--card-contents);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-signature: var(--font-caveat);
@@ -51,16 +53,18 @@
   --radius: 0.625rem;
   /* HTA Teal Color Scheme */
   --background: #f5f8f8;
+  --section-inner: #dae1ea;
   --foreground: #1e293b;
   --card: #ffffff;
   --card-foreground: #1e293b;
+  --card-contents: #cce0e4;
   --popover: #ffffff;
   --popover-foreground: #1e293b;
   --primary: #00687a;
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;
   --secondary-foreground: #1e293b;
-  --muted: #f1f5f9;
+  --muted: #dae1ea;
   --muted-foreground: #64748b;
   --accent: #00687a10;
   --accent-foreground: #00687a;
@@ -85,6 +89,7 @@
 
 .dark {
   --background: #0f2023;
+  --section-inner: #334155;
   --foreground: #f8fafc;
   --card: #1e293b;
   --card-foreground: #f8fafc;

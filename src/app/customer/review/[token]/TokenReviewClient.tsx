@@ -153,7 +153,7 @@ export function TokenReviewClient({
   const isCompleted = ['APPROVED', 'PENDING_ADMIN_AUTHORIZATION', 'PENDING_ADMIN_APPROVAL', 'AUTHORIZED'].includes(certificate.status)
 
   return (
-    <div className="p-3 h-full">
+    <div className="p-3 h-screen overflow-hidden">
       {/* Master Bounding Box */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
         {/* TAT Banner - Inside the bounding box */}
@@ -249,7 +249,7 @@ export function TokenReviewClient({
               {/* Content Area - Scrollable */}
               <div className="flex-1 overflow-auto">
                 {viewMode === 'details' ? (
-                  <div className="p-6 space-y-6">
+                  <div className="p-6 space-y-6 bg-section-inner">
                     <TokenReviewContent
                       certificate={certificate}
                       signatures={signatures}
@@ -265,8 +265,8 @@ export function TokenReviewClient({
             </div>
           </div>
 
-          {/* Right Panel - Collapsible Chat & Actions */}
-          <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+          {/* Right Panel - Fixed to screen, no independent scroll */}
+          <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-hidden">
             {/* ===== CHAT SECTION ===== */}
             <div className={cn(
               'flex flex-col bg-slate-50 rounded-lg border border-slate-200 overflow-hidden',

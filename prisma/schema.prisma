@@ -1,8 +1,3 @@
-// PostgreSQL Schema - Primary schema for all environments
-// Local dev: docker-compose.dev.yml
-// CI/Tests: docker-compose.test.yml
-// Production: Cloud SQL PostgreSQL
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,115 +6,99 @@ datasource db {
   provider = "postgresql"
 }
 
-// ====================
-// USERS
-// ====================
-
 model User {
-  id            String   @id @default(uuid())
-  email         String   @unique
-  name          String
-  passwordHash  String?
-  role            String   @default("ENGINEER")
-  isAdmin         Boolean  @default(false)
-  adminType       String?
-  assignedAdminId String?
-  assignedAdmin   User?    @relation("EngineerToAdmin", fields: [assignedAdminId], references: [id])
-  engineers       User[]   @relation("EngineerToAdmin")
-  signatureUrl  String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  googleId        String?  @unique
-  authProvider    String   @default("PASSWORD")
-  profileImageUrl String?
-
-  createdCertificates  Certificate[] @relation("CertificateCreator")
-  modifiedCertificates Certificate[] @relation("CertificateModifier")
-  reviewedCertificates Certificate[] @relation("CertificateReviewer")
-
-  events               CertificateEvent[]    @relation("EventActor")
-  submittedRevisions   CertificateRevision[] @relation("RevisionSubmitter")
-  reviewedRevisions    CertificateRevision[] @relation("RevisionReviewer")
-
-  authoredFeedback     ReviewFeedback[]      @relation("FeedbackAuthor")
-  resolvedFeedback     ReviewFeedback[]      @relation("FeedbackResolver")
-
-  signatures           Signature[]
-  notifications        Notification[]
-
-  reviewedRegistrations   CustomerRegistration[] @relation("RegistrationReviewer")
-  reviewedRequests        CustomerRequest[]      @relation("RequestReviewer")
-  managedCustomerAccounts CustomerAccount[]      @relation("AdminToCustomerAccount")
-  modifiedInstruments     MasterInstrument[]     @relation("InstrumentModifier")
-
-  chatMessages         ChatMessage[]
-  uploadedUUCImages    UUCImage[]
-
-  requestedInternalRequests  InternalRequest[] @relation("InternalRequestedBy")
-  reviewedInternalRequests   InternalRequest[] @relation("InternalRequestReviewer")
+  id                             String                        @id @default(uuid())
+  email                          String                        @unique
+  name                           String
+  passwordHash                   String?
+  role                           String                        @default("ENGINEER")
+  isAdmin                        Boolean                       @default(false)
+  adminType                      String?
+  assignedAdminId                String?
+  signatureUrl                   String?
+  isActive                       Boolean                       @default(false)
+  activationToken                String?                       @unique
+  activationExpiry               DateTime?
+  activatedAt                    DateTime?
+  createdAt                      DateTime                      @default(now())
+  updatedAt                      DateTime                      @updatedAt
+  googleId                       String?                       @unique
+  authProvider                   String                        @default("PASSWORD")
+  profileImageUrl                String?
+  createdCertificates            Certificate[]                 @relation("CertificateCreator")
+  modifiedCertificates           Certificate[]                 @relation("CertificateModifier")
+  reviewedCertificates           Certificate[]                 @relation("CertificateReviewer")
+  events                         CertificateEvent[]            @relation("EventActor")
+  uploadedCertificateImages      CertificateImage[]            @relation("CertificateImageUploader")
+  reviewedRevisions              CertificateRevision[]         @relation("RevisionReviewer")
+  submittedRevisions             CertificateRevision[]         @relation("RevisionSubmitter")
+  chatMessages                   ChatMessage[]
+  managedCustomerAccounts        CustomerAccount[]             @relation("AdminToCustomerAccount")
+  reviewedRegistrations          CustomerRegistration[]        @relation("RegistrationReviewer")
+  reviewedRequests               CustomerRequest[]             @relation("RequestReviewer")
+  sentDownloadTokens             DownloadToken[]               @relation("DownloadTokenSender")
+  requestedInternalRequests      InternalRequest[]             @relation("InternalRequestedBy")
+  reviewedInternalRequests       InternalRequest[]             @relation("InternalRequestReviewer")
+  modifiedInstruments            MasterInstrument[]            @relation("InstrumentModifier")
+  uploadedInstrumentCertificates MasterInstrumentCertificate[] @relation("InstrumentCertificateUploader")
+  notifications                  Notification[]
+  passwordResetTokens            PasswordResetToken[]
+  resolvedFeedback               ReviewFeedback[]              @relation("FeedbackResolver")
+  authoredFeedback               ReviewFeedback[]              @relation("FeedbackAuthor")
+  signatures                     Signature[]
+  uploadedUUCImages              UUCImage[]
+  assignedAdmin                  User?                         @relation("EngineerToAdmin", fields: [assignedAdminId], references: [id])
+  engineers                      User[]                        @relation("EngineerToAdmin")
 }
 
 model CustomerUser {
-  id                 String   @id @default(uuid())
-  email              String   @unique
-  name               String
-  passwordHash       String?
-  companyName        String?
-  customerAccountId  String?
-  isActive           Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @default(now()) @updatedAt
-
-  isPoc              Boolean   @default(false)
-  activatedAt        DateTime?
-  activationToken    String?   @unique
-  activationExpiry   DateTime?
-
-  customerAccount    CustomerAccount?  @relation("CustomerUsers", fields: [customerAccountId], references: [id])
-  pocForAccount      CustomerAccount?  @relation("PrimaryPOC")
-  signatures         Signature[]
-  approvalTokens     ApprovalToken[]
-  notifications      Notification[]
-  events             CertificateEvent[]
-  chatMessages       ChatMessage[]
-  requestedRequests  CustomerRequest[] @relation("RequestedBy")
+  id                  String               @id @default(uuid())
+  email               String               @unique
+  name                String
+  passwordHash        String?
+  companyName         String?
+  customerAccountId   String?
+  isActive            Boolean              @default(false)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @default(now()) @updatedAt
+  isPoc               Boolean              @default(false)
+  activatedAt         DateTime?
+  activationToken     String?              @unique
+  activationExpiry    DateTime?
+  approvalTokens      ApprovalToken[]
+  events              CertificateEvent[]
+  chatMessages        ChatMessage[]
+  pocForAccount       CustomerAccount?     @relation("PrimaryPOC")
+  requestedRequests   CustomerRequest[]    @relation("RequestedBy")
+  customerAccount     CustomerAccount?     @relation("CustomerUsers", fields: [customerAccountId], references: [id])
+  notifications       Notification[]
+  passwordResetTokens PasswordResetToken[]
+  signatures          Signature[]
 
   @@index([customerAccountId])
   @@index([activationToken])
 }
 
-// ====================
-// CUSTOMER ACCOUNTS
-// ====================
-
 model CustomerAccount {
-  id              String   @id @default(uuid())
-  companyName     String   @unique
+  id              String                 @id @default(uuid())
+  companyName     String                 @unique
   address         String?
   contactEmail    String?
   contactPhone    String?
   assignedAdminId String?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  primaryPocId  String?  @unique
-  primaryPoc    CustomerUser? @relation("PrimaryPOC", fields: [primaryPocId], references: [id])
-
-  assignedAdmin User?                   @relation("AdminToCustomerAccount", fields: [assignedAdminId], references: [id])
-  users         CustomerUser[]          @relation("CustomerUsers")
-  registrations CustomerRegistration[]
-  requests      CustomerRequest[]
+  isActive        Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  primaryPocId    String?                @unique
+  assignedAdmin   User?                  @relation("AdminToCustomerAccount", fields: [assignedAdminId], references: [id])
+  primaryPoc      CustomerUser?          @relation("PrimaryPOC", fields: [primaryPocId], references: [id])
+  registrations   CustomerRegistration[]
+  requests        CustomerRequest[]
+  users           CustomerUser[]         @relation("CustomerUsers")
 
   @@index([companyName])
   @@index([assignedAdminId])
 }
-
-// ====================
-// GOOGLE OAUTH WHITELIST
-// ====================
 
 model AllowedGoogleEmail {
   id        String   @id @default(uuid())
@@ -137,104 +116,75 @@ model AllowedGoogleEmail {
   @@index([type])
 }
 
-// ====================
-// CUSTOMER REGISTRATION
-// ====================
-
 model CustomerRegistration {
-  id                String    @id @default(uuid())
-  email             String    @unique
+  id                String          @id @default(uuid())
+  email             String          @unique
   name              String
   passwordHash      String
   customerAccountId String
-  status            String    @default("PENDING")
+  status            String          @default("PENDING")
   reviewedById      String?
   reviewedAt        DateTime?
   rejectionReason   String?
-  createdAt         DateTime  @default(now())
-
-  customerAccount CustomerAccount @relation(fields: [customerAccountId], references: [id])
-  reviewedBy      User?           @relation("RegistrationReviewer", fields: [reviewedById], references: [id])
+  createdAt         DateTime        @default(now())
+  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id])
+  reviewedBy        User?           @relation("RegistrationReviewer", fields: [reviewedById], references: [id])
 
   @@index([status])
   @@index([customerAccountId])
-}
-
-// ====================
-// CUSTOMER REQUESTS (POC-initiated)
-// ====================
-
-enum CustomerRequestType {
-  USER_ADDITION
-  POC_CHANGE
-}
-
-enum CustomerRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
 }
 
 model CustomerRequest {
   id                String                @id @default(uuid())
   type              CustomerRequestType
   status            CustomerRequestStatus @default(PENDING)
-
   customerAccountId String
-  customerAccount   CustomerAccount @relation(fields: [customerAccountId], references: [id])
-
   requestedById     String?
-  requestedBy       CustomerUser? @relation("RequestedBy", fields: [requestedById], references: [id])
-
   data              String
-
   reviewedById      String?
-  reviewedBy        User?    @relation("RequestReviewer", fields: [reviewedById], references: [id])
   reviewedAt        DateTime?
   rejectionReason   String?
-
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  customerAccount   CustomerAccount       @relation(fields: [customerAccountId], references: [id])
+  requestedBy       CustomerUser?         @relation("RequestedBy", fields: [requestedById], references: [id])
+  reviewedBy        User?                 @relation("RequestReviewer", fields: [reviewedById], references: [id])
 
   @@index([customerAccountId])
   @@index([status])
   @@index([type])
 }
 
-// ====================
-// MASTER INSTRUMENTS (Versioned)
-// ====================
-
 model MasterInstrument {
-  id                   String    @id @default(uuid())
-
-  instrumentId         String
-  version              Int       @default(1)
-  isLatest             Boolean   @default(true)
-
-  legacyId             Int?
-  category             String
-  description          String
-  make                 String
-  model                String
-  assetNumber          String
-  serialNumber         String
-  usage                String?
-  calibratedAtLocation String?
-  reportNo             String?
-  calibrationDueDate   DateTime?
-  rangeData            Json?     // PostgreSQL native JSON
-  remarks              String?
-  status               String?
-  isActive             Boolean   @default(true)
-
-  createdAt            DateTime  @default(now())
-  createdById          String?
-  changeReason         String?
-
-  importedFromJson     Boolean   @default(false)
-
-  createdBy            User?     @relation("InstrumentModifier", fields: [createdById], references: [id])
+  id                      String                        @id @default(uuid())
+  instrumentId            String
+  version                 Int                           @default(1)
+  isLatest                Boolean                       @default(true)
+  legacyId                Int?
+  category                String
+  description             String
+  make                    String
+  model                   String
+  assetNumber             String
+  serialNumber            String
+  usage                   String?
+  calibratedAtLocation    String?
+  reportNo                String?
+  calibrationDueDate      DateTime?
+  rangeData               Json?
+  remarks                 String?
+  status                  String?
+  isActive                Boolean                       @default(true)
+  createdAt               DateTime                      @default(now())
+  createdById             String?
+  changeReason            String?
+  importedFromJson        Boolean                       @default(false)
+  parameterCapabilities   String[]                      @default([])
+  parameterGroup          String?
+  parameterRoles          String[]                      @default([])
+  sopReferences           String[]                      @default([])
+  createdBy               User?                         @relation("InstrumentModifier", fields: [createdById], references: [id])
+  calibrationCertificates MasterInstrumentCertificate[]
 
   @@unique([instrumentId, version])
   @@index([instrumentId, isLatest])
@@ -242,245 +192,211 @@ model MasterInstrument {
   @@index([description])
   @@index([assetNumber])
   @@index([calibrationDueDate])
+  @@index([parameterGroup])
 }
 
-// ====================
-// CERTIFICATES
-// ====================
+model MasterInstrumentCertificate {
+  id                 String           @id @default(uuid())
+  masterInstrumentId String
+  fileName           String
+  fileSize           Int
+  mimeType           String           @default("application/pdf")
+  storagePath        String
+  reportNo           String?
+  validFrom          DateTime?
+  validUntil         DateTime?
+  uploadedAt         DateTime         @default(now())
+  uploadedById       String
+  isActive           Boolean          @default(true)
+  isLatest           Boolean          @default(true)
+  masterInstrument   MasterInstrument @relation(fields: [masterInstrumentId], references: [id], onDelete: Cascade)
+  uploadedBy         User             @relation("InstrumentCertificateUploader", fields: [uploadedById], references: [id])
+
+  @@index([masterInstrumentId])
+  @@index([masterInstrumentId, isLatest])
+  @@index([reportNo])
+}
 
 model Certificate {
-  id                String   @id @default(uuid())
-  certificateNumber String   @unique
-  status            String   @default("DRAFT")
-  currentRevision   Int      @default(1)
-
-  reviewerId        String?
-  reviewer          User?    @relation("CertificateReviewer", fields: [reviewerId], references: [id])
-
-  customerApprovedAt DateTime?
-
-  calibratedAt       String?
-  srfNumber          String?
-  srfDate            DateTime?
-  dateOfCalibration  DateTime?
-  calibrationTenure      Int      @default(12)
-  dueDateAdjustment      Int      @default(0)
-  calibrationDueDate     DateTime?
-  dueDateNotApplicable   Boolean  @default(false)
-  customerName           String?
-  customerAddress    String?
-
-  uucDescription  String?
-  uucMake         String?
-  uucModel        String?
-  uucSerialNumber String?
-  uucInstrumentId String?
-  uucLocationName String?
-  uucMachineName  String?
-
-  ambientTemperature String?
-  relativeHumidity   String?
-
-  calibrationStatus Json?     // PostgreSQL native JSON
-  stickerOldRemoved String?
-  stickerNewAffixed String?
-  statusNotes       String?
-
-  selectedConclusionStatements Json?   // PostgreSQL native JSON
+  id                            String                        @id @default(uuid())
+  certificateNumber             String                        @unique
+  status                        String                        @default("DRAFT")
+  currentRevision               Int                           @default(1)
+  reviewerId                    String?
+  customerApprovedAt            DateTime?
+  calibratedAt                  String?
+  srfNumber                     String?
+  srfDate                       DateTime?
+  dateOfCalibration             DateTime?
+  calibrationTenure             Int                           @default(12)
+  dueDateAdjustment             Int                           @default(0)
+  calibrationDueDate            DateTime?
+  dueDateNotApplicable          Boolean                       @default(false)
+  customerName                  String?
+  customerAddress               String?
+  uucDescription                String?
+  uucMake                       String?
+  uucModel                      String?
+  uucSerialNumber               String?
+  uucInstrumentId               String?
+  uucLocationName               String?
+  uucMachineName                String?
+  ambientTemperature            String?
+  relativeHumidity              String?
+  calibrationStatus             Json?
+  stickerOldRemoved             String?
+  stickerNewAffixed             String?
+  statusNotes                   String?
+  selectedConclusionStatements  Json?
   additionalConclusionStatement String?
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  createdById      String
-  lastModifiedById String
-
-  createdBy        User     @relation("CertificateCreator", fields: [createdById], references: [id])
-  lastModifiedBy   User     @relation("CertificateModifier", fields: [lastModifiedById], references: [id])
-
-  parameters        Parameter[]
-  masterInstruments CertificateMasterInstrument[]
-
-  events    CertificateEvent[]
-  revisions CertificateRevision[]
-  feedbacks ReviewFeedback[]
-
-  signatures     Signature[]
-  approvalTokens ApprovalToken[]
-
-  signedPdfPath  String?
-
-  openSignDocuments OpenSignDocument[]
-  signingEvidence SigningEvidence[]
-  notifications  Notification[]
-
-  chatThreads    ChatThread[]
-  uucImages      UUCImage[]
-  internalRequests InternalRequest[]
+  createdAt                     DateTime                      @default(now())
+  updatedAt                     DateTime                      @updatedAt
+  createdById                   String
+  lastModifiedById              String
+  signedPdfPath                 String?
+  customerContactName           String?
+  customerContactEmail          String?
+  approvalTokens                ApprovalToken[]
+  createdBy                     User                          @relation("CertificateCreator", fields: [createdById], references: [id])
+  lastModifiedBy                User                          @relation("CertificateModifier", fields: [lastModifiedById], references: [id])
+  reviewer                      User?                         @relation("CertificateReviewer", fields: [reviewerId], references: [id])
+  events                        CertificateEvent[]
+  certificateImages             CertificateImage[]
+  masterInstruments             CertificateMasterInstrument[]
+  revisions                     CertificateRevision[]
+  chatThreads                   ChatThread[]
+  downloadTokens                DownloadToken[]
+  internalRequests              InternalRequest[]
+  notifications                 Notification[]
+  openSignDocuments             OpenSignDocument[]
+  parameters                    Parameter[]
+  feedbacks                     ReviewFeedback[]
+  signatures                    Signature[]
+  signingEvidence               SigningEvidence[]
+  uucImages                     UUCImage[]
 
   @@index([status])
   @@index([createdById])
   @@index([reviewerId])
 }
 
-// ====================
-// CERTIFICATE EVENT
-// ====================
-
 model CertificateEvent {
-  id             String   @id @default(uuid())
+  id             String           @id @default(uuid())
   certificateId  String
   sequenceNumber Int
   revision       Int
-
-  eventType String
-  eventData Json    // PostgreSQL native JSON
-
-  userId     String?
-  customerId String?
-  userRole   String
-
-  createdAt DateTime @default(now())
-
-  certificate Certificate      @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  user        User?            @relation("EventActor", fields: [userId], references: [id])
-  customer    CustomerUser?    @relation(fields: [customerId], references: [id])
-  feedbacks   ReviewFeedback[]
+  eventType      String
+  eventData      Json
+  userId         String?
+  customerId     String?
+  userRole       String
+  createdAt      DateTime         @default(now())
+  certificate    Certificate      @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  customer       CustomerUser?    @relation(fields: [customerId], references: [id])
+  user           User?            @relation("EventActor", fields: [userId], references: [id])
+  feedbacks      ReviewFeedback[]
 
   @@unique([certificateId, sequenceNumber])
   @@index([certificateId, createdAt])
   @@index([certificateId, revision])
 }
 
-// ====================
-// CERTIFICATE REVISION
-// ====================
-
 model CertificateRevision {
-  id             String @id @default(uuid())
+  id             String      @id @default(uuid())
   certificateId  String
   revisionNumber Int
-
-  snapshotData Json    // PostgreSQL native JSON
-
-  status        String
-  submittedAt   DateTime?
-  submittedById String?
-  reviewedAt    DateTime?
-  reviewedById  String?
-  reviewOutcome String?
-  reviewNotes   String?
-
-  fromEventSeq Int
-  toEventSeq   Int
-
-  createdAt DateTime @default(now())
-
-  certificate Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  submittedBy User?       @relation("RevisionSubmitter", fields: [submittedById], references: [id])
-  reviewedBy  User?       @relation("RevisionReviewer", fields: [reviewedById], references: [id])
+  snapshotData   Json
+  status         String
+  submittedAt    DateTime?
+  submittedById  String?
+  reviewedAt     DateTime?
+  reviewedById   String?
+  reviewOutcome  String?
+  reviewNotes    String?
+  fromEventSeq   Int
+  toEventSeq     Int
+  createdAt      DateTime    @default(now())
+  certificate    Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  reviewedBy     User?       @relation("RevisionReviewer", fields: [reviewedById], references: [id])
+  submittedBy    User?       @relation("RevisionSubmitter", fields: [submittedById], references: [id])
 
   @@unique([certificateId, revisionNumber])
   @@index([certificateId, createdAt])
 }
 
-// ====================
-// REVIEW FEEDBACK
-// ====================
-
 model ReviewFeedback {
-  id             String  @id @default(uuid())
+  id             String            @id @default(uuid())
   certificateId  String
   revisionNumber Int
   eventId        String?
-
-  feedbackType  String
-  targetField   String?
-  targetSection String?
-
-  comment      String
-  isResolved   Boolean   @default(false)
-  resolvedAt   DateTime?
-  resolvedById String?
-
-  userId    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  certificate Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  event       CertificateEvent? @relation(fields: [eventId], references: [id])
-  user        User              @relation("FeedbackAuthor", fields: [userId], references: [id])
-  resolvedBy  User?             @relation("FeedbackResolver", fields: [resolvedById], references: [id])
+  feedbackType   String
+  targetField    String?
+  targetSection  String?
+  comment        String
+  isResolved     Boolean           @default(false)
+  resolvedAt     DateTime?
+  resolvedById   String?
+  userId         String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  certificate    Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  event          CertificateEvent? @relation(fields: [eventId], references: [id])
+  resolvedBy     User?             @relation("FeedbackResolver", fields: [resolvedById], references: [id])
+  user           User              @relation("FeedbackAuthor", fields: [userId], references: [id])
 
   @@index([certificateId, revisionNumber])
   @@index([certificateId, isResolved])
 }
 
-// ====================
-// PARAMETERS & RESULTS
-// ====================
-
 model Parameter {
-  id            String @id @default(uuid())
-  certificateId String
-
-  parameterName String
-  parameterUnit String
-  rangeMin      String?
-  rangeMax      String?
-  rangeUnit     String?
-  operatingMin  String?
-  operatingMax  String?
-  operatingUnit String?
-  leastCountValue String?
-  leastCountUnit  String?
-  accuracyValue   String?
-  accuracyUnit    String?
-  accuracyType    String  @default("ABSOLUTE")
-  errorFormula    String  @default("A-B")
-  showAfterAdjustment Boolean @default(false)
-
-  requiresBinning Boolean @default(false)
-  bins            Json?   // PostgreSQL native JSON
-
-  sopReference       String?
-  masterInstrumentId String?
-
-  sortOrder Int @default(0)
-
-  certificate Certificate         @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  results     CalibrationResult[]
-  masterInstruments CertificateMasterInstrument[]
+  id                  String                        @id @default(uuid())
+  certificateId       String
+  parameterName       String
+  parameterUnit       String
+  rangeMin            String?
+  rangeMax            String?
+  rangeUnit           String?
+  operatingMin        String?
+  operatingMax        String?
+  operatingUnit       String?
+  leastCountValue     String?
+  leastCountUnit      String?
+  accuracyValue       String?
+  accuracyUnit        String?
+  accuracyType        String                        @default("ABSOLUTE")
+  errorFormula        String                        @default("A-B")
+  showAfterAdjustment Boolean                       @default(false)
+  requiresBinning     Boolean                       @default(false)
+  bins                Json?
+  sopReference        String?
+  masterInstrumentId  String?
+  sortOrder           Int                           @default(0)
+  results             CalibrationResult[]
+  masterInstruments   CertificateMasterInstrument[]
+  certificate         Certificate                   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
 
   @@index([certificateId])
 }
 
 model CalibrationResult {
-  id          String @id @default(uuid())
-  parameterId String
-
+  id               String    @id @default(uuid())
+  parameterId      String
   pointNumber      Int
   standardReading  String?
   beforeAdjustment String?
   afterAdjustment  String?
   errorObserved    Float?
-  isOutOfLimit     Boolean @default(false)
-
-  parameter Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  isOutOfLimit     Boolean   @default(false)
+  parameter        Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
 
   @@index([parameterId])
 }
 
-// ====================
-// MASTER INSTRUMENT LINKS
-// ====================
-
 model CertificateMasterInstrument {
-  id                 String  @id @default(uuid())
+  id                 String      @id @default(uuid())
   certificateId      String
   parameterId        String?
-
   masterInstrumentId String
-
   category           String?
   description        String?
   make               String?
@@ -490,33 +406,26 @@ model CertificateMasterInstrument {
   calibratedAt       String?
   reportNo           String?
   calibrationDueDate String?
-
   sopReference       String
-
-  certificate      Certificate       @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  parameter        Parameter?        @relation(fields: [parameterId], references: [id])
+  certificate        Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  parameter          Parameter?  @relation(fields: [parameterId], references: [id])
 
   @@index([certificateId])
 }
 
-// ====================
-// SIGNATURES & APPROVAL
-// ====================
-
 model Signature {
-  id            String       @id @default(uuid())
+  id            String        @id @default(uuid())
   certificateId String
   signerType    String
   signerName    String
   signerEmail   String
   signatureData String
-  signedAt      DateTime     @default(now())
+  signedAt      DateTime      @default(now())
   customerId    String?
   signerId      String?
-
-  certificate Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  customer    CustomerUser? @relation(fields: [customerId], references: [id])
-  signer      User?         @relation(fields: [signerId], references: [id])
+  certificate   Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+  signer        User?         @relation(fields: [signerId], references: [id])
 }
 
 model ApprovalToken {
@@ -527,14 +436,9 @@ model ApprovalToken {
   expiresAt     DateTime
   usedAt        DateTime?
   createdAt     DateTime     @default(now())
-
-  certificate Certificate  @relation(fields: [certificateId], references: [id], onDelete: Cascade)
-  customer    CustomerUser @relation(fields: [customerId], references: [id])
+  certificate   Certificate  @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  customer      CustomerUser @relation(fields: [customerId], references: [id])
 }
-
-// ====================
-// AUDIT LOG
-// ====================
 
 model AuditLog {
   id         String   @id @default(uuid())
@@ -543,124 +447,94 @@ model AuditLog {
   action     String
   actorId    String?
   actorType  String
-  changes    Json?    // PostgreSQL native JSON
+  changes    Json?
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
 }
 
-// ====================
-// NOTIFICATIONS
-// ====================
-
 model Notification {
-  id            String   @id @default(uuid())
-
+  id            String        @id @default(uuid())
   userId        String?
   customerId    String?
-
   type          String
   title         String
   message       String
-
   certificateId String?
-
-  data          Json?    // PostgreSQL native JSON
-
-  read          Boolean  @default(false)
+  data          Json?
+  read          Boolean       @default(false)
   readAt        DateTime?
-
-  createdAt     DateTime @default(now())
-
-  user          User?         @relation(fields: [userId], references: [id])
-  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+  createdAt     DateTime      @default(now())
   certificate   Certificate?  @relation(fields: [certificateId], references: [id])
+  customer      CustomerUser? @relation(fields: [customerId], references: [id])
+  user          User?         @relation(fields: [userId], references: [id])
 
   @@index([userId, read])
   @@index([customerId, read])
   @@index([createdAt])
 }
 
-// ====================
-// OPENSIGN INTEGRATION
-// ====================
-
 model OpenSignDocument {
-  id                  String   @id @default(cuid())
-  certificateId       String
-  openSignDocumentId  String   @unique
-  signerType          String
-  signerEmail         String
-  status              String   @default("PENDING")
-  signingUrl          String?
-  signedPdfUrl        String?
-  auditTrailUrl       String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
-
-  certificate         Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  id                 String      @id @default(cuid())
+  certificateId      String
+  openSignDocumentId String      @unique
+  signerType         String
+  signerEmail        String
+  status             String      @default("PENDING")
+  signingUrl         String?
+  signedPdfUrl       String?
+  auditTrailUrl      String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  certificate        Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
 
   @@index([certificateId])
   @@index([status])
 }
 
-// ====================
-// SIGNING EVIDENCE
-// ====================
-
 model SigningEvidence {
-  id              String   @id @default(cuid())
-  certificateId   String
-  signatureId     String?
-  revision        Int
-
-  sequenceNumber  Int
-  previousHash    String
-  recordHash      String
-
-  eventType       String
-  evidence        Json     // PostgreSQL native JSON
-
-  createdAt       DateTime @default(now())
-
-  certificate     Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  certificateId  String
+  signatureId    String?
+  revision       Int
+  sequenceNumber Int
+  previousHash   String
+  recordHash     String
+  eventType      String
+  evidence       Json
+  createdAt      DateTime    @default(now())
+  certificate    Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
 
   @@unique([certificateId, sequenceNumber])
   @@index([certificateId])
   @@index([certificateId, revision])
 }
 
-// ====================
-// CHAT SYSTEM
-// ====================
-
 model ChatThread {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   certificateId String
   threadType    String
-  createdAt     DateTime @default(now())
-
-  certificate   Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
   messages      ChatMessage[]
+  certificate   Certificate   @relation(fields: [certificateId], references: [id], onDelete: Cascade)
 
   @@unique([certificateId, threadType])
   @@index([certificateId])
 }
 
 model ChatMessage {
-  id           String   @id @default(uuid())
-  threadId     String
-  senderId     String?
-  customerId   String?
-  senderType   String
-  content      String
-  createdAt    DateTime @default(now())
-  readAt       DateTime?
-
-  thread       ChatThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
-  sender       User?            @relation(fields: [senderId], references: [id])
-  customer     CustomerUser?    @relation(fields: [customerId], references: [id])
-  attachments  ChatAttachment[]
+  id          String           @id @default(uuid())
+  threadId    String
+  senderId    String?
+  customerId  String?
+  senderType  String
+  content     String
+  createdAt   DateTime         @default(now())
+  readAt      DateTime?
+  attachments ChatAttachment[]
+  customer    CustomerUser?    @relation(fields: [customerId], references: [id])
+  sender      User?            @relation(fields: [senderId], references: [id])
+  thread      ChatThread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
 
   @@index([threadId, createdAt])
   @@index([senderId])
@@ -668,49 +542,74 @@ model ChatMessage {
 }
 
 model ChatAttachment {
-  id          String   @id @default(uuid())
+  id          String      @id @default(uuid())
   messageId   String
   fileName    String
   fileSize    Int
   mimeType    String
   storagePath String
-  createdAt   DateTime @default(now())
-
+  createdAt   DateTime    @default(now())
   message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
 }
 
-// ====================
-// UUC READING IMAGES
-// ====================
-
 model UUCImage {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   certificateId String
   fileName      String
   fileSize      Int
   mimeType      String
   storagePath   String
   caption       String?
-  sortOrder     Int      @default(0)
+  sortOrder     Int         @default(0)
   uploadedById  String
-  createdAt     DateTime @default(now())
-
+  createdAt     DateTime    @default(now())
   certificate   Certificate @relation(fields: [certificateId], references: [id], onDelete: Cascade)
   uploadedBy    User        @relation(fields: [uploadedById], references: [id])
 
   @@index([certificateId, sortOrder])
 }
 
-// ====================
-// JOB QUEUE
-// ====================
+model CertificateImage {
+  id                    String               @id @default(cuid())
+  certificateId         String
+  imageType             CertificateImageType
+  masterInstrumentIndex Int?
+  parameterIndex        Int?
+  pointNumber           Int?
+  fileName              String
+  fileSize              Int
+  mimeType              String
+  storageProvider       StorageProvider
+  storageBucket         String?
+  storageKey            String
+  optimizedKey          String?
+  thumbnailKey          String?
+  version               Int                  @default(1)
+  isLatest              Boolean              @default(true)
+  supersededById        String?
+  archivedAt            DateTime?
+  caption               String?
+  uploadedAt            DateTime             @default(now())
+  uploadedById          String
+  certificateRevision   Int                  @default(1)
+  certificate           Certificate          @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  supersededBy          CertificateImage?    @relation("ImageVersions", fields: [supersededById], references: [id])
+  supersedes            CertificateImage[]   @relation("ImageVersions")
+  uploadedBy            User                 @relation("CertificateImageUploader", fields: [uploadedById], references: [id])
+
+  @@index([certificateId, imageType])
+  @@index([certificateId, imageType, isLatest])
+  @@index([certificateId, parameterIndex, pointNumber])
+  @@index([certificateId, masterInstrumentIndex])
+  @@index([storageKey])
+}
 
 model JobQueue {
   id           String    @id @default(uuid())
   type         String
-  payload      Json      // PostgreSQL native JSON
+  payload      Json
   status       String    @default("pending")
   priority     Int       @default(0)
   attempts     Int       @default(0)
@@ -724,28 +623,137 @@ model JobQueue {
   @@index([type])
 }
 
-// ====================
-// REALTIME EVENTS
-// ====================
-
 model RealtimeEvent {
-  id          String   @id @default(uuid())
-  userId      String?
-  customerId  String?
-  channel     String
-  type        String
-  data        Json     // PostgreSQL native JSON
-  delivered   Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  userId     String?
+  customerId String?
+  channel    String
+  type       String
+  data       Json
+  delivered  Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   @@index([userId, delivered, createdAt])
   @@index([customerId, delivered, createdAt])
   @@index([channel, createdAt])
 }
 
-// ====================
-// INTERNAL REQUESTS
-// ====================
+model InternalRequest {
+  id            String                @id @default(uuid())
+  type          InternalRequestType
+  status        InternalRequestStatus @default(PENDING)
+  requestedById String
+  certificateId String?
+  data          String
+  reviewedById  String?
+  reviewedAt    DateTime?
+  adminNote     String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  certificate   Certificate?          @relation(fields: [certificateId], references: [id])
+  requestedBy   User                  @relation("InternalRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy    User?                 @relation("InternalRequestReviewer", fields: [reviewedById], references: [id])
+
+  @@index([certificateId])
+  @@index([status])
+  @@index([type])
+}
+
+model RefreshToken {
+  id            String    @id @default(uuid())
+  token         String    @unique
+  userId        String?
+  customerId    String?
+  userType      String
+  expiresAt     DateTime
+  createdAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  revokedReason String?
+  replacedById  String?
+  userAgent     String?
+  ipAddress     String?
+
+  @@index([userId])
+  @@index([customerId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id         String        @id @default(uuid())
+  token      String        @unique
+  userId     String?
+  customerId String?
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime      @default(now())
+  customer   CustomerUser? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  user       User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+model DownloadToken {
+  id            String           @id @default(uuid())
+  token         String           @unique
+  certificateId String
+  customerEmail String
+  customerName  String
+  expiresAt     DateTime
+  downloadedAt  DateTime?
+  downloadCount Int              @default(0)
+  maxDownloads  Int              @default(5)
+  createdAt     DateTime         @default(now())
+  sentById      String?
+  certificate   Certificate      @relation(fields: [certificateId], references: [id], onDelete: Cascade)
+  sentBy        User?            @relation("DownloadTokenSender", fields: [sentById], references: [id])
+  accessLogs    TokenAccessLog[]
+
+  @@index([token])
+  @@index([certificateId])
+  @@index([expiresAt])
+}
+
+model TokenAccessLog {
+  id            String        @id @default(uuid())
+  tokenType     String
+  tokenId       String
+  action        String
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime      @default(now())
+  downloadToken DownloadToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([tokenId])
+  @@index([tokenType, action])
+  @@index([createdAt])
+}
+
+enum CustomerRequestType {
+  USER_ADDITION
+  POC_CHANGE
+}
+
+enum CustomerRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CertificateImageType {
+  UUC
+  MASTER_INSTRUMENT
+  READING_UUC
+  READING_MASTER
+}
+
+enum StorageProvider {
+  LOCAL
+  GCP
+}
 
 enum InternalRequestType {
   SECTION_UNLOCK
@@ -755,56 +763,4 @@ enum InternalRequestStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-model InternalRequest {
-  id                String                @id @default(uuid())
-  type              InternalRequestType
-  status            InternalRequestStatus @default(PENDING)
-
-  requestedById     String
-  requestedBy       User                  @relation("InternalRequestedBy", fields: [requestedById], references: [id])
-
-  certificateId     String?
-  certificate       Certificate?          @relation(fields: [certificateId], references: [id])
-
-  data              String
-
-  reviewedById      String?
-  reviewedBy        User?                 @relation("InternalRequestReviewer", fields: [reviewedById], references: [id])
-  reviewedAt        DateTime?
-  adminNote         String?
-
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-
-  @@index([certificateId])
-  @@index([status])
-  @@index([type])
-}
-
-// ====================
-// REFRESH TOKENS (Auth)
-// ====================
-
-model RefreshToken {
-  id            String    @id @default(uuid())
-  token         String    @unique  // Hashed refresh token
-  userId        String?   // For staff users
-  customerId    String?   // For customer users
-  userType      String    // "STAFF" | "CUSTOMER"
-  expiresAt     DateTime
-  createdAt     DateTime  @default(now())
-  revokedAt     DateTime?
-  revokedReason String?   // "LOGOUT", "PASSWORD_CHANGE", "ADMIN_REVOKE", "TOKEN_ROTATION"
-  replacedById  String?   // New token ID if rotated
-
-  // Device/session info for security
-  userAgent     String?
-  ipAddress     String?
-
-  @@index([userId])
-  @@index([customerId])
-  @@index([token])
-  @@index([expiresAt])
 }

@@ -186,6 +186,28 @@ export default async function ReviewerReviewPage({ params }: Props) {
     }
   }
 
+  // Fetch customer email from SENT_TO_CUSTOMER event if not available in customerFeedback
+  let lastSentCustomerEmail: string | null = null
+  let lastSentCustomerName: string | null = null
+
+  const latestSentEvent = await prisma.certificateEvent.findFirst({
+    where: {
+      certificateId: certificate.id,
+      eventType: 'SENT_TO_CUSTOMER',
+    },
+    orderBy: { createdAt: 'desc' },
+  })
+
+  if (latestSentEvent?.eventData) {
+    interface SentEventData {
+      customerEmail?: string
+      customerName?: string
+    }
+    const sentData = safeJsonParse<SentEventData>(latestSentEvent.eventData, {})
+    lastSentCustomerEmail = sentData.customerEmail || null
+    lastSentCustomerName = sentData.customerName || null
+  }
+
   // Serialize feedbacks for client
   const serializedFeedbacks = certificate.feedbacks.map((f) => ({
     id: f.id,
@@ -224,6 +246,8 @@ export default async function ReviewerReviewPage({ params }: Props) {
         status: certificate.status,
         customerName: certificate.customerName,
         customerAddress: certificate.customerAddress,
+        customerContactName: certificate.customerContactName,
+        customerContactEmail: certificate.customerContactEmail,
         calibratedAt: certificate.calibratedAt,
         srfNumber: certificate.srfNumber,
         srfDate: certificate.srfDate?.toISOString() || null,
@@ -290,6 +314,10 @@ export default async function ReviewerReviewPage({ params }: Props) {
       headerData={headerData}
       userRole={session.user.role || ''}
       customerFeedback={customerFeedback}
+      lastSentCustomerInfo={lastSentCustomerEmail || lastSentCustomerName ? {
+        email: lastSentCustomerEmail,
+        name: lastSentCustomerName,
+      } : null}
     />
   )
 }

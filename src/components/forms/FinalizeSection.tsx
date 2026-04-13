@@ -70,7 +70,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
   const setSelectedReviewerId = (reviewerId: string | null) => setFormField('reviewerId', reviewerId)
 
   // Get only the latest revision request feedback (feedbacks are ordered by createdAt desc from API)
-  const latestRevisionFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUEST')
+  const latestRevisionFeedback = feedbacks.find(f => f.feedbackType === 'REVISION_REQUESTED' || f.feedbackType === 'REVISION_REQUEST')
   const isRevisionRequired = formData.status === 'REVISION_REQUIRED'
 
   // Check for bin range violations (bins outside operating range)
@@ -312,7 +312,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
       title="Review & Submit"
       isDark={true}
     >
-      <div className="space-y-8">
+      <div className="space-y-8 p-5 rounded-xl border border-slate-300 bg-section-inner">
         {/* Reviewer Feedback Reference - Collapsible (only when revision required, shows latest only) */}
         {isRevisionRequired && latestRevisionFeedback && (
           <div className="rounded-2xl border-2 border-orange-200 bg-orange-50/50 overflow-hidden">
@@ -421,7 +421,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
         {/* Validation Checklist */}
         <div className={cn(
           "rounded-2xl p-6 border",
-          hasCriticalErrors ? "bg-red-50 border-red-200" : "bg-slate-50 border-slate-200"
+          hasCriticalErrors ? "bg-red-50 border-red-200" : "bg-white border-slate-300"
         )}>
           <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest mb-4">
             Validation Checklist
@@ -471,7 +471,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
             ))}
           </div>
 
-          <div className="mt-6 pt-6 border-t border-slate-200 text-center">
+          <div className="mt-6 pt-6 border-t border-slate-300 text-center">
             {hasCriticalErrors ? (
               <p className="text-red-600 font-black uppercase text-xs tracking-widest">
                 Fix critical errors before saving
@@ -499,14 +499,14 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
         )}
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="bg-white rounded-xl p-4 border border-slate-300 flex flex-col sm:flex-row gap-4">
           <Button
             type="button"
             variant="outline"
             onClick={handlePreviewPDF}
             disabled={isSubmitting}
             className={cn(
-              "flex-1 py-6 px-6 rounded-2xl border border-slate-200 bg-white text-slate-700 font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2",
+              "flex-1 py-6 px-6 rounded-2xl border border-slate-300 bg-white text-slate-700 font-bold hover:bg-slate-50 transition-all flex items-center justify-center gap-2",
               showPDFPreview && "border-primary bg-primary/5 text-primary"
             )}
           >
@@ -523,7 +523,7 @@ export function FinalizeSection({ feedbacks = [], reviewerName }: FinalizeSectio
               "flex-1 py-6 px-6 rounded-2xl border bg-white font-bold transition-all flex items-center justify-center gap-2",
               hasCriticalErrors
                 ? "border-red-300 text-red-400 cursor-not-allowed"
-                : "border-slate-200 text-slate-700 hover:bg-slate-50"
+                : "border-slate-300 text-slate-700 hover:bg-slate-50"
             )}
           >
             {isSaving ? <Loader2 className="size-5 animate-spin" /> : <Save className="size-5" />}

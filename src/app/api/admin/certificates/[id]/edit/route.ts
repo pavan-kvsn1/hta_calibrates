@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { certificateLogger as logger } from '@/lib/logger'
 
 // Allowed editable fields
 const ALLOWED_FIELDS = [
@@ -166,7 +167,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       message: `${formatFieldLabel(field)} updated successfully`,
     })
   } catch (error) {
-    console.error('Admin edit error:', error)
+    logger.error({ err: error }, 'Failed to update certificate via admin edit')
     return NextResponse.json(
       { error: 'Failed to update certificate' },
       { status: 500 }

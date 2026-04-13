@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { notifyOnSentToCustomer } from '@/lib/services/notifications'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -151,13 +152,17 @@ export async function POST(
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
     const reviewUrl = `${baseUrl}/customer/review/${result.token}`
 
-    // Send notifications (fire and forget)
+    // Send notifications (fire and forget) - includes email to customer
     notifyOnSentToCustomer({
       certificateId: certificate.id,
       certificateNumber: certificate.certificateNumber,
       assigneeId: certificate.createdById,
       customerId: result.customerId,
-    }).catch((err) => console.error('Failed to send notification:', err))
+      customerEmail: customerEmail.toLowerCase(),
+      customerName,
+      reviewToken: result.token,
+      instrumentDescription: certificate.uucDescription || undefined,
+    }).catch((err) => logger.error({ err }, 'Failed to send customer notification'))
 
     return NextResponse.json({
       success: true,
@@ -167,7 +172,7 @@ export async function POST(
       customerId: result.customerId,
     })
   } catch (error) {
-    console.error('Error sending to customer:', error)
+    logger.error({ err: error }, 'Error sending to customer')
     return NextResponse.json(
       { error: 'Failed to send to customer' },
       { status: 500 }
@@ -245,7 +250,7 @@ export async function GET(
       canResend: true,
     })
   } catch (error) {
-    console.error('Error getting customer status:', error)
+    logger.error({ err: error }, 'Error getting customer status')
     return NextResponse.json(
       { error: 'Failed to get customer status' },
       { status: 500 }

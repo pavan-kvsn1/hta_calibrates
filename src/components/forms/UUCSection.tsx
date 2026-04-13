@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { Plus, Trash2, Link2 } from 'lucide-react'
+import { useMemo, useCallback } from 'react'
+import { Plus, Trash2, Link2, Camera } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -13,6 +13,8 @@ import {
 } from '@/components/ui/select'
 import { FormSection } from './FormSection'
 import { useCertificateStore, Parameter, ParameterBin, SelectedMasterInstrument, AccuracyType, ACCURACY_TYPE_CONFIG } from '@/lib/stores/certificate-store'
+import { ImageUploadGallery, GalleryImage } from './ImageUploadGallery'
+import { useCertificateImages } from '@/lib/hooks/useCertificateImages'
 
 // Parameter types with their associated measurement units
 const PARAMETER_CONFIG: Record<string, { label: string; units: string[]; defaultUnit: string }> = {
@@ -279,7 +281,7 @@ function ParameterCard({
   const displayUnit = parameter.parameterUnit || ''
 
   return (
-    <div className="bg-slate-50 rounded-xl p-5 border border-slate-200/60">
+    <div className="bg-section-inner rounded-xl p-5 border border-slate-300">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <span className="text-xs font-extrabold text-slate-900">
@@ -309,7 +311,7 @@ function ParameterCard({
               type="checkbox"
               checked={parameter.requiresBinning}
               onChange={(e) => handleBinningToggle(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+              className="w-4 h-4 rounded border-slate-200 text-primary focus:ring-primary"
             />
             <span className="text-[10px] font-bold text-slate-500 uppercase">Requires Binning</span>
           </label>
@@ -325,8 +327,10 @@ function ParameterCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {/* Parameter Type (35%), Unit (20%), and Master Instrument Link (35%) */}
+      {/* Fields wrapped in white card */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200">
+        <div className="grid grid-cols-1 gap-6">
+          {/* Parameter Type (35%), Unit (20%), and Master Instrument Link (35%) */}
         <div className="grid grid-cols-1 md:grid-cols-[7fr_4fr_7fr] gap-4">
           <div>
             <Label className="text-[10px] font-bold text-slate-400 uppercase mb-2 block">
@@ -336,7 +340,7 @@ function ParameterCard({
               value={parameter.parameterName || '__select__'}
               onValueChange={(value) => value !== '__select__' && handleParameterTypeChange(value)}
             >
-              <SelectTrigger className="rounded-lg border-slate-200 bg-white">
+              <SelectTrigger className="rounded-lg border-slate-300 bg-white">
                 <SelectValue placeholder="Select parameter type..." />
               </SelectTrigger>
               <SelectContent>
@@ -358,7 +362,7 @@ function ParameterCard({
               onValueChange={(value) => value !== '__select__' && updateField('parameterUnit', value)}
               disabled={availableUnits.length === 0}
             >
-              <SelectTrigger className="rounded-lg border-slate-200 bg-white disabled:opacity-50">
+              <SelectTrigger className="rounded-lg border-slate-300 bg-white disabled:opacity-50">
                 <SelectValue placeholder={availableUnits.length === 0 ? "Select parameter first" : "Select unit..."} />
               </SelectTrigger>
               <SelectContent>
@@ -379,7 +383,7 @@ function ParameterCard({
               value={parameter.masterInstrumentId?.toString() || '__none__'}
               onValueChange={(value) => onMasterInstrumentChange(value === '__none__' ? null : parseInt(value, 10))}
             >
-              <SelectTrigger className="rounded-lg border-slate-200 bg-white">
+              <SelectTrigger className="rounded-lg border-slate-300 bg-white">
                 <SelectValue placeholder={
                   availableMasterInstruments.length === 0
                     ? "Select in Section 03 first"
@@ -411,7 +415,7 @@ function ParameterCard({
                 value={parameter.rangeMin}
                 onChange={(e) => updateField('rangeMin', e.target.value)}
                 placeholder="Min"
-                className="w-full rounded-lg border-slate-200 text-xs py-2"
+                className="w-full rounded-lg border-slate-300 text-xs py-2"
               />
               <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
               <Input
@@ -419,7 +423,7 @@ function ParameterCard({
                 value={parameter.rangeMax}
                 onChange={(e) => updateField('rangeMax', e.target.value)}
                 placeholder="Max"
-                className="w-full rounded-lg border-slate-200 text-xs py-2"
+                className="w-full rounded-lg border-slate-300 text-xs py-2"
               />
             </div>
           </div>
@@ -436,7 +440,7 @@ function ParameterCard({
                 value={parameter.operatingMin}
                 onChange={(e) => updateField('operatingMin', e.target.value)}
                 placeholder="Min"
-                className="w-full rounded-lg border-slate-200 text-xs py-2"
+                className="w-full rounded-lg border-slate-300 text-xs py-2"
               />
               <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
               <Input
@@ -444,7 +448,7 @@ function ParameterCard({
                 value={parameter.operatingMax}
                 onChange={(e) => updateField('operatingMax', e.target.value)}
                 placeholder="Max"
-                className="w-full rounded-lg border-slate-200 text-xs py-2"
+                className="w-full rounded-lg border-slate-300 text-xs py-2"
               />
             </div>
           </div>
@@ -462,7 +466,7 @@ function ParameterCard({
                 value={parameter.accuracyType}
                 onValueChange={(value) => updateField('accuracyType', value as AccuracyType)}
               >
-                <SelectTrigger className="w-full rounded-lg border-slate-200 bg-white text-xs">
+                <SelectTrigger className="w-full rounded-lg border-slate-300 bg-white text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -494,7 +498,7 @@ function ParameterCard({
                 value={parameter.accuracyValue}
                 onChange={(e) => updateField('accuracyValue', e.target.value)}
                 placeholder={parameter.accuracyType === 'ABSOLUTE' ? 'e.g., 0.5' : 'e.g., 1.0'}
-                className="w-full rounded-lg border-slate-200 text-xs py-2"
+                className="w-full rounded-lg border-slate-300 text-xs py-2"
               />
             </div>
 
@@ -508,7 +512,7 @@ function ParameterCard({
                 value={parameter.leastCountValue}
                 onChange={(e) => updateField('leastCountValue', e.target.value)}
                 placeholder="e.g., 0.1"
-                className="w-full rounded-lg border-slate-200 text-xs py-2"
+                className="w-full rounded-lg border-slate-300 text-xs py-2"
               />
             </div>
           </div>
@@ -528,7 +532,7 @@ function ParameterCard({
                   value={String(parameter.bins?.length || 2)}
                   onValueChange={(value) => handleBinCountChange(parseInt(value, 10))}
                 >
-                  <SelectTrigger className="w-full rounded-lg border-slate-200 bg-white">
+                  <SelectTrigger className="w-full rounded-lg border-slate-300 bg-white">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -550,7 +554,7 @@ function ParameterCard({
                   value={parameter.accuracyType}
                   onValueChange={(value) => updateField('accuracyType', value as AccuracyType)}
                 >
-                  <SelectTrigger className="w-full rounded-lg border-slate-200 bg-white text-xs">
+                  <SelectTrigger className="w-full rounded-lg border-slate-300 bg-white text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -636,14 +640,14 @@ function ParameterCard({
                       value={bin.accuracy}
                       onChange={(e) => updateBin(binIndex, 'accuracy', e.target.value)}
                       placeholder="e.g., ±0.5"
-                      className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
+                      className="rounded-lg border-slate-300 text-xs py-1.5 h-8"
                     />
                     <Input
                       type="text"
                       value={bin.leastCount}
                       onChange={(e) => updateBin(binIndex, 'leastCount', e.target.value)}
                       placeholder="e.g., 0.1"
-                      className="rounded-lg border-slate-200 text-xs py-1.5 h-8"
+                      className="rounded-lg border-slate-300 text-xs py-1.5 h-8"
                     />
                   </div>
                 )
@@ -651,6 +655,7 @@ function ParameterCard({
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   )
@@ -662,7 +667,57 @@ interface UUCSectionProps {
 }
 
 export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
-  const { formData, setFormField, setParameter, addParameter, removeParameter, setParameterMasterInstrument } = useCertificateStore()
+  const { formData, setFormField, setParameter, addParameter, removeParameter, setParameterMasterInstrument, certificateId, saveDraft } = useCertificateStore()
+
+  // Image management hook
+  const {
+    getUucImages,
+    uploadImageWithId,
+    deleteImage,
+    refreshWithId,
+  } = useCertificateImages({ certificateId })
+
+  // Get UUC images as gallery format
+  const uucImages: GalleryImage[] = useMemo(() => {
+    return getUucImages().map((img) => ({
+      id: img.id,
+      fileName: img.fileName,
+      thumbnailUrl: img.thumbnailUrl,
+      optimizedUrl: img.optimizedUrl,
+      originalUrl: img.originalUrl,
+      caption: img.caption,
+      isProcessing: !img.thumbnailUrl && !img.optimizedUrl,
+    }))
+  }, [getUucImages])
+
+  // Handle UUC image upload - auto-save as draft if needed
+  const handleUucImageUpload = useCallback(async (file: File) => {
+    let currentCertId = certificateId
+
+    // If certificate hasn't been saved yet, save as draft first
+    if (!currentCertId) {
+      const result = await saveDraft()
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to save draft before uploading image')
+      }
+      // Get the new certificateId from the store
+      currentCertId = useCertificateStore.getState().certificateId
+      if (!currentCertId) {
+        throw new Error('Failed to get certificate ID after saving draft')
+      }
+    }
+
+    // Upload using the explicit certificate ID
+    await uploadImageWithId(currentCertId, file, { imageType: 'UUC' })
+
+    // Refresh images list with the explicit ID
+    await refreshWithId(currentCertId)
+  }, [certificateId, saveDraft, uploadImageWithId, refreshWithId])
+
+  // Handle UUC image delete
+  const handleUucImageDelete = useCallback(async (imageId: string) => {
+    await deleteImage(imageId)
+  }, [deleteImage])
 
   return (
     <FormSection
@@ -672,9 +727,11 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
       feedbackSlot={feedbackSlot}
       disabled={disabled}
     >
-      <div className="space-y-6">
-        {/* UUC Basic Info Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-4 p-5 rounded-xl border border-slate-300 bg-section-inner">
+        {/* UUC Details Card */}
+        <div className="bg-white rounded-xl p-5 border border-slate-200">
+          {/* UUC Basic Info Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
               Description of UUC <span className="text-red-500">*</span>
@@ -684,7 +741,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               value={formData.uucDescription}
               onChange={(e) => setFormField('uucDescription', e.target.value)}
               placeholder="e.g., Temp/Humidity Sensor"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
             />
           </div>
           <div>
@@ -696,7 +753,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               value={formData.uucMake}
               onChange={(e) => setFormField('uucMake', e.target.value)}
               placeholder="e.g., Dwyer"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
             />
           </div>
           <div>
@@ -708,7 +765,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               value={formData.uucModel}
               onChange={(e) => setFormField('uucModel', e.target.value)}
               placeholder="e.g., RHP-2011"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
             />
           </div>
           <div>
@@ -720,7 +777,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               value={formData.uucSerialNumber}
               onChange={(e) => setFormField('uucSerialNumber', e.target.value)}
               placeholder="e.g., 0010"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
             />
           </div>
           <div>
@@ -732,7 +789,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               value={formData.uucInstrumentId}
               onChange={(e) => setFormField('uucInstrumentId', e.target.value)}
               placeholder="e.g., VRSF/ENG/HVC020-TRH"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
             />
           </div>
           <div>
@@ -744,7 +801,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               value={formData.uucLocationName}
               onChange={(e) => setFormField('uucLocationName', e.target.value)}
               placeholder="e.g., Return Air Duct"
-              className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+              className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
             />
           </div>
         </div>
@@ -759,7 +816,27 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
             value={formData.uucMachineName}
             onChange={(e) => setFormField('uucMachineName', e.target.value)}
             placeholder="e.g., AHU-30, VRSF-GF-AHU-030"
-            className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+            className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium"
+          />
+        </div>
+
+        {/* UUC Device Photos */}
+        <div className="pt-6 border-t border-slate-100">
+          <div className="flex items-center gap-2 mb-4">
+            <Camera className="size-5 text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-widest">
+              UUC Device Photos
+            </h3>
+            <span className="text-xs text-slate-400">(Optional - max 10 photos)</span>
+          </div>
+          <ImageUploadGallery
+            certificateId={certificateId || 'pending'}
+            imageType="UUC"
+            images={uucImages}
+            maxImages={10}
+            onUpload={handleUucImageUpload}
+            onDelete={handleUucImageDelete}
+            disabled={disabled}
           />
         </div>
 
@@ -792,6 +869,7 @@ export function UUCSection({ feedbackSlot, disabled }: UUCSectionProps = {}) {
               />
             ))}
           </div>
+        </div>
         </div>
       </div>
     </FormSection>

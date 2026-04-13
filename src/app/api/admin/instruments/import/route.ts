@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('instruments')
 
 interface ImportRecord {
   category: string
@@ -14,6 +17,11 @@ interface ImportRecord {
   report_no?: string
   due_date?: string
   remarks?: string
+  // NEW fields from Mar 2026 JSON format
+  parameter_group?: string
+  parameter_roles?: string[]
+  parameter_capabilities?: string[]
+  sop_references?: string[]
 }
 
 interface ImportResult {
@@ -203,14 +211,20 @@ export async function POST(request: NextRequest) {
             reportNo: record.report_no || null,
             calibrationDueDate: parseDueDate(record.due_date),
             remarks: record.remarks || null,
+            // NEW fields
+            parameterGroup: record.parameter_group || null,
+            parameterRoles: record.parameter_roles || [],
+            parameterCapabilities: record.parameter_capabilities || [],
+            sopReferences: record.sop_references || [],
             isActive: true,
             createdById: session!.user.id,
-            changeReason: 'CSV import',
+            changeReason: 'JSON import',
+            importedFromJson: true,
           },
         })
         createdCount++
       } catch (error) {
-        console.error('Error creating instrument:', error)
+        logger.error({ err: error }, 'Error creating instrument during import')
       }
     }
 
@@ -249,17 +263,22 @@ export async function POST(request: NextRequest) {
               reportNo: data.report_no || null,
               calibrationDueDate: parseDueDate(data.due_date),
               remarks: data.remarks || null,
+              // NEW fields
+              parameterGroup: data.parameter_group || null,
+              parameterRoles: data.parameter_roles || [],
+              parameterCapabilities: data.parameter_capabilities || [],
+              sopReferences: data.sop_references || [],
               isActive: existing.isActive,
               createdById: session!.user.id,
-              changeReason: 'CSV import update',
+              changeReason: 'JSON import update',
               legacyId: existing.legacyId,
-              importedFromJson: existing.importedFromJson,
+              importedFromJson: true,
             },
           })
         })
         updatedCount++
       } catch (error) {
-        console.error('Error updating instrument:', error)
+        logger.error({ err: error }, 'Error updating instrument during import')
       }
     }
 
@@ -272,7 +291,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error importing instruments:', error)
+    logger.error({ err: error }, 'Error importing instruments')
     return NextResponse.json(
       { error: 'Failed to import instruments' },
       { status: 500 }
@@ -280,23 +299,33 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Parse JSON records (handles both original format and export format)
+// Parse JSON records (handles both original format and export format, including Mar 2026 structure)
 function parseJsonRecords(data: unknown): ImportRecord[] {
   if (!Array.isArray(data)) return []
 
-  return data.map((item: Record<string, unknown>) => ({
-    category: String(item.type || item.category || ''),
-    description: String(item.instrument_desc || item.description || ''),
-    make: String(item.make || ''),
-    model: String(item.model || ''),
-    asset_number: String(item.asset_no || item.asset_number || ''),
-    serial_number: String(item.instrument_sl_no || item.serial_number || ''),
-    usage: String(item.usage || ''),
-    calibrated_at: String(item.calibrated_at || ''),
-    report_no: String(item.report_no || ''),
-    due_date: String(item.next_due_on || item.due_date || ''),
-    remarks: String(item.remarks || ''),
-  }))
+  return data.map((item: Record<string, unknown>) => {
+    // Parse parameter object if present (Mar 2026 format)
+    const parameter = item.parameter as { role?: string[]; capabilities?: string[] } | undefined
+
+    return {
+      category: String(item.type || item.category || ''),
+      description: String(item.instrument_desc || item.description || ''),
+      make: String(item.make || ''),
+      model: String(item.model || ''),
+      asset_number: String(item.asset_no || item.asset_number || ''),
+      serial_number: String(item.instrument_sl_no || item.serial_number || ''),
+      usage: String(item.usage || ''),
+      calibrated_at: String(item.calibrated_at || ''),
+      report_no: String(item.report_no || ''),
+      due_date: String(item.next_due_on || item.due_date || ''),
+      remarks: String(item.remarks || ''),
+      // NEW fields
+      parameter_group: String(item.parameter_group || ''),
+      parameter_roles: parameter?.role || [],
+      parameter_capabilities: parameter?.capabilities || [],
+      sop_references: Array.isArray(item.sop_references) ? item.sop_references.map(String) : [],
+    }
+  })
 }
 
 // Parse CSV records

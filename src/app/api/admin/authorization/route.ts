@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { certificateLogger as logger } from '@/lib/logger'
 
 // GET /api/admin/authorization - List certificates pending admin authorization
 export async function GET(request: NextRequest) {
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching authorization list:', error)
+    logger.error({ err: error }, 'Failed to fetch authorization list')
     return NextResponse.json(
       { error: 'Failed to fetch authorization list' },
       { status: 500 }

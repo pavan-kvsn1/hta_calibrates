@@ -109,6 +109,7 @@ export async function getThreadWithCertificate(threadId: string) {
           createdById: true,
           reviewerId: true,
           certificateNumber: true,
+          customerName: true,
         },
       },
     },

@@ -8,6 +8,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 interface CustomerContext {
   customerId: string
@@ -192,7 +195,7 @@ export async function GET(
       messages: formattedMessages,
     })
   } catch (error) {
-    console.error('[Customer Chat API] GET error:', error)
+    logger.error({ err: error }, 'Failed to get customer chat messages')
     return NextResponse.json(
       { error: 'Failed to get messages' },
       { status: 500 }
@@ -262,7 +265,7 @@ export async function POST(
           customerName: context.customerName,
           preview: content.trim().substring(0, 100),
         },
-      }).catch(console.error)
+      }).catch((err) => logger.error({ err }, 'Failed to send customer message notification'))
     }
 
     return NextResponse.json({
@@ -277,7 +280,7 @@ export async function POST(
       },
     }, { status: 201 })
   } catch (error) {
-    console.error('[Customer Chat API] POST error:', error)
+    logger.error({ err: error }, 'Failed to send customer chat message')
     return NextResponse.json(
       { error: 'Failed to send message' },
       { status: 500 }

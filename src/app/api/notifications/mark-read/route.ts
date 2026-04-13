@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { markNotificationsAsRead } from '@/lib/services/notifications'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('notifications')
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error marking notifications as read:', error)
+    logger.error({ err: error }, 'Failed to mark notifications as read')
     return NextResponse.json(
       { error: 'Failed to mark notifications as read' },
       { status: 500 }

@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { detectCertificateChanges, generateChangeSummary } from '@/lib/utils/change-detection'
+import { invalidateOnCertificateUpdate } from '@/lib/cache/invalidation'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -69,9 +71,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    logger.info({ userId: session.user.id, certificateId: id }, 'Certificate fetched')
     return NextResponse.json(certificate)
   } catch (error) {
-    console.error('Error fetching certificate:', error)
+    logger.error({ err: error }, 'Error fetching certificate')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -137,6 +140,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const {
+      certificateNumber,
+      reviewerId,
       calibratedAt,
       srfNumber,
       srfDate,
@@ -147,6 +152,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       dueDateNotApplicable,
       customerName,
       customerAddress,
+      customerContactName,
+      customerContactEmail,
       uucDescription,
       uucMake,
       uucModel,
@@ -178,6 +185,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       const cert = await tx.certificate.update({
         where: { id },
         data: {
+          // Only update certificateNumber if in DRAFT status and a new value is provided
+          ...(certificateNumber && existingCert.status === 'DRAFT' ? { certificateNumber } : {}),
+          // Only update reviewerId if it's provided and certificate doesn't already have one
+          ...(reviewerId && !existingCert.reviewerId ? { reviewerId } : {}),
           calibratedAt,
           srfNumber: srfNumber || null,
           srfDate: srfDate ? new Date(srfDate) : null,
@@ -188,6 +199,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
           dueDateNotApplicable: dueDateNotApplicable || false,
           customerName,
           customerAddress,
+          customerContactName,
+          customerContactEmail,
           uucDescription,
           uucMake,
           uucModel,
@@ -330,6 +343,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return cert
     })
 
+    // Invalidate caches after certificate update
+    await invalidateOnCertificateUpdate(certificate.id, session.user.id)
+
+    logger.info({ userId: session.user.id, certificateId: certificate.id }, 'Certificate updated')
+
     return NextResponse.json({
       success: true,
       certificate: {
@@ -339,7 +357,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       },
     })
   } catch (error) {
-    console.error('Error updating certificate:', error)
+    logger.error({ err: error }, 'Error updating certificate')
     // Return more specific error message for debugging
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(

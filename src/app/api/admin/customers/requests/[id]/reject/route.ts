@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { enqueue } from '@/lib/services/queue'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customers')
 
 // POST /api/admin/customers/requests/[id]/reject - Reject a customer request
 export async function POST(
@@ -81,7 +84,7 @@ export async function POST(
       message: 'Request rejected. The requester will be notified.',
     })
   } catch (error) {
-    console.error('Error rejecting customer request:', error)
+    logger.error({ err: error }, 'Error rejecting customer request')
     return NextResponse.json(
       { error: 'Failed to reject customer request' },
       { status: 500 }

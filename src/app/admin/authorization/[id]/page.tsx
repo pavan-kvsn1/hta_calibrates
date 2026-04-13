@@ -249,6 +249,8 @@ async function getCertificateData(id: string) {
     feedbacks: serializedFeedbacks,
     events: serializedEvents,
     calibratedAt: certificate.calibratedAt,
+    customerContactName: certificate.customerContactName,
+    customerContactEmail: certificate.customerContactEmail,
   }
 }
 
@@ -294,6 +296,8 @@ export default async function AdminAuthorizationPage({ params }: Props) {
       feedbacks={data.feedbacks}
       events={data.events}
       headerData={headerData}
+      customerEmail={data.customerContactEmail}
+      customerContactName={data.customerContactName}
     />
   )
 }

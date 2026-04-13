@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('users')
 
 // PUT /api/admin/users/[id]/reactivate - Reactivate a deactivated user
 export async function PUT(
@@ -40,7 +43,7 @@ export async function PUT(
       message: 'User reactivated successfully',
     })
   } catch (error) {
-    console.error('Error reactivating user:', error)
+    logger.error({ err: error }, 'Failed to reactivate user')
     return NextResponse.json({ error: 'Failed to reactivate user' }, { status: 500 })
   }
 }

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { enqueue } from '@/lib/services/queue'
 
 // Notification types
 export type NotificationType =
@@ -288,18 +289,42 @@ export async function notifyReviewerOnSubmit({
   certificateNumber,
   assigneeName,
   reviewerId,
+  customerName,
 }: {
   certificateId: string
   certificateNumber: string
   assigneeName: string
   reviewerId: string
+  customerName?: string
 }) {
+  // In-app notification
   await createNotification({
     userId: reviewerId,
     type: 'SUBMITTED_FOR_REVIEW',
     certificateId,
     data: { certificateNumber, assigneeName },
   })
+
+  // Send email to reviewer
+  const reviewer = await prisma.user.findUnique({
+    where: { id: reviewerId },
+    select: { email: true, name: true },
+  })
+
+  if (reviewer?.email) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    await enqueue('email:send', {
+      to: reviewer.email,
+      template: 'certificate-submitted',
+      templateData: {
+        reviewerName: reviewer.name || 'Reviewer',
+        certificateNumber,
+        assigneeName,
+        customerName: customerName || 'Unknown',
+        dashboardUrl: `${baseUrl}/dashboard/certificates/${certificateId}`,
+      },
+    })
+  }
 }
 
 /**
@@ -318,12 +343,33 @@ export async function notifyAssigneeOnReview({
   approved: boolean
   reviewerName?: string
 }) {
+  // In-app notification
   await createNotification({
     userId: assigneeId,
     type: approved ? 'CERTIFICATE_APPROVED' : 'REVISION_REQUESTED',
     certificateId,
     data: { certificateNumber, reviewerName: reviewerName || 'Reviewer' },
   })
+
+  // Send email to assignee
+  const assignee = await prisma.user.findUnique({
+    where: { id: assigneeId },
+    select: { email: true, name: true },
+  })
+
+  if (assignee?.email) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    await enqueue('email:send', {
+      to: assignee.email,
+      template: approved ? 'certificate-approved' : 'revision-requested',
+      templateData: {
+        assigneeName: assignee.name || 'Engineer',
+        certificateNumber,
+        reviewerName: reviewerName || 'Reviewer',
+        certificateUrl: `${baseUrl}/dashboard/certificates/${certificateId}`,
+      },
+    })
+  }
 }
 
 /**
@@ -356,13 +402,21 @@ export async function notifyOnSentToCustomer({
   certificateNumber,
   assigneeId,
   customerId,
+  customerEmail,
+  customerName,
+  reviewToken,
+  instrumentDescription,
 }: {
   certificateId: string
   certificateNumber: string
   assigneeId: string
   customerId?: string
+  customerEmail?: string
+  customerName?: string
+  reviewToken?: string
+  instrumentDescription?: string
 }) {
-  // Notify assignee
+  // Notify assignee (in-app only)
   await createNotification({
     userId: assigneeId,
     type: 'SENT_TO_CUSTOMER',
@@ -370,13 +424,28 @@ export async function notifyOnSentToCustomer({
     data: { certificateNumber },
   })
 
-  // Notify customer if we have their ID
+  // Notify customer if we have their ID (in-app)
   if (customerId) {
     await createNotification({
       customerId,
       type: 'CERTIFICATE_READY',
       certificateId,
       data: { certificateNumber },
+    })
+  }
+
+  // Send email to customer with review link
+  if (customerEmail && reviewToken) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    await enqueue('email:send', {
+      to: customerEmail,
+      template: 'customer-review',
+      templateData: {
+        customerName: customerName || 'Customer',
+        certificateNumber,
+        instrumentDescription: instrumentDescription || 'Calibration Certificate',
+        reviewUrl: `${baseUrl}/customer/review/${reviewToken}`,
+      },
     })
   }
 }
@@ -429,15 +498,19 @@ export async function notifyOnCustomerApproval({
   certificateNumber,
   assigneeId,
   reviewerId,
+  customerName,
+  approverName,
 }: {
   certificateId: string
   certificateNumber: string
   assigneeId: string
   reviewerId?: string | null
+  customerName?: string
+  approverName?: string
 }) {
   const promises: Promise<unknown>[] = []
 
-  // Notify reviewer
+  // Notify reviewer (in-app)
   if (reviewerId) {
     promises.push(
       createNotification({
@@ -449,7 +522,7 @@ export async function notifyOnCustomerApproval({
     )
   }
 
-  // Notify assignee
+  // Notify assignee (in-app)
   promises.push(
     createNotification({
       userId: assigneeId,
@@ -460,6 +533,31 @@ export async function notifyOnCustomerApproval({
   )
 
   await Promise.all(promises)
+
+  // Send emails to both reviewer and assignee
+  const userIds = reviewerId ? [reviewerId, assigneeId] : [assigneeId]
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, email: true, name: true },
+  })
+
+  const emailPromises = users.map((user) =>
+    enqueue('email:send', {
+      to: user.email,
+      template: 'certificate-customer-approved',
+      templateData: {
+        certificateNumber,
+        customerName: customerName || 'Customer',
+        approverName: approverName || 'Customer',
+        approvedAt: new Date().toLocaleString('en-US', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }),
+      },
+    })
+  )
+
+  await Promise.all(emailPromises)
 }
 
 /**

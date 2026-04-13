@@ -1,14 +1,131 @@
-import 'dotenv/config'
+import * as dotenv from 'dotenv'
+import * as path from 'path'
+
+// Explicitly load .env from project root
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+
+
 import { PrismaClient } from '@prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { Pool } from 'pg'
 import bcrypt from 'bcryptjs'
 import * as fs from 'fs'
-import * as path from 'path'
 import * as crypto from 'crypto'
 
-// PostgreSQL adapter for all environments
-const connectionString = process.env.DATABASE_URL || 'postgresql://hta_user:hta_dev_password@localhost:5432/hta_calibration'
-const adapter = new PrismaPg({ connectionString })
+// Certificate PDF source directory (within project)
+const CERTIFICATE_PDF_SOURCE = path.resolve(__dirname, '../reference_docs/certificate_pdfs')
+const CERTIFICATE_STORAGE_PATH = path.resolve(__dirname, '..', process.env.CERTIFICATE_STORAGE_PATH || './storage/master-instrument-certificates')
+
+/**
+ * Convert asset number to PDF filename
+ * "149 HTAIPL/L" -> "149 HTAIPL L.pdf"
+ */
+function assetNumberToFileName(assetNumber: string): string {
+  return assetNumber.replace(/\//g, ' ') + '.pdf'
+}
+
+/**
+ * Seed master instrument certificates from reference PDFs
+ */
+async function seedCertificates(prisma: PrismaClient, adminUserId: string) {
+  console.log('\n--- Seeding Master Instrument Certificates ---')
+
+  // Check if source directory exists
+  if (!fs.existsSync(CERTIFICATE_PDF_SOURCE)) {
+    console.log(`Certificate source directory not found: ${CERTIFICATE_PDF_SOURCE}`)
+    console.log('Skipping certificate seeding')
+    return
+  }
+
+  // Ensure storage directory exists
+  if (!fs.existsSync(CERTIFICATE_STORAGE_PATH)) {
+    fs.mkdirSync(CERTIFICATE_STORAGE_PATH, { recursive: true })
+    console.log(`Created storage directory: ${CERTIFICATE_STORAGE_PATH}`)
+  }
+
+  // Check if certificates already exist
+  const existingCerts = await prisma.masterInstrumentCertificate.count()
+  if (existingCerts > 0) {
+    console.log(`Skipping certificate seeding - ${existingCerts} certificates already exist`)
+    return
+  }
+
+  // Get all master instruments
+  const instruments = await prisma.masterInstrument.findMany({
+    where: { isActive: true, isLatest: true },
+    select: { id: true, assetNumber: true, reportNo: true, calibrationDueDate: true },
+  })
+
+  console.log(`Found ${instruments.length} master instruments`)
+
+  // Get all PDF files in source directory
+  const pdfFiles = fs.readdirSync(CERTIFICATE_PDF_SOURCE)
+    .filter(f => f.toLowerCase().endsWith('.pdf'))
+
+  console.log(`Found ${pdfFiles.length} PDF files in source directory`)
+
+  let successCount = 0
+  let skippedCount = 0
+  let errorCount = 0
+
+  for (const instrument of instruments) {
+    const expectedFileName = assetNumberToFileName(instrument.assetNumber)
+    const sourcePath = path.join(CERTIFICATE_PDF_SOURCE, expectedFileName)
+
+    // Check if PDF exists for this instrument
+    if (!fs.existsSync(sourcePath)) {
+      skippedCount++
+      continue
+    }
+
+    try {
+      // Read the source PDF
+      const pdfBuffer = fs.readFileSync(sourcePath)
+      const fileSize = pdfBuffer.length
+
+      // Generate storage path (relative path for DB storage)
+      const storagePath = `master-instruments/${expectedFileName}`
+      const fullStoragePath = path.join(CERTIFICATE_STORAGE_PATH, expectedFileName)
+
+      // Copy PDF to storage directory
+      fs.writeFileSync(fullStoragePath, pdfBuffer)
+
+      // Create certificate record
+      await prisma.masterInstrumentCertificate.create({
+        data: {
+          masterInstrumentId: instrument.id,
+          fileName: expectedFileName,
+          fileSize,
+          mimeType: 'application/pdf',
+          storagePath,
+          reportNo: instrument.reportNo,
+          validUntil: instrument.calibrationDueDate,
+          uploadedById: adminUserId,
+          isLatest: true,
+          isActive: true,
+        },
+      })
+
+      successCount++
+    } catch (err) {
+      errorCount++
+      console.error(`Failed to seed certificate for ${instrument.assetNumber}:`, err)
+    }
+  }
+
+  console.log(`Certificate seeding complete:`)
+  console.log(`  - Success: ${successCount}`)
+  console.log(`  - Skipped (no PDF): ${skippedCount}`)
+  console.log(`  - Errors: ${errorCount}`)
+}
+
+// PostgreSQL adapter for Prisma 7
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable is not set')
+}
+const pool = new Pool({ connectionString })
+const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
 // Interface for master instruments JSON
@@ -307,6 +424,11 @@ async function main() {
       console.error('Failed to read master-instruments.json:', err)
     }
   }
+
+  // ==================
+  // MASTER INSTRUMENT CERTIFICATES
+  // ==================
+  await seedCertificates(prisma, masterAdmin.id)
 
   // ==================
   // MIGRATE EXISTING CUSTOMERS

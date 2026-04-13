@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customers')
 
 // GET /api/admin/customers/[id] - Get customer account details (Master Admin only)
 export async function GET(
@@ -120,7 +123,7 @@ export async function GET(
       certificateCount,
     })
   } catch (error) {
-    console.error('Error fetching customer account:', error)
+    logger.error({ err: error }, 'Error fetching customer account')
     return NextResponse.json(
       { error: 'Failed to fetch customer account' },
       { status: 500 }
@@ -228,7 +231,7 @@ export async function PUT(
       },
     })
   } catch (error) {
-    console.error('Error updating customer account:', error)
+    logger.error({ err: error }, 'Error updating customer account')
     return NextResponse.json(
       { error: 'Failed to update customer account' },
       { status: 500 }

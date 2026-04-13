@@ -123,15 +123,15 @@ export function formatWithPrecision(value: number | null | string, precision: nu
 export const COMPANY_INFO = {
   name: 'HTA INSTRUMENTATION (P) LTD.',
   certification: 'An ISO Certified Company and NABL Accredited Calibration Laboratory',
-  address: {
-    line1: '# 73, Ramachandra Agrahara, Near T.R. Mills,',
-    line2: 'Chamarajpet, Bangalore - 560 018 India',
-  },
+  address: '# 73, Ramachandra Agrahara, Near T.R. Mills, Chamarajpet, Bangalore - 560 018 India',
   contact: {
-    phone: ['+91-80-26749750', '+91-80-26759253'],
+    phone: ['+91-80-26749750', '+91-80-26759253', '+91-80-26740681'],
+    mobile: '+91-73537 53764',
     website: 'www.htaipl.com',
-    email: 'calibration@htaipl.com',
+    email: ['calibration@htaipl.com', 'sitecalibration@htaipl.com'],
   },
+  // Combined web and email for single line display
+  webEmail: 'Web: www.htaipl.com | Email: calibration@htaipl.com, sitecalibration@htaipl.com',
 }
 
 /**

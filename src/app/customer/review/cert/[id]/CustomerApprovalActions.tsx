@@ -162,7 +162,7 @@ export function CustomerApprovalActions({
             onClick={() => setShowRevisionModal(true)}
             variant="outline"
             size="sm"
-            className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 h-9 text-xs font-medium"
+            className="w-full bg-orange-600 hover:bg-orange-700 text-white h-9 text-xs font-medium"
           >
             <RotateCcw className="h-3.5 w-3.5 mr-2" />
             Request Revision

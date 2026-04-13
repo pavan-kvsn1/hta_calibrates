@@ -7,9 +7,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth, canAccessChatThread } from '@/lib/auth'
 import { getThreadWithCertificate } from '@/lib/services/chat'
+import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('chat')
 
 // Storage directory for chat attachments
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'chat-attachments')
@@ -61,11 +65,25 @@ export async function POST(
     }
 
     // Check access
-    const hasAccess = canAccessChatThread(
+    let hasAccess = canAccessChatThread(
       { id: session.user.id, role: session.user.role || 'ENGINEER' },
       { createdById: threadData.certificate.createdById, reviewerId: threadData.certificate.reviewerId },
       threadData.threadType as 'ASSIGNEE_REVIEWER' | 'REVIEWER_CUSTOMER'
     )
+
+    // For customers, verify they belong to the certificate's company
+    if (hasAccess && session.user.role === 'CUSTOMER' && threadData.threadType === 'REVIEWER_CUSTOMER') {
+      const customer = await prisma.customerUser.findUnique({
+        where: { email: session.user.email! },
+        include: { customerAccount: true },
+      })
+      if (customer) {
+        const companyName = customer.customerAccount?.companyName || customer.companyName || ''
+        hasAccess = companyName.toLowerCase() === threadData.certificate.customerName?.toLowerCase()
+      } else {
+        hasAccess = false
+      }
+    }
 
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
@@ -130,7 +148,7 @@ export async function POST(
 
     return NextResponse.json({ files: uploadedFiles }, { status: 201 })
   } catch (error) {
-    console.error('[Chat Attachments API] POST error:', error)
+    logger.error({ err: error }, 'Failed to upload chat attachments')
     return NextResponse.json(
       { error: 'Failed to upload files' },
       { status: 500 }

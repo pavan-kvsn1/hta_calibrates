@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { verifyEvidenceChain } from '@/lib/stores/signing-evidence'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error verifying evidence chain:', error)
+    logger.error({ err: error }, 'Error verifying evidence chain')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

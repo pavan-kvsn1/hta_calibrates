@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createRefreshToken, REFRESH_TOKEN_CONFIG } from '@/lib/refresh-token'
+import { authLogger as logger } from '@/lib/logger'
 
 const isProduction = process.env.NODE_ENV === 'production'
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    console.error('Issue refresh token error:', error)
+    logger.error({ err: error }, 'Issue refresh token error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

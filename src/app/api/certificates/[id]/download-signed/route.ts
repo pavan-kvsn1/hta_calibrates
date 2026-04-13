@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { readPDF } from '@/lib/services/pdf/storage'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -76,7 +77,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error downloading signed PDF:', error)
+    logger.error({ err: error }, 'Error downloading signed PDF')
     return NextResponse.json(
       { error: 'Failed to download signed PDF' },
       { status: 500 }

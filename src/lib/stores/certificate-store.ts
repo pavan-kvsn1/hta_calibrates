@@ -75,6 +75,7 @@ export interface SelectedMasterInstrument {
   id: string
   masterInstrumentId: number // Reference to the master list
   category: string // Instrument category (Electro-Technical, Thermal, Mechanical, etc.)
+  parameterGroup?: string // NEW: Sub-category filter (e.g., "Electrical (multi-function)")
   description: string
   make: string
   model: string
@@ -85,6 +86,7 @@ export interface SelectedMasterInstrument {
   calibrationDueDate: string
   isExpired: boolean
   isExpiringSoon: boolean
+  availableSopReferences?: string[] // NEW: SOP options from instrument's sop_references array
 }
 
 export interface CertificateFormData {
@@ -108,6 +110,8 @@ export interface CertificateFormData {
   dueDateNotApplicable: boolean  // If true, due date shows as "Not Applicable" on certificate
   customerName: string
   customerAddress: string
+  customerContactName: string
+  customerContactEmail: string
 
   // Section 2: UUC Details
   uucDescription: string
@@ -359,6 +363,8 @@ const initialFormData: CertificateFormData = {
   dueDateNotApplicable: false,
   customerName: '',
   customerAddress: '',
+  customerContactName: '',
+  customerContactEmail: '',
 
   // Section 2: UUC Details
   uucDescription: '',

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { enqueue } from '@/lib/services/queue'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customers')
 
 // GET /api/admin/customers - List customer accounts (Master Admin only)
 export async function GET(request: NextRequest) {
@@ -91,7 +95,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching customer accounts:', error)
+    logger.error({ err: error }, 'Error fetching customer accounts')
     return NextResponse.json(
       { error: 'Failed to fetch customer accounts' },
       { status: 500 }
@@ -219,8 +223,20 @@ export async function POST(request: NextRequest) {
       return { account: updatedAccount, pocUser }
     })
 
-    // TODO: Send activation email to POC (Phase 5)
-    // await sendAccountCreatedEmail(pocEmail, pocName, companyName, activationToken)
+    // Build activation URL and send activation email to POC
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+    const activationUrl = `${baseUrl}/customer/activate/${activationToken}`
+
+    await enqueue('email:send', {
+      to: pocEmail.trim().toLowerCase(),
+      subject: 'Activate Your HTA Calibration Portal Account',
+      template: 'customer-activation',
+      templateData: {
+        userName: pocName.trim(),
+        companyName: companyName.trim(),
+        activationUrl,
+      },
+    })
 
     return NextResponse.json({
       success: true,
@@ -233,7 +249,7 @@ export async function POST(request: NextRequest) {
       message: 'Customer account created. Activation email will be sent to the POC.',
     })
   } catch (error) {
-    console.error('Error creating customer account:', error)
+    logger.error({ err: error }, 'Error creating customer account')
     return NextResponse.json(
       { error: 'Failed to create customer account' },
       { status: 500 }

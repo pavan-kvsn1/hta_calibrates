@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { certificateLogger as logger } from '@/lib/logger'
 
 // GET - Check if a certificate number already exists
 export async function GET(request: NextRequest) {
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
       certificateNumber,
     })
   } catch (error) {
-    console.error('Error checking certificate number:', error)
+    logger.error({ err: error }, 'Error checking certificate number')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

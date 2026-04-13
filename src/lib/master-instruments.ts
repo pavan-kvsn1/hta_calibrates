@@ -35,6 +35,15 @@ export interface CompositeValue {
   sen?: string
 }
 
+// NEW: Structured parameter metadata from Mar 2026 JSON format
+export interface ParameterMetadata {
+  role: ParameterRole[]
+  capabilities: string[]
+}
+
+// NEW: Parameter roles - what the instrument does
+export type ParameterRole = 'source' | 'measuring'
+
 export interface MasterInstrument {
   id: number
   type: InstrumentCategory
@@ -49,6 +58,15 @@ export interface MasterInstrument {
   next_due_on: string // MM/DD/YYYY format
   range: RangeItem[]
   remarks: string
+
+  // NEW: Parameter group - sub-category filter (e.g., "Electrical (multi-function)")
+  parameter_group?: string
+
+  // NEW: Structured parameter metadata
+  parameter?: ParameterMetadata
+
+  // NEW: Array of available SOP references for this instrument
+  sop_references?: string[]
 
   // Computed fields (added at runtime)
   status?: InstrumentStatus
@@ -241,4 +259,99 @@ export const STATUS_CONFIG: Record<InstrumentStatus, { label: string; color: str
   'EXPIRED': { label: 'Expired', color: 'text-red-700', bgColor: 'bg-red-50' },
   'UNDER_RECAL': { label: 'Under Recalibration', color: 'text-blue-700', bgColor: 'bg-blue-50' },
   'SERVICE_PENDING': { label: 'Service Pending', color: 'text-purple-700', bgColor: 'bg-purple-50' },
+}
+
+// =====================================
+// NEW: Parameter Group Functions
+// =====================================
+
+/**
+ * Extract unique parameter groups from a list of instruments
+ */
+export function getParameterGroups(instruments: MasterInstrument[]): string[] {
+  const groups = new Set<string>()
+  for (const inst of instruments) {
+    if (inst.parameter_group) {
+      groups.add(inst.parameter_group)
+    }
+  }
+  return Array.from(groups).sort()
+}
+
+/**
+ * Get parameter groups for a specific category
+ */
+export function getParameterGroupsForCategory(
+  instruments: MasterInstrument[],
+  category: InstrumentCategory
+): string[] {
+  const groups = new Set<string>()
+  for (const inst of instruments) {
+    if (inst.type === category && inst.parameter_group) {
+      groups.add(inst.parameter_group)
+    }
+  }
+  return Array.from(groups).sort()
+}
+
+/**
+ * Filter instruments by category and optionally by parameter group
+ */
+export function filterByParameterGroup(
+  instruments: MasterInstrument[],
+  category: InstrumentCategory,
+  parameterGroup?: string
+): MasterInstrument[] {
+  return instruments.filter(inst => {
+    if (inst.type !== category) return false
+    if (parameterGroup && inst.parameter_group !== parameterGroup) return false
+    return true
+  })
+}
+
+/**
+ * Check if instrument has a specific capability
+ */
+export function hasCapability(
+  instrument: MasterInstrument,
+  capability: string
+): boolean {
+  if (!instrument.parameter?.capabilities) return false
+  const capLower = capability.toLowerCase()
+  return instrument.parameter.capabilities.some(
+    cap => cap.toLowerCase() === capLower || cap.toLowerCase().includes(capLower)
+  )
+}
+
+/**
+ * Check if instrument has a specific role (source or measuring)
+ */
+export function hasRole(
+  instrument: MasterInstrument,
+  role: ParameterRole
+): boolean {
+  if (!instrument.parameter?.role) return false
+  return instrument.parameter.role.includes(role)
+}
+
+/**
+ * Get all unique capabilities across instruments
+ */
+export function getAllCapabilities(instruments: MasterInstrument[]): string[] {
+  const caps = new Set<string>()
+  for (const inst of instruments) {
+    if (inst.parameter?.capabilities) {
+      for (const cap of inst.parameter.capabilities) {
+        caps.add(cap)
+      }
+    }
+  }
+  return Array.from(caps).sort()
+}
+
+/**
+ * Get SOP references for an instrument (with fallback to empty array)
+ */
+export function getSopReferences(instrument: MasterInstrument): string[] {
+  return instrument.sop_references || []
 }

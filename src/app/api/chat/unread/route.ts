@@ -7,6 +7,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getUnreadMessageCount, getUnreadCountsByThread } from '@/lib/services/chat'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('chat')
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ count })
   } catch (error) {
-    console.error('[Chat API] Get unread count error:', error)
+    logger.error({ err: error }, 'Failed to get unread count')
     return NextResponse.json(
       { error: 'Failed to get unread count' },
       { status: 500 }

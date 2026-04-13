@@ -7,6 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('chat')
 import {
   getThreadsForUser,
   getOrCreateThread,
@@ -33,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ threads: threadsWithUnread })
   } catch (error) {
-    console.error('[Chat API] Get threads error:', error)
+    logger.error({ err: error }, 'Failed to get threads')
     return NextResponse.json(
       { error: 'Failed to get threads' },
       { status: 500 }
@@ -74,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ thread })
   } catch (error) {
-    console.error('[Chat API] Create thread error:', error)
+    logger.error({ err: error }, 'Failed to create thread')
     return NextResponse.json(
       { error: 'Failed to create thread' },
       { status: 500 }

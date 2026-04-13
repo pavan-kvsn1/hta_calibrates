@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, Building2, Calendar } from 'lucide-react'
+import { ChevronLeft, Building2, Calendar, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ViewToggleButton } from '@/components/certificate/ViewToggleButton'
 import { MetaInfoItem } from '@/components/certificate/MetaInfoItem'
@@ -24,6 +24,7 @@ interface CustomerCertificateHeaderProps {
   isAuthorized?: boolean
   onDownload?: () => void
   isDownloading?: boolean
+  expiresAt?: string | null
 }
 
 function formatDate(dateString: string | null): string {
@@ -43,6 +44,7 @@ export function CustomerCertificateHeader({
   isAuthorized = false,
   onDownload,
   isDownloading = false,
+  expiresAt,
 }: CustomerCertificateHeaderProps) {
   return (
     <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
@@ -71,6 +73,13 @@ export function CustomerCertificateHeader({
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Expiry info */}
+          {expiresAt && (
+            <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Link expires: {formatDate(expiresAt)}</span>
+            </div>
+          )}
           <ViewToggleButton
             viewMode={viewMode}
             onViewModeChange={onViewModeChange}

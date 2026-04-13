@@ -9,6 +9,9 @@ import {
   withRetry,
 } from '@/lib/services/opensign'
 import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/services/pdf/generator'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('opensign')
 
 /**
  * POST /api/opensign/send-for-signature
@@ -152,7 +155,7 @@ export async function POST(request: NextRequest) {
       })
     }
   } catch (error) {
-    console.error('OpenSign send-for-signature error:', error)
+    logger.error({ err: error }, 'Failed to send document for signature')
     return NextResponse.json(
       { error: 'Failed to send document for signature', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

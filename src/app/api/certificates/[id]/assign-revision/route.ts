@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -216,7 +217,7 @@ export async function POST(
       message: 'Certificate assigned to engineer for revision',
     })
   } catch (error) {
-    console.error('Error assigning certificate for revision:', error)
+    logger.error({ err: error }, 'Error assigning certificate for revision')
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
       { error: `Failed to assign certificate: ${errorMessage}` },

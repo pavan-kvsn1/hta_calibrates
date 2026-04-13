@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { enqueue } from '@/lib/services/queue'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customers')
 
 // POST /api/admin/customers/requests/[id]/approve - Approve a customer request
 export async function POST(
@@ -58,7 +61,7 @@ export async function POST(
 
     return NextResponse.json({ error: 'Unknown request type' }, { status: 400 })
   } catch (error) {
-    console.error('Error approving customer request:', error)
+    logger.error({ err: error }, 'Error approving customer request')
     return NextResponse.json(
       { error: 'Failed to approve customer request' },
       { status: 500 }

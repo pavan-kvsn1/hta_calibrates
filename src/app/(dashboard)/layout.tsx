@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { DashboardSidebar } from '@/components/layout/DashboardSidebar'
 import { DashboardHeader } from '@/components/layout/DashboardHeader'
+import { AppFooter } from '@/components/layout/AppFooter'
 
 export default function DashboardLayout({
   children,
@@ -68,8 +69,9 @@ export default function DashboardLayout({
         />
 
         {/* Main Content */}
-        <main className="flex-1 h-full min-h-0 overflow-hidden">
-          {children}
+        <main className="flex-1 h-full min-h-0 overflow-auto flex flex-col">
+          <div className="flex-1">{children}</div>
+          <AppFooter />
         </main>
       </div>
     </div>

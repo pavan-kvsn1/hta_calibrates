@@ -13,6 +13,7 @@ import {
   X,
   Loader2,
   AlertTriangle,
+  Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import TypedSignature, { type TypedSignatureHandle } from '@/components/signatures/TypedSignature'
@@ -238,27 +239,37 @@ export function ReviewerApproveModal({
               <div className="space-y-3 pl-5">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs font-medium text-gray-700 pb-0.5">
-                      Customer Email <span className="text-red-500">*</span>
+                    <Label className="text-xs font-medium text-gray-700 pb-0.5 flex items-center gap-1">
+                      Customer's Reviewer Email <span className="text-red-500">*</span>
+                      {customerEmail && <Lock className="h-3 w-3 text-slate-400" />}
                     </Label>
                     <Input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => !customerEmail && setEmail(e.target.value)}
                       placeholder="customer@company.com"
-                      className="mt-0.5 text-xs h-8 md:text-xs"
+                      readOnly={!!customerEmail}
+                      className={cn(
+                        "mt-0.5 text-xs h-8 md:text-xs",
+                        customerEmail && "bg-gray-100 cursor-not-allowed text-gray-600"
+                      )}
                     />
                   </div>
                   <div>
-                    <Label className="text-xs font-medium text-gray-700 pb-0.5">
-                      Customer Name <span className="text-red-500">*</span>
+                    <Label className="text-xs font-medium text-gray-700 pb-0.5 flex items-center gap-1">
+                      Customer's Reviewer Name <span className="text-red-500">*</span>
+                      {customerName && <Lock className="h-3 w-3 text-slate-400" />}
                     </Label>
                     <Input
                       type="text"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => !customerName && setName(e.target.value)}
                       placeholder="Contact person name"
-                      className="mt-0.5 text-xs h-8 md:text-xs"
+                      readOnly={!!customerName}
+                      className={cn(
+                        "mt-0.5 text-xs h-8 md:text-xs",
+                        customerName && "bg-gray-100 cursor-not-allowed text-gray-600"
+                      )}
                     />
                   </div>
                 </div>

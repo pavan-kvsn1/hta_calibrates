@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { notifyAdminsOnRegistration } from '@/lib/services/notifications'
+import { checkRateLimitForRequest } from '@/lib/security'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 // POST /api/customer/register - Submit customer registration
 export async function POST(request: NextRequest) {
+  // Apply rate limiting to registration attempts
+  const rateLimitResponse = await checkRateLimitForRequest(request, 'REGISTRATION')
+  if (rateLimitResponse) {
+    return rateLimitResponse
+  }
+
   try {
     const body = await request.json()
     const { name, email, password, customerAccountId } = body
@@ -103,7 +113,7 @@ export async function POST(request: NextRequest) {
       registrationId: registration.id,
     })
   } catch (error) {
-    console.error('Error creating registration:', error)
+    logger.error({ err: error }, 'Error creating customer registration')
     return NextResponse.json(
       { error: 'Failed to submit registration' },
       { status: 500 }

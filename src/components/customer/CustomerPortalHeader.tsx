@@ -10,13 +10,13 @@ interface CustomerPortalHeaderProps {
 
 export function CustomerPortalHeader({ companyName, isPrimaryPoc }: CustomerPortalHeaderProps) {
   return (
-    <header className="sticky top-0 z-[60] h-14 bg-blue-600 flex items-center justify-between px-4">
+    <header className="sticky top-0 z-[60] h-14 bg-[#222D7C] flex items-center justify-between px-4">
       {/* Left Side - Title & Company Name */}
       <div className="flex items-center gap-3">
         <h1 className="text-white text-base font-semibold">
           Customer Portal
         </h1>
-        <Badge className="bg-blue-800 text-white border-0 hover:bg-blue-900">
+        <Badge className="bg-[#2d3a8c] text-white border-0 hover:bg-[#3d4a9c]">
           <Building2 className="h-3 w-3 mr-1.5" />
           {companyName}
         </Badge>

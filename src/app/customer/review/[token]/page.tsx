@@ -209,6 +209,8 @@ export default async function CustomerReviewPage({
     status: certificate.status,
     customerName: certificate.customerName,
     customerAddress: certificate.customerAddress,
+    customerContactName: certificate.customerContactName,
+    customerContactEmail: certificate.customerContactEmail,
     calibratedAt: certificate.calibratedAt,
     srfNumber: certificate.srfNumber,
     srfDate: certificate.srfDate?.toISOString() || null,

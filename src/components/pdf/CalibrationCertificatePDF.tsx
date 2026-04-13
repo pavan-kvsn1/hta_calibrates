@@ -6,7 +6,36 @@ import {
   View,
   StyleSheet,
   Image,
+  Font,
 } from '@react-pdf/renderer'
+
+// ============================================================================
+// FONT REGISTRATION - Using Roboto from unpkg (fontsource)
+// ============================================================================
+Font.register({
+  family: 'Roboto',
+  fonts: [
+    {
+      src: 'https://unpkg.com/@fontsource/roboto@5.0.8/files/roboto-latin-400-normal.woff',
+      fontWeight: 'normal',
+    },
+    {
+      src: 'https://unpkg.com/@fontsource/roboto@5.0.8/files/roboto-latin-400-italic.woff',
+      fontWeight: 'normal',
+      fontStyle: 'italic',
+    },
+    {
+      src: 'https://unpkg.com/@fontsource/roboto@5.0.8/files/roboto-latin-700-normal.woff',
+      fontWeight: 'bold',
+    },
+  ],
+})
+
+// Disable hyphenation to prevent word breaks
+Font.registerHyphenationCallback((word) => [word])
+
+// HTA Brand Blue Color
+const HTA_BLUE = '#0099CC'
 import { CertificateFormData, ACCURACY_TYPE_CONFIG } from '@/lib/stores/certificate-store'
 import { HTA_LOGO_BASE64 } from './logo-base64'
 import { HTA_WATERMARK_BASE64 } from './watermark-base64'
@@ -70,7 +99,7 @@ import {
 const styles = StyleSheet.create({
   // Page
   page: {
-    paddingTop: 105, // Space for fixed header (letterhead ~60 + title ~25 + gap)
+    paddingTop: 115, // Space for fixed header (letterhead ~70 + title ~25 + gap)
     paddingBottom: 60, // Space for fixed footer only (~45pt + buffer)
     paddingHorizontal: 40,
     fontSize: 11,
@@ -88,70 +117,100 @@ const styles = StyleSheet.create({
     opacity: 0.15,
   },
 
-  // Section A: Letterhead - fixed at top of every page
+  // Section A: Letterhead - fixed at top of every page (3-column layout)
   letterhead: {
     position: 'absolute',
     top: 15,
     left: 40,
     right: 40,
     flexDirection: 'row',
-    paddingBottom: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#000',
+    paddingBottom: 6,
+    borderBottomWidth: 2,
+    borderBottomColor: HTA_BLUE,
   },
   logo: {
-    width: 50,
-    height: 50,
+    width: 60,
+    height: 60,
   },
   companyInfo: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
     justifyContent: 'center',
   },
   companyName: {
-    fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontSize: 18,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 1,
+    marginBottom: 7,
+    color: HTA_BLUE,
   },
   certification: {
-    fontSize: 8,
+    fontSize: 9,
+    fontFamily: 'Roboto',
+    fontStyle: 'italic',
     textAlign: 'center',
-    marginBottom: 1,
+    marginBottom: 3,
+    color: HTA_BLUE,
   },
   addressLine: {
-    fontSize: 7,
+    fontSize: 9,
+    fontFamily: 'Roboto',
     textAlign: 'center',
-    color: '#333',
-    lineHeight: 1.2,
+    color: HTA_BLUE,
+    lineHeight: 1.3,
   },
   contactLine: {
-    fontSize: 7,
+    fontSize: 9,
+    fontFamily: 'Roboto',
     textAlign: 'center',
-    color: '#333',
-    marginTop: 1,
+    color: HTA_BLUE,
+    marginTop: 2,
+  },
+  // Phone numbers column on the right
+  phoneColumn: {
+    width: 95,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  phoneLine: {
+    fontSize: 9,
+    fontFamily: 'Roboto',
+    color: HTA_BLUE,
+    textAlign: 'right',
+    marginBottom: 1,
   },
 
   // Section B: Document Title - fixed below letterhead
   titleSection: {
     position: 'absolute',
-    top: 78, // Below letterhead (15 + 50 logo + 13 gap)
+    top: 85, // Below letterhead (15 + 60 logo + 10 gap)
     left: 40,
     right: 40,
     paddingVertical: 4,
   },
   title: {
     fontSize: 14,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
     textAlign: 'center',
+    color: HTA_BLUE,
+  },
+  titleReview: {
+    fontSize: 14,
+    fontFamily: 'Roboto',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#000000',
   },
   // Absolutely positioned page number (repeats on each page)
+  // Positioned below the letterhead to avoid overlapping phone numbers
   pageNumber: {
     position: 'absolute',
-    top: 60,
+    top: 70,
     right: 40,
     fontSize: 8,
-    color: '#000',
+    color: '#666',
   },
 
   // Section C: Customer Info Table (4-column paired: label-value-label-value)
@@ -703,9 +762,10 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
   )
 
   // Determine document title based on authorization status
-  // Only show "Calibration Certificate" when fully authorized
+  // Only show "Calibration Certificate" (blue) when fully authorized
+  // Otherwise show "Data Sheet Calibration" (black) for review
   const isAuthorized = data.status === 'AUTHORIZED'
-  const documentTitle = isAuthorized ? 'Calibration Certificate' : 'Data Calibration Sheet: Review'
+  const documentTitle = isAuthorized ? 'Calibration Certificate' : 'Data Sheet Calibration'
 
   return (
     <Document>
@@ -717,25 +777,34 @@ export function CalibrationCertificatePDF({ data, spacingMultiplier: externalMul
 
         {/* ================================================================ */}
         {/* SECTION A: LETTERHEAD (fixed - repeats on each page) */}
+        {/* 3-column layout: Logo | Company Info (center) | Phone Numbers (right) */}
         {/* ================================================================ */}
         <View style={styles.letterhead} fixed>
           <Image style={styles.logo} src={HTA_LOGO_BASE64} />
           <View style={styles.companyInfo}>
             <Text style={styles.companyName}>{COMPANY_INFO.name}</Text>
             <Text style={styles.certification}>{COMPANY_INFO.certification}</Text>
-            <Text style={styles.addressLine}>{COMPANY_INFO.address.line1}</Text>
-            <Text style={styles.addressLine}>{COMPANY_INFO.address.line2}</Text>
-            <Text style={styles.contactLine}>
-              Tel: {COMPANY_INFO.contact.phone.join(', ')} | Web: {COMPANY_INFO.contact.website} | Email: {COMPANY_INFO.contact.email}
+            <Text style={styles.addressLine}>{COMPANY_INFO.address}</Text>
+            <Text style={styles.contactLine}>{COMPANY_INFO.webEmail}</Text>
+          </View>
+          <View style={styles.phoneColumn}>
+            {COMPANY_INFO.contact.phone.map((phone, idx) => (
+              <Text key={idx} style={styles.phoneLine}>
+                {idx === 0 ? 'Tel: ' : '      '}{phone}
+              </Text>
+            ))}
+            <Text style={styles.phoneLine}>
+              Mob: {COMPANY_INFO.contact.mobile}
             </Text>
           </View>
         </View>
 
         {/* ================================================================ */}
         {/* SECTION B: DOCUMENT TITLE (fixed - repeats on each page) */}
+        {/* Blue for authorized "Calibration Certificate", Black for "Data Sheet Calibration" */}
         {/* ================================================================ */}
         <View style={styles.titleSection} fixed>
-          <Text style={styles.title}>{documentTitle}</Text>
+          <Text style={isAuthorized ? styles.title : styles.titleReview}>{documentTitle}</Text>
         </View>
 
         {/* Page number - absolutely positioned (fixed - repeats on each page) */}

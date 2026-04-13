@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { invalidateOnCertificateCreate } from '@/lib/cache/invalidation'
+import { certificateLogger as logger } from '@/lib/logger'
 
 // GET - List certificates for the current user
 export async function GET() {
@@ -19,9 +21,10 @@ export async function GET() {
       orderBy: { updatedAt: 'desc' },
     })
 
+    logger.info({ userId: session.user.id, count: certificates.length }, 'Certificates fetched')
     return NextResponse.json(certificates)
   } catch (error) {
-    console.error('Error fetching certificates:', error)
+    logger.error({ err: error }, 'Error fetching certificates')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -51,6 +54,8 @@ export async function POST(request: NextRequest) {
       dueDateNotApplicable,
       customerName,
       customerAddress,
+      customerContactName,
+      customerContactEmail,
       uucDescription,
       uucMake,
       uucModel,
@@ -87,6 +92,8 @@ export async function POST(request: NextRequest) {
           dueDateNotApplicable: dueDateNotApplicable || false,
           customerName,
           customerAddress,
+          customerContactName,
+          customerContactEmail,
           uucDescription,
           uucMake,
           uucModel,
@@ -220,6 +227,14 @@ export async function POST(request: NextRequest) {
       return cert
     })
 
+    // Invalidate caches after certificate creation
+    await invalidateOnCertificateCreate(session.user.id)
+
+    logger.info(
+      { userId: session.user.id, certificateId: certificate.id, certificateNumber: certificate.certificateNumber },
+      'Certificate created'
+    )
+
     return NextResponse.json({
       success: true,
       certificate: {
@@ -228,7 +243,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error creating certificate:', error)
+    logger.error({ err: error }, 'Error creating certificate')
     // Return more specific error message for debugging
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(

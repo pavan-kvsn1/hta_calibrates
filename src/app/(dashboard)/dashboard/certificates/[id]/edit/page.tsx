@@ -77,6 +77,7 @@ interface ApiCertificate {
   dueDateNotApplicable: boolean
   customerName: string | null
   customerAddress: string | null
+  customerContactName: string | null
   uucDescription: string | null
   uucMake: string | null
   uucModel: string | null
@@ -122,7 +123,7 @@ interface ApiParameter {
   errorFormula: string | null
   showAfterAdjustment: boolean
   requiresBinning: boolean
-  bins: string | null
+  bins: unknown // JSON field - can be array, string, or null
   sopReference: string | null
   masterInstrumentId: string | null
   results: ApiResult[]
@@ -176,13 +177,20 @@ interface ApiEvent {
 function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFormData> {
   const generateId = () => Math.random().toString(36).substring(2, 9)
 
-  const parseBins = (binsJson: string | null) => {
-    if (!binsJson) return []
-    try {
-      return JSON.parse(binsJson)
-    } catch {
-      return []
+  // Parse bins - handles both already-parsed arrays (from Prisma JSON field) and JSON strings
+  const parseBins = (bins: unknown) => {
+    if (!bins) return []
+    // If already an array, return it directly
+    if (Array.isArray(bins)) return bins
+    // If it's a string, try to parse it
+    if (typeof bins === 'string') {
+      try {
+        return JSON.parse(bins)
+      } catch {
+        return []
+      }
     }
+    return []
   }
 
   const parameters: Parameter[] = apiData.parameters.map((param) => ({
@@ -309,6 +317,7 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     status: apiData.status as CertificateFormData['status'],
     lastSaved: new Date(apiData.updatedAt),
     serverUpdatedAt: apiData.updatedAt,  // Track server timestamp for optimistic concurrency control
+    reviewerId: apiData.reviewer?.id || null,  // Map reviewer.id to reviewerId
     calibratedAt: (apiData.calibratedAt || 'LAB') as 'LAB' | 'SITE',
     srfNumber: apiData.srfNumber || '',
     srfDate: apiData.srfDate ? apiData.srfDate.split('T')[0] : '',
@@ -319,6 +328,7 @@ function transformApiToFormData(apiData: ApiCertificate): Partial<CertificateFor
     dueDateNotApplicable: apiData.dueDateNotApplicable || false,
     customerName: apiData.customerName || '',
     customerAddress: apiData.customerAddress || '',
+    customerContactName: apiData.customerContactName || '',
     uucDescription: apiData.uucDescription || '',
     uucMake: apiData.uucMake || '',
     uucModel: apiData.uucModel || '',
@@ -492,7 +502,7 @@ export default function EditCertificatePage() {
   // Calculate which sections have feedback targeting them (only from current revision)
   const sectionsWithFeedback = feedbacks
     .filter(f =>
-      (f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED') &&
+      (f.feedbackType === 'REVISION_REQUESTED' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED') &&
       f.revisionNumber === currentRevision
     )
     .map(f => f.targetSection)
@@ -795,8 +805,8 @@ export default function EditCertificatePage() {
           <div id="form-content" className="flex-1 min-h-0 overflow-auto bg-slate-50/30">
             <div className="p-6">
               {/* Feedback Banner */}
-              {formData.status === 'REVISION_REQUIRED' && feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED').length > 0 && (() => {
-                const latestFeedback = feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED')[0]
+              {formData.status === 'REVISION_REQUIRED' && feedbacks.filter(f => f.feedbackType === 'REVISION_REQUESTED' || f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED').length > 0 && (() => {
+                const latestFeedback = feedbacks.filter(f => f.feedbackType === 'REVISION_REQUESTED' || f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED')[0]
                 const isCustomerForwarded = latestFeedback?.feedbackType === 'CUSTOMER_REVISION_FORWARDED'
 
                 return (
@@ -827,7 +837,7 @@ export default function EditCertificatePage() {
                     </button>
                     {isTopFeedbackExpanded && (
                       <div className="p-4">
-                        {feedbacks.filter(f => f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED').slice(0, 1).map((feedback) => (
+                        {feedbacks.filter(f => f.feedbackType === 'REVISION_REQUESTED' || f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED').slice(0, 1).map((feedback) => (
                           <div key={feedback.id} className={cn(
                             "bg-white rounded-lg border p-3",
                             feedback.feedbackType === 'CUSTOMER_REVISION_FORWARDED' ? "border-purple-200" : "border-orange-200"

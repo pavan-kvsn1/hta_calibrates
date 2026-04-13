@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { cached, CacheKeys, CacheTTL } from '@/lib/cache'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('users')
 
 // GET /api/admin/users/admins - Get list of admins for engineer assignment
 export async function GET() {
@@ -10,36 +14,43 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const admins = await prisma.user.findMany({
-      where: {
-        role: 'ADMIN',
-        isActive: true,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        adminType: true,
-        _count: {
-          select: {
-            engineers: true,
+    // Cache admin list for 10 minutes - changes infrequently
+    const admins = await cached(
+      CacheKeys.dropdownAdmins(),
+      async () => {
+        const result = await prisma.user.findMany({
+          where: {
+            role: 'ADMIN',
+            isActive: true,
           },
-        },
-      },
-      orderBy: { name: 'asc' },
-    })
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            adminType: true,
+            _count: {
+              select: {
+                engineers: true,
+              },
+            },
+          },
+          orderBy: { name: 'asc' },
+        })
 
-    return NextResponse.json({
-      admins: admins.map((admin) => ({
-        id: admin.id,
-        name: admin.name,
-        email: admin.email,
-        adminType: admin.adminType,
-        engineerCount: admin._count.engineers,
-      })),
-    })
+        return result.map((admin) => ({
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          adminType: admin.adminType,
+          engineerCount: admin._count.engineers,
+        }))
+      },
+      { ttl: CacheTTL.LONG }
+    )
+
+    return NextResponse.json({ admins })
   } catch (error) {
-    console.error('Error fetching admins:', error)
+    logger.error({ err: error }, 'Failed to fetch admins')
     return NextResponse.json({ error: 'Failed to fetch admins' }, { status: 500 })
   }
 }

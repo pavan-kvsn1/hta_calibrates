@@ -101,14 +101,14 @@ export function ConclusionSection({ feedbackSlot, disabled }: ConclusionSectionP
       feedbackSlot={feedbackSlot}
       disabled={disabled}
     >
-      <div className="space-y-6">
+      <div className="space-y-4 p-5 rounded-xl border border-slate-300 bg-section-inner">
         {/* Dropdown to add statements */}
-        <div>
+        <div className="bg-white rounded-xl p-4 border border-slate-200">
           <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-3">
             Add Conclusion Statement
           </Label>
           <Select onValueChange={handleAddStatement} value="">
-            <SelectTrigger className="w-full rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-medium">
+            <SelectTrigger className="w-full rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-medium">
               <SelectValue placeholder="Select a conclusion statement to add..." />
             </SelectTrigger>
             <SelectContent>
@@ -126,7 +126,7 @@ export function ConclusionSection({ feedbackSlot, disabled }: ConclusionSectionP
 
         {/* Selected Statements Display */}
         {formData.selectedConclusionStatements.length > 0 && (
-          <div className="space-y-4">
+          <div className="bg-white rounded-xl p-4 border border-slate-200 space-y-4">
             <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               Selected Statements ({formData.selectedConclusionStatements.length})
             </Label>
@@ -165,7 +165,7 @@ export function ConclusionSection({ feedbackSlot, disabled }: ConclusionSectionP
 
         {/* Empty State */}
         {formData.selectedConclusionStatements.length === 0 && !showAdditionalInput && (
-          <div className="text-center py-8 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+          <div className="text-center py-8 bg-white rounded-xl border border-dashed border-slate-300">
             <FileText className="size-10 mx-auto text-slate-300 mb-3" />
             <p className="text-sm text-slate-500 font-medium">
               No conclusion statements selected
@@ -177,7 +177,7 @@ export function ConclusionSection({ feedbackSlot, disabled }: ConclusionSectionP
         )}
 
         {/* Additional Custom Statement */}
-        <div className="pt-4 border-t border-slate-200">
+        <div className="bg-white rounded-xl p-4 border border-slate-200">
           <label className="flex items-center gap-3 cursor-pointer group">
             <input
               type="checkbox"
@@ -202,7 +202,7 @@ export function ConclusionSection({ feedbackSlot, disabled }: ConclusionSectionP
                 value={formData.additionalConclusionStatement}
                 onChange={(e) => setFormField('additionalConclusionStatement', e.target.value)}
                 placeholder="Enter your additional conclusion statement here..."
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-primary focus:border-primary resize-none text-sm"
+                className="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-primary focus:border-primary resize-none text-sm"
                 rows={3}
               />
               <p className="mt-2 text-[10px] text-slate-400">

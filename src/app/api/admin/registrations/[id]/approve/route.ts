@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { notifyCustomerOnRegistrationApproved } from '@/lib/services/notifications'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('registrations')
 
 // POST /api/admin/registrations/[id]/approve - Approve customer registration (Master Admin only)
 export async function POST(
@@ -87,7 +90,7 @@ export async function POST(
       message: 'Registration approved successfully',
     })
   } catch (error) {
-    console.error('Error approving registration:', error)
+    logger.error({ err: error }, 'Failed to approve registration')
     return NextResponse.json(
       { error: 'Failed to approve registration' },
       { status: 500 }

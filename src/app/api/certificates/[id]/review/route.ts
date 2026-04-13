@@ -11,6 +11,8 @@ import {
   buildSigningEvidencePayload,
   type ClientEvidence,
 } from '@/lib/stores/signing-evidence'
+import { invalidateOnCertificateStatusChange } from '@/lib/cache/invalidation'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // Handle peer review
     return handlePeerReview(request, session, certificate, body)
   } catch (error) {
-    console.error('Review error:', error)
+    logger.error({ err: error }, 'Review error')
     return NextResponse.json(
       { error: 'Failed to process review' },
       { status: 500 }
@@ -436,9 +438,12 @@ async function handlePeerReview(
         )
         await appendSigningEvidence(certificate.id, result.reviewerSignature.id, 'REVIEWER_SIGNED', evidencePayload, result.certificate.currentRevision)
       } catch (evidenceError) {
-        console.error('Failed to capture reviewer signing evidence:', evidenceError)
+        logger.error({ err: evidenceError }, 'Failed to capture reviewer signing evidence')
       }
     }
+
+    // Invalidate caches after status change
+    await invalidateOnCertificateStatusChange(certificate.id, userId)
 
     // Notify assignee (fire and forget)
     import('@/lib/services/queue').then(({ enqueue }) => {
@@ -448,7 +453,7 @@ async function handlePeerReview(
         title: 'Certificate Approved',
         message: `Certificate ${certificate.certificateNumber} has been approved by ${session.user.name || 'Reviewer'}.`,
         certificateId: certificate.id,
-      }).catch(console.error)
+      }).catch((err) => logger.error({ err }, 'Failed to send notification'))
     })
 
     // If sent to customer, also notify
@@ -458,7 +463,7 @@ async function handlePeerReview(
         certificateNumber: certificate.certificateNumber,
         assigneeId: certificate.createdById,
         customerId: result.tokenResult.customerId,
-      }).catch((err) => console.error('Failed to send notification:', err))
+      }).catch((err) => logger.error({ err }, 'Failed to send customer notification'))
     }
 
     // Build response
@@ -572,6 +577,9 @@ async function handlePeerReview(
       }
     })
 
+    // Invalidate caches after status change
+    await invalidateOnCertificateStatusChange(certificate.id, userId)
+
     // Build notification message with section info
     const sectionCount = feedbackEntries.filter(e => e.section).length
     const hasGeneral = feedbackEntries.some(e => !e.section)
@@ -594,7 +602,7 @@ async function handlePeerReview(
           sections: feedbackEntries.filter(e => e.section).map(e => e.section).join(','),
           isCustomerFeedback: String(isForwardingCustomerFeedback),
         },
-      }).catch(console.error)
+      }).catch((err) => logger.error({ err }, 'Failed to send notification'))
     })
 
     return NextResponse.json({
@@ -652,6 +660,9 @@ async function handlePeerReview(
       })
     })
 
+    // Invalidate caches after status change
+    await invalidateOnCertificateStatusChange(certificate.id, userId)
+
     // Notify assignee (fire and forget)
     import('@/lib/services/queue').then(({ enqueue }) => {
       enqueue('notification:send', {
@@ -661,7 +672,7 @@ async function handlePeerReview(
         message: `${session.user.name || 'Reviewer'} has rejected certificate ${certificate.certificateNumber}.`,
         certificateId: certificate.id,
         data: { comment: comment!.trim() },
-      }).catch(console.error)
+      }).catch((err) => logger.error({ err }, 'Failed to send notification'))
     })
 
     return NextResponse.json({

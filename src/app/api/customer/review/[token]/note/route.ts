@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 export async function POST(
   request: NextRequest,
@@ -78,7 +81,7 @@ export async function POST(
       feedbackId: feedback.id,
     })
   } catch (error) {
-    console.error('Error adding customer note:', error)
+    logger.error({ err: error }, 'Failed to add customer note')
     return NextResponse.json(
       { error: 'Failed to add note' },
       { status: 500 }

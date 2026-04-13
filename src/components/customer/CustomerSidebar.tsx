@@ -14,6 +14,7 @@ import {
   ChevronRight,
   FileText,
   Bell,
+  Wrench,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -93,6 +94,13 @@ export function CustomerSidebar({
       name: 'Notifications',
       href: '/customer/notifications',
       icon: Bell,
+      badge: 0,
+      pocOnly: false,
+    },
+    {
+      name: 'Instruments',
+      href: '/customer/instruments',
+      icon: Wrench,
       badge: 0,
       pocOnly: false,
     },

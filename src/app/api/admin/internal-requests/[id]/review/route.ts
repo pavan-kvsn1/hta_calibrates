@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('requests')
 
 // POST /api/admin/internal-requests/[id]/review - Approve or reject an internal request
 export async function POST(
@@ -159,7 +162,7 @@ export async function POST(
       },
     })
   } catch (error) {
-    console.error('Error reviewing internal request:', error)
+    logger.error({ err: error }, 'Failed to review internal request')
     return NextResponse.json(
       { error: 'Failed to process request' },
       { status: 500 }

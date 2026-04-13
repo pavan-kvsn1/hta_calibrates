@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getNotifications } from '@/lib/services/notifications'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('notifications')
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,7 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error fetching notifications:', error)
+    logger.error({ err: error }, 'Failed to fetch notifications')
     return NextResponse.json(
       { error: 'Failed to fetch notifications' },
       { status: 500 }

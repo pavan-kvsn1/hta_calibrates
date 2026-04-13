@@ -1,10 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShieldCheck, CheckCircle, ChevronDown, ChevronRight, User } from 'lucide-react'
+import { ShieldCheck, CheckCircle, ChevronDown, ChevronRight, User, Mail, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { SignatureModal } from '@/components/signatures'
+import { SendDownloadLinkModal } from './SendDownloadLinkModal'
 import type { SignatureData } from '@/types/signatures'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +17,8 @@ interface AdminAuthorizationPanelProps {
   isAuthorized: boolean
   currentRevision: number
   createdByName: string | null
+  customerName?: string | null
+  customerEmail?: string | null
 }
 
 export function AdminAuthorizationPanel({
@@ -20,12 +26,26 @@ export function AdminAuthorizationPanel({
   isAuthorized,
   currentRevision,
   createdByName,
+  customerName: initialCustomerName,
+  customerEmail: initialCustomerEmail,
 }: AdminAuthorizationPanelProps) {
   const router = useRouter()
   const [isExpanded, setIsExpanded] = useState(true)
   const [showAuthorizeModal, setShowAuthorizeModal] = useState(false)
+  const [showSendLinkModal, setShowSendLinkModal] = useState(false)
   const [isAuthorizing, setIsAuthorizing] = useState(false)
   const [authorizeError, setAuthorizeError] = useState<string | null>(null)
+
+  // Send download link options
+  const [sendDownloadLink, setSendDownloadLink] = useState(true)
+  const [customerEmail, setCustomerEmail] = useState(initialCustomerEmail || '')
+  const [customerName, setCustomerName] = useState(initialCustomerName || '')
+
+  // Update customer info if props change
+  useEffect(() => {
+    if (initialCustomerEmail) setCustomerEmail(initialCustomerEmail)
+    if (initialCustomerName) setCustomerName(initialCustomerName)
+  }, [initialCustomerEmail, initialCustomerName])
 
   // Authorize certificate
   const handleAuthorize = async (data: SignatureData) => {
@@ -40,11 +60,23 @@ export function AdminAuthorizationPanel({
           signatureData: data.signatureImage,
           signerName: data.signerName,
           clientEvidence: data.clientEvidence,
+          // Include download link options
+          sendDownloadLink: sendDownloadLink && customerEmail.trim() && customerName.trim(),
+          customerEmail: customerEmail.trim(),
+          customerName: customerName.trim(),
         }),
       })
 
       if (response.ok) {
-        router.push('/admin/authorization')
+        const result = await response.json()
+        if (result.downloadLink?.sent) {
+          // Show success message briefly, then redirect
+          setTimeout(() => {
+            router.push('/admin/authorization')
+          }, 1500)
+        } else {
+          router.push('/admin/authorization')
+        }
       } else {
         let errorMessage = 'Failed to authorize certificate'
         try {
@@ -110,6 +142,19 @@ export function AdminAuthorizationPanel({
                   <p className="text-xs text-green-600 mt-1">
                     This certificate has been authorized and is now complete.
                   </p>
+
+                  {/* Option to send download link after authorization */}
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSendLinkModal(true)}
+                      className="w-full"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Send Download Link to Customer
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -117,12 +162,66 @@ export function AdminAuthorizationPanel({
                     By authorizing, you confirm this certificate is complete and has been approved
                     by the customer.
                   </p>
+
+                  {/* Send Download Link Option */}
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <div className="flex items-start gap-2 mb-3">
+                      <Checkbox
+                        id="sendDownloadLink"
+                        checked={sendDownloadLink}
+                        onCheckedChange={(checked) => setSendDownloadLink(checked === true)}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1">
+                        <Label htmlFor="sendDownloadLink" className="text-sm font-medium text-blue-900 cursor-pointer">
+                          Send download link to customer
+                        </Label>
+                        <p className="text-xs text-blue-700 mt-0.5">
+                          Email the finalized certificate to the customer after authorization
+                        </p>
+                      </div>
+                    </div>
+
+                    {sendDownloadLink && (
+                      <div className="space-y-3 pl-6">
+                        <div>
+                          <Label htmlFor="customerEmail" className="text-xs text-blue-800">
+                            Customer Email *
+                          </Label>
+                          <Input
+                            id="customerEmail"
+                            type="email"
+                            placeholder="customer@example.com"
+                            value={customerEmail}
+                            onChange={(e) => setCustomerEmail(e.target.value)}
+                            className="mt-1 h-8 text-sm bg-white"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="customerName" className="text-xs text-blue-800">
+                            Customer Name *
+                          </Label>
+                          <Input
+                            id="customerName"
+                            type="text"
+                            placeholder="John Smith"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            className="mt-1 h-8 text-sm bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <Button
                     onClick={() => setShowAuthorizeModal(true)}
                     className="w-full bg-blue-600 hover:bg-blue-700 text-sm h-10"
                   >
                     <ShieldCheck className="h-4 w-4 mr-2" />
-                    Authorize & Sign
+                    {sendDownloadLink && customerEmail && customerName
+                      ? 'Authorize & Send to Customer'
+                      : 'Authorize & Sign'}
                   </Button>
                 </>
               )}
@@ -156,10 +255,27 @@ export function AdminAuthorizationPanel({
         }}
         onConfirm={handleAuthorize}
         title="Authorize Certificate"
-        description="Please sign below to authorize this calibration certificate. Your signature will be added as the final authorization."
-        confirmLabel="Confirm Authorization"
+        description={
+          sendDownloadLink && customerEmail && customerName
+            ? `Please sign below to authorize this certificate. A download link will be sent to ${customerEmail}.`
+            : 'Please sign below to authorize this calibration certificate. Your signature will be added as the final authorization.'
+        }
+        confirmLabel={
+          sendDownloadLink && customerEmail && customerName
+            ? 'Authorize & Send'
+            : 'Confirm Authorization'
+        }
         loading={isAuthorizing}
         error={authorizeError}
+      />
+
+      {/* Send Download Link Modal (for post-authorization) */}
+      <SendDownloadLinkModal
+        isOpen={showSendLinkModal}
+        onClose={() => setShowSendLinkModal(false)}
+        certificateId={certificateId}
+        customerName={initialCustomerName}
+        customerEmail={initialCustomerEmail}
       />
     </>
   )

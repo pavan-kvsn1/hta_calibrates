@@ -1,103 +1,80 @@
 import { prisma } from '@/lib/prisma'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-// Render at runtime, not build time (needs database)
-export const dynamic = 'force-dynamic'
+import { cached, CacheKeys, CacheTTL } from '@/lib/cache'
 import {
   Building2,
-  Users,
   UserPlus,
-  Wrench,
-  FileText,
-  AlertTriangle,
   ArrowRight,
   ShieldCheck,
-  TrendingDown,
-  TrendingUp,
-  Clock,
-  UserCheck,
-  RefreshCw,
-  Building,
-  MessageSquare,
-  CheckCircle2,
+  BarChart3,
+  ChevronRight,
   AlertCircle,
-  BadgeCheck,
+  Clock,
+  XCircle,
 } from 'lucide-react'
 import Link from 'next/link'
-import {
-  calculateCertificateTAT,
-  aggregateTATMetrics,
-  compareWeeklyMetrics,
-} from '@/lib/utils/tat-calculator'
+import { LiveFeedCard } from '@/components/admin/LiveFeedCard'
 
-// Format hours - show minutes if hours rounds to 0, seconds if minutes rounds to 0
-function formatTATHours(hours: number): string {
-  if (hours === 0) return '0h'
-  if (hours < 1) {
-    const minutes = Math.round(hours * 60)
-    if (minutes === 0) {
-      // Less than 30 seconds would round to 0 minutes, show seconds instead
-      const seconds = Math.round(hours * 3600)
-      return `${Math.max(1, seconds)}s`
-    }
-    return `${minutes}m`
-  }
-  return `${Math.round(hours)}h`
-}
+export const dynamic = 'force-dynamic'
 
 async function getAdminStats() {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Cache admin dashboard stats for 1 minute - data changes frequently
+  return cached(
+    CacheKeys.adminDashboard(),
+    async () => {
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
 
-  const thirtyDaysFromNow = new Date(today)
+      const thirtyDaysFromNow = new Date(today)
   thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-
-  const sevenDaysAgo = new Date(today)
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-  const fourteenDaysAgo = new Date(today)
-  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14)
 
   const fortyEightHoursAgo = new Date()
   fortyEightHoursAgo.setHours(fortyEightHoursAgo.getHours() - 48)
 
-  const [
-    // Overview stats (matching wireframe: Engineers, Customers, Certificates, Instruments)
-    totalEngineers,
-    totalCustomerAccounts,
-    totalCertificates,
-    totalInstruments,
+  const twentyFourHoursAgo = new Date()
+  twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24)
 
-    // Attention items
-    pendingRequests,
+  const [
+    // Requests
+    pendingUserRequests,
+    pendingSectionUnlocks,
+
+    // Certificates
+    pendingReviewCerts,
+    pendingAuthorizationCerts,
+
+    // Instruments
     expiredInstruments,
     expiringInstruments,
-    staleCertificates,
-    overdueCertificates,
 
-    // Certificates with events for TAT calculation (last 2 weeks)
-    certificatesWithEvents,
+    // Pipeline counts
+    draftCerts,
+    inReviewCerts,
+    inReviewSlowCerts,
+    inReviewStuckCerts,
+    inCustomerCerts,
+    inCustomerSlowCerts,
+    inCustomerStuckCerts,
+    pendingAuthCerts,
+    completedThisWeek,
 
-    // Recent activity data
-    recentCertificateEvents,
-    recentRequests,
+    // Recent certificates with activity
+    recentCertificates,
   ] = await Promise.all([
-    // Total engineers (staff users with ENGINEER role)
-    prisma.user.count({
-      where: { role: 'ENGINEER', isActive: true },
+    // Pending user/customer requests
+    prisma.customerRequest.count({ where: { status: 'PENDING' } }),
+
+    // Pending section unlock requests
+    prisma.internalRequest.count({ where: { type: 'SECTION_UNLOCK', status: 'PENDING' } }),
+
+    // Certificates pending review
+    prisma.certificate.count({
+      where: { status: 'PENDING_REVIEW' },
     }),
 
-    // Customer accounts
-    prisma.customerAccount.count({ where: { isActive: true } }),
-
-    // Total certificates
-    prisma.certificate.count(),
-
-    // Total active instruments
-    prisma.masterInstrument.count({ where: { isActive: true } }),
-
-    // Pending customer requests (user additions, POC changes)
-    prisma.customerRequest.count({ where: { status: 'PENDING' } }),
+    // Certificates pending authorization
+    prisma.certificate.count({
+      where: { status: 'PENDING_AUTHORIZATION' },
+    }),
 
     // Expired instruments
     prisma.masterInstrument.count({
@@ -115,826 +92,446 @@ async function getAdminStats() {
       },
     }),
 
-    // Stale certificates (in revision > 7 days)
+    // Pipeline: Draft
+    prisma.certificate.count({
+      where: { status: 'DRAFT' },
+    }),
+
+    // Pipeline: In Review (total)
+    prisma.certificate.count({
+      where: { status: 'PENDING_REVIEW' },
+    }),
+
+    // Pipeline: In Review > 24h
     prisma.certificate.count({
       where: {
-        status: { in: ['REVISION_REQUIRED', 'CUSTOMER_REVISION_REQUIRED'] },
-        updatedAt: { lt: sevenDaysAgo },
+        status: 'PENDING_REVIEW',
+        updatedAt: { lt: twentyFourHoursAgo, gte: fortyEightHoursAgo },
       },
     }),
 
-    // Overdue certificates (TAT > 48h, still in active workflow)
+    // Pipeline: In Review > 48h (stuck)
     prisma.certificate.count({
       where: {
-        status: {
-          in: ['PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'],
-        },
+        status: 'PENDING_REVIEW',
         updatedAt: { lt: fortyEightHoursAgo },
       },
     }),
 
-    // Certificates with events in the last 2 weeks (for TAT calculation)
+    // Pipeline: Customer stage (total)
+    prisma.certificate.count({
+      where: { status: 'PENDING_CUSTOMER_APPROVAL' },
+    }),
+
+    // Pipeline: Customer > 24h
+    prisma.certificate.count({
+      where: {
+        status: 'PENDING_CUSTOMER_APPROVAL',
+        updatedAt: { lt: twentyFourHoursAgo, gte: fortyEightHoursAgo },
+      },
+    }),
+
+    // Pipeline: Customer > 48h (stuck)
+    prisma.certificate.count({
+      where: {
+        status: 'PENDING_CUSTOMER_APPROVAL',
+        updatedAt: { lt: fortyEightHoursAgo },
+      },
+    }),
+
+    // Pipeline: Pending Authorization
+    prisma.certificate.count({
+      where: { status: 'PENDING_AUTHORIZATION' },
+    }),
+
+    // Completed this week
+    prisma.certificate.count({
+      where: {
+        status: 'AUTHORIZED',
+        updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      },
+    }),
+
+    // Recent certificates with events for live feed
     prisma.certificate.findMany({
       where: {
-        events: {
-          some: {
-            createdAt: { gte: fourteenDaysAgo },
-          },
-        },
+        updatedAt: { gte: new Date(Date.now() - 48 * 60 * 60 * 1000) }, // Last 48 hours
       },
+      orderBy: { updatedAt: 'desc' },
+      take: 6,
       select: {
         id: true,
+        certificateNumber: true,
+        customerName: true,
         status: true,
-        currentRevision: true,
         events: {
+          where: {
+            eventType: {
+              in: [
+                'CERTIFICATE_CREATED',
+                'SUBMITTED_FOR_REVIEW',
+                'REVIEWER_APPROVED',
+                'REVIEWER_APPROVED_SENT_TO_CUSTOMER',
+                'CUSTOMER_APPROVED',
+                'ADMIN_AUTHORIZED',
+                'REVISION_REQUESTED',
+                'CUSTOMER_REVISION_REQUESTED',
+                'SECTION_UNLOCK_REQUESTED',
+                'SECTION_UNLOCK_APPROVED',
+              ],
+            },
+          },
+          orderBy: { createdAt: 'desc' },
           select: {
             id: true,
             eventType: true,
             createdAt: true,
-            certificateId: true,
+            userRole: true,
+            user: {
+              select: { name: true },
+            },
+            customer: {
+              select: { name: true },
+            },
           },
-          orderBy: { createdAt: 'asc' },
-        },
-      },
-    }),
-
-    // Recent certificate events
-    prisma.certificateEvent.findMany({
-      where: {
-        eventType: {
-          in: [
-            'CREATED',
-            'SUBMITTED_FOR_REVIEW',
-            'REVIEWER_APPROVED',
-            'REVIEWER_REJECTED',
-            'CUSTOMER_APPROVED',
-            'CUSTOMER_REJECTED',
-          ],
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 15,
-      include: {
-        certificate: {
-          select: { certificateNumber: true },
-        },
-        user: {
-          select: { name: true },
-        },
-      },
-    }),
-
-    // Recent customer requests
-    prisma.customerRequest.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-      select: {
-        id: true,
-        type: true,
-        status: true,
-        data: true,
-        createdAt: true,
-        customerAccount: {
-          select: { companyName: true },
         },
       },
     }),
   ])
 
-  // Calculate TAT metrics using event-based calculation
-  // Separate certificates by which week they were completed (authorized)
-  const thisWeekCerts: typeof certificatesWithEvents = []
-  const lastWeekCerts: typeof certificatesWithEvents = []
-
-  certificatesWithEvents.forEach((cert) => {
-    // Find ADMIN_SIGNED event to determine completion date
-    const adminSignedEvent = cert.events.find(e => e.eventType === 'ADMIN_AUTHORIZED')
-
-    if (adminSignedEvent) {
-      const completedAt = new Date(adminSignedEvent.createdAt)
-      if (completedAt >= sevenDaysAgo) {
-        thisWeekCerts.push(cert)
-      } else if (completedAt >= fourteenDaysAgo) {
-        lastWeekCerts.push(cert)
-      }
-    } else {
-      // Not completed - include in this week's active metrics
-      // Check if it had activity this week
-      const hasThisWeekActivity = cert.events.some(
-        e => new Date(e.createdAt) >= sevenDaysAgo
-      )
-      if (hasThisWeekActivity) {
-        thisWeekCerts.push(cert)
-      }
-    }
-  })
-
-  // Calculate metrics for each certificate
-  const thisWeekMetrics = thisWeekCerts
-    .map(cert => calculateCertificateTAT(cert.events))
-    .filter((m): m is NonNullable<typeof m> => m !== null)
-
-  const lastWeekMetrics = lastWeekCerts
-    .map(cert => calculateCertificateTAT(cert.events))
-    .filter((m): m is NonNullable<typeof m> => m !== null)
-
-  // Aggregate metrics
-  const thisWeekAggregated = aggregateTATMetrics(thisWeekMetrics)
-  const lastWeekAggregated = aggregateTATMetrics(lastWeekMetrics)
-
-  // Calculate week-over-week comparison
-  const tatComparison = compareWeeklyMetrics(thisWeekAggregated, lastWeekAggregated)
-
-  // Calculate revision-based cycles (simpler: currentRevision - 1 = number of revision cycles)
-  const thisWeekRevisionCycles = thisWeekCerts.reduce((sum, cert) => sum + Math.max(0, cert.currentRevision - 1), 0)
-  const lastWeekRevisionCycles = lastWeekCerts.reduce((sum, cert) => sum + Math.max(0, cert.currentRevision - 1), 0)
-  const thisWeekAvgRevisions = thisWeekCerts.length > 0
-    ? Math.round((thisWeekRevisionCycles / thisWeekCerts.length) * 10) / 10
-    : 0
-  const lastWeekAvgRevisions = lastWeekCerts.length > 0
-    ? Math.round((lastWeekRevisionCycles / lastWeekCerts.length) * 10) / 10
-    : 0
-  const revisionCycleChange = lastWeekAvgRevisions > 0
-    ? Math.round(((thisWeekAvgRevisions - lastWeekAvgRevisions) / lastWeekAvgRevisions) * 100)
-    : 0
-
   return {
-    // Overview stats
-    totalEngineers,
-    totalCustomerAccounts,
-    totalCertificates,
-    totalInstruments,
-
-    // Attention items
-    pendingRequests,
-    expiredInstruments,
-    expiringInstruments,
-    staleCertificates,
-    overdueCertificates,
-
-    // TAT metrics with week-over-week comparison
-    tatComparison,
-
-    // Revision-based cycle stats (simpler calculation)
-    revisionStats: {
-      thisWeekAvg: thisWeekAvgRevisions,
-      lastWeekAvg: lastWeekAvgRevisions,
-      totalThisWeek: thisWeekRevisionCycles,
-      changePercent: revisionCycleChange,
+    requests: {
+      userApprovals: pendingUserRequests,
+      sectionUnlocks: pendingSectionUnlocks,
     },
-
-    // Recent activity
-    recentCertificateEvents,
-    recentRequests,
+    certificates: {
+      pendingReview: pendingReviewCerts,
+      pendingAuthorization: pendingAuthorizationCerts,
+    },
+    instruments: {
+      expired: expiredInstruments,
+      expiringSoon: expiringInstruments,
+    },
+    pipeline: {
+      draft: draftCerts,
+      review: {
+        total: inReviewCerts,
+        slow: inReviewSlowCerts,
+        stuck: inReviewStuckCerts,
+      },
+      customer: {
+        total: inCustomerCerts,
+        slow: inCustomerSlowCerts,
+        stuck: inCustomerStuckCerts,
+      },
+      authorization: pendingAuthCerts,
+      completedThisWeek,
+    },
+    recentCertificates: recentCertificates.map((cert) => ({
+      id: cert.id,
+      certificateNumber: cert.certificateNumber,
+      customerName: cert.customerName,
+      status: cert.status,
+      events: cert.events.map((e) => ({
+        id: e.id,
+        eventType: e.eventType,
+        createdAt: e.createdAt.toISOString(),
+        userName: e.user?.name || e.customer?.name || null,
+        userRole: e.userRole,
+      })),
+    })),
   }
-}
-
-function formatEventDescription(event: {
-  eventType: string
-  certificate: { certificateNumber: string }
-  user: { name: string } | null
-}) {
-  const certNumber = event.certificate.certificateNumber
-  const userName = event.user?.name || 'System'
-
-  switch (event.eventType) {
-    case 'CREATED':
-      return `${userName} created ${certNumber}`
-    case 'SUBMITTED_FOR_REVIEW':
-      return `${userName} submitted ${certNumber}`
-    case 'REVIEWER_APPROVED':
-      return `${userName} approved ${certNumber}`
-    case 'REVIEWER_REJECTED':
-      return `${userName} returned ${certNumber} for revision`
-    case 'CUSTOMER_APPROVED':
-      return `Customer approved ${certNumber}`
-    case 'CUSTOMER_REJECTED':
-      return `Customer requested revision for ${certNumber}`
-    default:
-      return `${event.eventType} on ${certNumber}`
-  }
-}
-
-function formatRelativeTime(date: Date) {
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffMins = Math.floor(diffMs / 60000)
-  const diffHours = Math.floor(diffMs / 3600000)
-  const diffDays = Math.floor(diffMs / 86400000)
-
-  if (diffMins < 1) return 'Just now'
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString()
-}
-
-function groupByDate(
-  events: Array<{ createdAt: Date; description: string; type: 'event' | 'request' }>
-) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-
-  const groups: { label: string; items: typeof events }[] = [
-    { label: 'Today', items: [] },
-    { label: 'Yesterday', items: [] },
-    { label: 'Earlier', items: [] },
-  ]
-
-  events.forEach((event) => {
-    const eventDate = new Date(event.createdAt)
-    eventDate.setHours(0, 0, 0, 0)
-
-    if (eventDate.getTime() === today.getTime()) {
-      groups[0].items.push(event)
-    } else if (eventDate.getTime() === yesterday.getTime()) {
-      groups[1].items.push(event)
-    } else {
-      groups[2].items.push(event)
-    }
-  })
-
-  return groups.filter((g) => g.items.length > 0)
+    },
+    { ttl: CacheTTL.SHORT } // 1 minute - dashboard data changes frequently
+  )
 }
 
 export default async function AdminDashboard() {
   const stats = await getAdminStats()
 
-  // Combine and sort activity
-  const allActivity = [
-    ...stats.recentCertificateEvents.map((e) => ({
-      createdAt: e.createdAt,
-      description: formatEventDescription(e),
-      type: 'event' as const,
-    })),
-    ...stats.recentRequests.map((r) => {
-      const data = r.data as { name?: string; email?: string }
-      const label = r.type === 'USER_ADDITION'
-        ? `User addition: ${data.name || data.email || 'Unknown'}`
-        : 'POC change request'
-      return {
-        createdAt: r.createdAt,
-        description:
-          r.status === 'PENDING'
-            ? `New ${label} (${r.customerAccount.companyName})`
-            : r.status === 'APPROVED'
-              ? `Approved: ${label}`
-              : `Rejected: ${label}`,
-        type: 'request' as const,
-      }
-    }),
-  ]
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, 15)
-
-  const groupedActivity = groupByDate(allActivity)
-
-  // Overview stat cards (matching wireframe: Engineers, Customers, Certificates, Instruments)
-  const overviewCards = [
-    {
-      title: 'Engineers',
-      value: stats.totalEngineers,
-      subtitle: 'Active staff',
-      icon: Users,
-      href: '/admin/users',
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    },
-    {
-      title: 'Customers',
-      value: stats.totalCustomerAccounts,
-      subtitle: 'Active accounts',
-      icon: Building2,
-      href: '/admin/customers',
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-    },
-    {
-      title: 'Certificates',
-      value: stats.totalCertificates,
-      subtitle: 'Total created',
-      icon: FileText,
-      href: '/admin/certificates',
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-    },
-    {
-      title: 'Instruments',
-      value: stats.totalInstruments,
-      subtitle: 'In database',
-      icon: Wrench,
-      href: '/admin/instruments',
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50',
-    },
-  ]
-
-  // Attention items (matching wireframe)
-  const attentionItems = [
-    {
-      count: stats.pendingRequests,
-      label: 'Pending customer requests',
-      href: '/admin/requests',
-      action: 'Review',
-      severity: 'critical' as const,
-      show: stats.pendingRequests > 0,
-    },
-    {
-      count: stats.expiredInstruments,
-      label: 'Instruments with expired calibration',
-      href: '/admin/instruments?status=expired',
-      action: 'View',
-      severity: 'critical' as const,
-      show: stats.expiredInstruments > 0,
-    },
-    {
-      count: stats.expiringInstruments,
-      label: 'Instruments expiring within 30 days',
-      href: '/admin/instruments?status=expiring',
-      action: 'View',
-      severity: 'warning' as const,
-      show: stats.expiringInstruments > 0,
-    },
-    {
-      count: stats.overdueCertificates,
-      label: 'Certificates overdue (TAT > 48h)',
-      href: '/admin/certificates?status=overdue',
-      action: 'View',
-      severity: 'critical' as const,
-      show: stats.overdueCertificates > 0,
-    },
-    {
-      count: stats.staleCertificates,
-      label: 'Certificates in revision > 7 days',
-      href: '/admin/certificates?status=REVISION_REQUIRED',
-      action: 'View',
-      severity: 'warning' as const,
-      show: stats.staleCertificates > 0,
-    },
-  ].filter((item) => item.show)
+  const hasAttentionItems =
+    stats.requests.userApprovals > 0 ||
+    stats.requests.sectionUnlocks > 0 ||
+    stats.certificates.pendingReview > 0 ||
+    stats.certificates.pendingAuthorization > 0 ||
+    stats.instruments.expired > 0 ||
+    stats.instruments.expiringSoon > 0
 
   return (
-    <div className="p-3 h-full">
-      {/* Master Bounding Box */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-        <div className="p-6 overflow-auto h-full">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
-            <p className="text-slate-500 mt-1">System overview and management</p>
-          </div>
+    <div className="h-full bg-slate-100">
+      <div className="h-full flex flex-col bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0 border-b border-slate-300 px-3 py-3">
+          <h1 className="text-xl font-bold text-slate-900">Admin Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-0.5">System overview</p>
+        </div>
 
-          {/* Overview Stats Grid - Compact */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-            {overviewCards.map((stat) => (
-              <Link key={stat.title} href={stat.href}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                        <stat.icon className={`h-5 w-5 ${stat.color}`} />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-                        <p className="text-xs text-slate-500">{stat.title}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-
-          {/* TAT Metrics - Week over Week */}
-          <Card className="mb-6">
-            {/* Header with week-over-week trend summary */}
-            <CardHeader className="pb-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-slate-500" />
-                    Turn Around Time
-                  </CardTitle>
-                  <p className="text-slate-500 text-sm mt-0.5">This week&apos;s performance vs last week</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  {/* TAT Trend Badge */}
-                  {(() => {
-                    const change = stats.tatComparison.changes.totalTAT
-                    const isImproved = change.hours < 0
-                    const isWorse = change.hours > 0
-                    return (
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
-                        isImproved ? 'bg-green-50 text-green-700 border-green-200' :
-                        isWorse ? 'bg-red-50 text-red-700 border-red-200' :
-                        'bg-slate-50 text-slate-600 border-slate-200'
-                      }`}>
-                        {isImproved ? <TrendingDown className="h-4 w-4" /> :
-                         isWorse ? <TrendingUp className="h-4 w-4" /> :
-                         <span className="text-xs">—</span>}
-                        <span>TAT {isImproved ? `${Math.abs(change.percent)}% faster` :
-                                   isWorse ? `${Math.abs(change.percent)}% slower` :
-                                   'No change'}</span>
-                      </div>
-                    )
-                  })()}
-                  {/* Cycles Trend Badge */}
-                  {(() => {
-                    const change = stats.revisionStats.changePercent
-                    const isImproved = change < 0
-                    const isWorse = change > 0
-                    return (
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border ${
-                        isImproved ? 'bg-green-50 text-green-700 border-green-200' :
-                        isWorse ? 'bg-red-50 text-red-700 border-red-200' :
-                        'bg-slate-50 text-slate-600 border-slate-200'
-                      }`}>
-                        {isImproved ? <TrendingDown className="h-4 w-4" /> :
-                         isWorse ? <TrendingUp className="h-4 w-4" /> :
-                         <span className="text-xs">—</span>}
-                        <span>Revisions {isImproved ? `${Math.abs(change)}% fewer` :
-                                        isWorse ? `${Math.abs(change)}% more` :
-                                        'No change'}</span>
-                      </div>
-                    )
-                  })()}
-                </div>
+        {/* Content */}
+        <div className="flex-1 overflow-auto p-3 space-y-4 bg-section-inner">
+          {/* Needs Your Attention */}
+          {hasAttentionItems && (
+            <div className="rounded-lg border border-slate-300 overflow-hidden shadow-sm">
+              <div className="px-4 py-3 bg-red-500">
+                <h2 className="font-semibold text-white text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  Needs Your Attention
+                </h2>
               </div>
-            </CardHeader>
+              <div className="p-4 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-            <CardContent className="p-0">
-              {/* Summary Stats Row */}
-              <div className="grid grid-cols-4 divide-x divide-slate-100 bg-slate-50/50 border-b border-slate-100">
-                <div className="py-3 px-4 text-center">
-                  <div className="text-xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.totalTAT.avgHours)}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">Avg Total TAT</div>
-                </div>
-                <div className="py-3 px-4 text-center">
-                  <div className="text-xl font-bold text-slate-900">{stats.revisionStats.thisWeekAvg}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">Avg Revisions</div>
-                </div>
-                <div className="py-3 px-4 text-center">
-                  <div className="text-xl font-bold text-green-600 flex items-center justify-center gap-1">
-                    <CheckCircle2 className="h-4 w-4" />
-                    {stats.tatComparison.thisWeek.totalTAT.completedCount}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">Completed</div>
-                </div>
-                <div className="py-3 px-4 text-center">
-                  <div className={`text-xl font-bold flex items-center justify-center gap-1 ${
-                    stats.tatComparison.thisWeek.totalTAT.overdueCount > 0 ? 'text-red-600' : 'text-slate-400'
-                  }`}>
-                    {stats.tatComparison.thisWeek.totalTAT.overdueCount > 0 && <AlertCircle className="h-4 w-4" />}
-                    {stats.tatComparison.thisWeek.totalTAT.overdueCount}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-0.5">Overdue</div>
-                </div>
-              </div>
-
-              {/* Stage Breakdown */}
-              <div className="p-4">
-                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Stage Breakdown</div>
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                  {/* Reviewer Stage */}
-                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1.5 rounded-lg bg-amber-100">
-                        <UserCheck className="h-4 w-4 text-amber-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-700">Reviewer</span>
-                    </div>
-                    {/* TAT */}
-                    <div className="mb-3">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.reviewer.avgHours)}</span>
-                        {stats.tatComparison.changes.reviewer.hours !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.reviewer.hours < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.reviewer.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.reviewer.hoursPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">avg response time</div>
-                    </div>
-                    {/* Cycles */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.reviewer.avgCycles}</span>
-                        {stats.tatComparison.changes.reviewer.cyclesPercent !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.reviewer.cyclesPercent < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.reviewer.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.reviewer.cyclesPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">review cycles</div>
-                    </div>
-                  </div>
-
-                  {/* Engineer Revision Stage */}
-                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1.5 rounded-lg bg-orange-100">
-                        <RefreshCw className="h-4 w-4 text-orange-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-700">Engineer Rev.</span>
-                    </div>
-                    {/* TAT */}
-                    <div className="mb-3">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.engineerRevision.avgHours)}</span>
-                        {stats.tatComparison.changes.engineerRevision.hours !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.engineerRevision.hours < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.engineerRevision.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.engineerRevision.hoursPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">avg revision time</div>
-                    </div>
-                    {/* Cycles */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.engineerRevision.avgCycles}</span>
-                        {stats.tatComparison.changes.engineerRevision.cyclesPercent !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.engineerRevision.cyclesPercent < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.engineerRevision.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.engineerRevision.cyclesPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">revision cycles</div>
-                    </div>
-                  </div>
-
-                  {/* Customer Stage */}
-                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1.5 rounded-lg bg-blue-100">
-                        <Building className="h-4 w-4 text-blue-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-700">Customer</span>
-                    </div>
-                    {/* TAT */}
-                    <div className="mb-3">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.customer.avgHours)}</span>
-                        {stats.tatComparison.changes.customer.hours !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.customer.hours < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.customer.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.customer.hoursPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">avg approval time</div>
-                    </div>
-                    {/* Cycles */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.customer.avgCycles}</span>
-                        {stats.tatComparison.changes.customer.cyclesPercent !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.customer.cyclesPercent < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.customer.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.customer.cyclesPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">approval cycles</div>
-                    </div>
-                  </div>
-
-                  {/* Customer Revision Stage */}
-                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1.5 rounded-lg bg-purple-100">
-                        <MessageSquare className="h-4 w-4 text-purple-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-700">Cust. Revision</span>
-                    </div>
-                    {/* TAT */}
-                    <div className="mb-3">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.customerRevision.avgHours)}</span>
-                        {stats.tatComparison.changes.customerRevision.hours !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.customerRevision.hours < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.customerRevision.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.customerRevision.hoursPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">avg response time</div>
-                    </div>
-                    {/* Cycles */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.customerRevision.avgCycles}</span>
-                        {stats.tatComparison.changes.customerRevision.cyclesPercent !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.customerRevision.cyclesPercent < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.customerRevision.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.customerRevision.cyclesPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">revision cycles</div>
-                    </div>
-                  </div>
-
-                  {/* Admin Approval Stage */}
-                  <div className="relative rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1.5 rounded-lg bg-green-100">
-                        <BadgeCheck className="h-4 w-4 text-green-600" />
-                      </div>
-                      <span className="text-sm font-semibold text-slate-700">Admin</span>
-                    </div>
-                    {/* TAT */}
-                    <div className="mb-3">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-2xl font-bold text-slate-900">{formatTATHours(stats.tatComparison.thisWeek.adminApproval.avgHours)}</span>
-                        {stats.tatComparison.changes.adminApproval.hours !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.adminApproval.hours < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.adminApproval.hours < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.adminApproval.hoursPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">avg approval time</div>
-                    </div>
-                    {/* Cycles */}
-                    <div className="pt-3 border-t border-slate-100">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-lg font-semibold text-slate-700">{stats.tatComparison.thisWeek.adminApproval.avgCycles}</span>
-                        {stats.tatComparison.changes.adminApproval.cyclesPercent !== 0 && (
-                          <span className={`flex items-center gap-0.5 text-xs font-semibold px-1.5 py-0.5 rounded ${
-                            stats.tatComparison.changes.adminApproval.cyclesPercent < 0
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {stats.tatComparison.changes.adminApproval.cyclesPercent < 0 ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                            {Math.abs(stats.tatComparison.changes.adminApproval.cyclesPercent)}%
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-xs text-slate-500">approvals</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Attention Required - Wireframe style */}
-          {attentionItems.length > 0 && (
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                Attention Required
-              </h3>
-              <Card>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-slate-100">
-                    {attentionItems.map((item, idx) => (
-                      <Link
-                        key={idx}
-                        href={item.href}
-                        className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className={`h-2.5 w-2.5 rounded-full ${
-                            item.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'
-                          }`} />
-                          <span className="text-sm text-slate-700">
-                            <strong>{item.count}</strong> {item.label}
-                          </span>
+                  {/* Requests Card */}
+                  <div className="rounded-lg border border-amber-700 bg-amber-50/50 shadow-lg p-4">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Requests</h3>
+                    <div className="flex gap-3">
+                      <div className="flex-1 bg-amber-100 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-amber-900">
+                          {stats.requests.userApprovals}
                         </div>
-                        <span className={`text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1 transition-colors ${
-                          item.severity === 'critical'
-                            ? 'bg-red-100 text-red-700 group-hover:bg-red-200'
-                            : 'bg-amber-100 text-amber-700 group-hover:bg-amber-200'
-                        }`}>
-                          {item.action}
-                          <ArrowRight className="h-3 w-3" />
-                        </span>
-                      </Link>
-                    ))}
+                        <div className="text-xs text-amber-700 mt-0.5">User Approve</div>
+                      </div>
+                      <div className="flex-1 bg-indigo-100 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-indigo-900">
+                          {stats.requests.sectionUnlocks}
+                        </div>
+                        <div className="text-xs text-indigo-700 mt-0.5">Section Unlock</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-3">Internal requests</p>
+                    <Link
+                      href="/admin/requests"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 mt-2"
+                    >
+                      View All <ArrowRight className="w-3 h-3" />
+                    </Link>
                   </div>
-                </CardContent>
-              </Card>
+
+                  {/* Certificates Card */}
+                  <div className="rounded-lg border border-blue-700 bg-blue-50/50 shadow-lg p-4">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Certificates</h3>
+                    <div className="flex gap-3">
+                      <div className="flex-1 bg-blue-100 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-blue-900">
+                          {stats.certificates.pendingReview}
+                        </div>
+                        <div className="text-xs text-blue-700 mt-0.5">Review Pending</div>
+                      </div>
+                      <div className="flex-1 bg-green-100 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-green-900">
+                          {stats.certificates.pendingAuthorization}
+                        </div>
+                        <div className="text-xs text-green-700 mt-0.5">Auth Pending</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-3">Certificate workflow</p>
+                    <Link
+                      href="/admin/certificates"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 mt-2"
+                    >
+                      View All <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  {/* Instruments Card */}
+                  <div className="rounded-lg border border-purple-700 bg-purple-50/50 shadow-lg p-4">
+                    <h3 className="text-sm font-semibold text-slate-700 mb-3">Instruments</h3>
+                    <div className="flex gap-3">
+                      <div className="flex-1 bg-red-100 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-red-900">
+                          {stats.instruments.expired}
+                        </div>
+                        <div className="text-xs text-red-700 mt-0.5">Expired</div>
+                      </div>
+                      <div className="flex-1 bg-amber-100 rounded-lg p-3 text-center">
+                        <div className="text-2xl font-bold text-amber-900">
+                          {stats.instruments.expiringSoon}
+                        </div>
+                        <div className="text-xs text-amber-700 mt-0.5">Expiring Soon</div>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-3">Calibration status</p>
+                    <Link
+                      href="/admin/instruments"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700 mt-2"
+                    >
+                      View All <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-4 text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-500" />
+                    <span>&gt;24h = slow</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <XCircle className="w-3.5 h-3.5 text-red-500" />
+                    <span>&gt;48h = stuck</span>
+                </div>
+              </div>
+              </div>
             </div>
           )}
 
-          {/* Quick Actions */}
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Quick Actions</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Link
-                href="/admin/users/new"
-                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-blue-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-blue-300 shadow-sm"
-              >
-                <UserPlus className="h-4 w-4 text-blue-600" />
-                New User
-              </Link>
-              <Link
-                href="/admin/customers/new"
-                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-green-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-green-300 shadow-sm"
-              >
-                <Building2 className="h-4 w-4 text-green-600" />
-                Customer
-              </Link>
-              <Link
-                href="/admin/authorization"
-                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-amber-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-amber-300 shadow-sm"
-              >
-                <ShieldCheck className="h-4 w-4 text-amber-600" />
-                Authorize
-              </Link>
-              <Link
-                href="/admin/instruments"
-                className="flex items-center justify-center gap-2 px-5 py-3 bg-white hover:bg-purple-50 rounded-lg text-sm font-semibold text-slate-800 transition-colors border border-slate-200 hover:border-purple-300 shadow-sm"
-              >
-                <Wrench className="h-4 w-4 text-purple-600" />
-                Instruments
-              </Link>
+          {/* Certificate Pipeline */}
+          <div className="rounded-lg border border-slate-300 overflow-hidden shadow-sm">
+            <div className="px-4 py-3 bg-primary">
+              <h2 className="font-semibold text-primary-foreground text-sm">Certificate Pipeline</h2>
+            </div>
+            <div className="p-4 bg-white">
+              <div className="flex items-center justify-between gap-2">
+                {/* Draft */}
+                <div className="flex-1 text-center border border-slate-300 overflow-hidden shadow-sm rounded-sm">
+                  <div className="text-xs font-medium text-slate-500 mb-2 pt-5">Draft</div>
+                  <div className="bg-slate-100 rounded-lg p-2">
+                    <div className="text-3xl font-bold text-slate-700 pb-5">{stats.pipeline.draft}</div>
+                  </div>
+                </div>
+
+                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+
+                {/* Review */}
+                <div className="flex-1 text-center border border-slate-300 overflow-hidden shadow-sm rounded-sm">
+                  <div className="text-xs font-medium text-slate-500 mb-2 pt-5">Review</div>
+                  <div
+                    className={`rounded-lg p-2 border ${
+                      stats.pipeline.review.stuck > 0
+                        ? 'bg-red-50 border-red-200'
+                        : stats.pipeline.review.slow > 0
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-slate-100'
+                    }`}
+                  >
+                    <div className="text-3xl font-bold text-slate-700 pb-5">
+                      {stats.pipeline.review.total}
+                    </div>
+                    {stats.pipeline.review.stuck > 0 && (
+                      <div className="text-xs text-red-600 mt-1 flex items-center justify-center gap-1">
+                        <XCircle className="w-3 h-3" />
+                        {stats.pipeline.review.stuck} stuck
+                      </div>
+                    )}
+                    {stats.pipeline.review.slow > 0 && stats.pipeline.review.stuck === 0 && (
+                      <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {stats.pipeline.review.slow} slow
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+
+                {/* Customer */}
+                <div className="flex-1 text-center border border-slate-300 overflow-hidden shadow-sm rounded-sm">
+                  <div className="text-xs font-medium text-slate-500 mb-2 pt-5">Customer</div>
+                  <div
+                    className={`rounded-lg p-2 border ${
+                      stats.pipeline.customer.stuck > 0
+                        ? 'bg-red-50 border-red-200'
+                        : stats.pipeline.customer.slow > 0
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-slate-100'
+                    }`}
+                  >
+                    <div className="text-3xl font-bold text-slate-700 pb-5">
+                      {stats.pipeline.customer.total}
+                    </div>
+                    {stats.pipeline.customer.stuck > 0 && (
+                      <div className="text-xs text-red-600 mt-1 flex items-center justify-center gap-1">
+                        <XCircle className="w-3 h-3" />
+                        {stats.pipeline.customer.stuck} stuck
+                      </div>
+                    )}
+                    {stats.pipeline.customer.slow > 0 && stats.pipeline.customer.stuck === 0 && (
+                      <div className="text-xs text-amber-600 mt-1 flex items-center justify-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {stats.pipeline.customer.slow} slow
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+
+                {/* Authorization */}
+                <div className="flex-1 text-center border border-slate-300 overflow-hidden shadow-sm rounded-sm">
+                  <div className="text-xs font-medium text-slate-500 mb-2 pt-5">Authorization</div>
+                  <div className="bg-blue-50 border rounded-lg p-2">
+                    <div className="text-3xl font-bold text-blue-700 pb-5">
+                      {stats.pipeline.authorization}
+                    </div>
+                  </div>
+                </div>
+
+                <ChevronRight className="w-5 h-5 text-slate-300 flex-shrink-0" />
+
+                {/* Done */}
+                <div className="flex-1 text-center border border-slate-300 overflow-hidden shadow-sm rounded-sm">
+                  <div className="text-xs font-medium text-slate-500 mb-2 pt-2">Done</div>
+                  <div className="bg-green-50 border rounded-lg p-2">
+                    <div className="text-3xl font-bold text-green-700 pb-2">
+                      {stats.pipeline.completedThisWeek}
+                    </div>
+                    <div className="text-xs text-green-600 mt-1">this week</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Recent Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {groupedActivity.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <FileText className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                  <p className="text-sm">No recent activity</p>
+          {/* Live Feed + Quick Actions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Live Feed */}
+            <div className="rounded-lg border border-slate-300 overflow-hidden shadow-sm">
+              <div className="px-4 py-3 bg-primary flex items-center justify-between">
+                <h2 className="font-semibold text-primary-foreground text-sm">Live Feed</h2>
+                <span className="text-xs text-primary-foreground/70">Last 48h</span>
+              </div>
+              <div className="bg-white max-h-[400px] overflow-y-auto">
+                <LiveFeedCard certificates={stats.recentCertificates} />
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="rounded-lg border border-slate-300 overflow-hidden shadow-sm">
+              <div className="px-4 py-3 bg-primary">
+                <h2 className="font-semibold text-primary-foreground text-sm">Quick Actions</h2>
+              </div>
+              <div className="p-4 bg-white">
+                <div className="grid grid-cols-2 gap-3">
+                  <Link
+                    href="/admin/users/new"
+                    className="flex items-center justify-center gap-3 px-4 py-6 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-semibold text-blue-700 transition-colors border border-blue-200"
+                  >
+                    <UserPlus className="w-6 h-6" />
+                    + User
+                  </Link>
+                  <Link
+                    href="/admin/customers/new"
+                    className="flex items-center justify-center gap-3 px-4 py-6 bg-green-50 hover:bg-green-100 rounded-lg text-sm font-semibold text-green-700 transition-colors border border-green-200"
+                  >
+                    <Building2 className="w-6 h-6" />
+                    + Customer
+                  </Link>
+                  <Link
+                    href="/admin/authorization"
+                    className="flex items-center justify-center gap-3 px-4 py-6 bg-amber-50 hover:bg-amber-100 rounded-lg text-sm font-semibold text-amber-700 transition-colors border border-amber-200"
+                  >
+                    <ShieldCheck className="w-6 h-6" />
+                    Authorize
+                  </Link>
+                  <Link
+                    href="/admin/analytics"
+                    className="flex items-center justify-center gap-3 px-4 py-6 bg-indigo-50 hover:bg-indigo-100 rounded-lg text-sm font-semibold text-indigo-700 transition-colors border border-indigo-200"
+                  >
+                    <BarChart3 className="w-6 h-6" />
+                    Analytics
+                  </Link>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {groupedActivity.map((group) => (
-                    <div key={group.label}>
-                      <p className="text-sm font-medium text-slate-900 mb-2">
-                        {group.label}
-                      </p>
-                      <div className="space-y-1.5">
-                        {group.items.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between text-sm py-1"
-                          >
-                            <span className="text-slate-600">• {item.description}</span>
-                            <span className="text-slate-400 text-xs ml-4 flex-shrink-0">
-                              {formatRelativeTime(item.createdAt)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

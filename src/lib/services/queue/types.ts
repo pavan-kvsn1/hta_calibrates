@@ -55,7 +55,7 @@ export interface JobPayloads {
   }
   'email:send': {
     to: string | string[]
-    subject: string
+    subject?: string  // Optional when template is provided (subject comes from template)
     template?: string
     templateData?: Record<string, unknown>
     text?: string

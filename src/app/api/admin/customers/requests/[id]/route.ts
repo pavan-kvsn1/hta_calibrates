@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customers')
 
 // GET /api/admin/customers/requests/[id] - Get request details
 export async function GET(
@@ -68,7 +71,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error fetching customer request:', error)
+    logger.error({ err: error }, 'Error fetching customer request')
     return NextResponse.json(
       { error: 'Failed to fetch customer request' },
       { status: 500 }

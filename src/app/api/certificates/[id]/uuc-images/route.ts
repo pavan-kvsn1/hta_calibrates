@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
+import { certificateLogger as logger } from '@/lib/logger'
 
 // Storage directory for UUC images
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'uuc-images')
@@ -76,7 +77,7 @@ export async function GET(
       })),
     })
   } catch (error) {
-    console.error('[UUC Images API] GET error:', error)
+    logger.error({ err: error }, 'Error fetching UUC images')
     return NextResponse.json(
       { error: 'Failed to fetch images' },
       { status: 500 }
@@ -182,7 +183,7 @@ export async function POST(
 
     return NextResponse.json({ images: savedImages }, { status: 201 })
   } catch (error) {
-    console.error('[UUC Images API] POST error:', error)
+    logger.error({ err: error }, 'Error uploading UUC images')
     return NextResponse.json(
       { error: 'Failed to upload images' },
       { status: 500 }

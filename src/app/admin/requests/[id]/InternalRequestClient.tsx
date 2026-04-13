@@ -24,7 +24,6 @@ import { format, formatDistanceToNow } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { AdminCertificateContent } from '@/app/admin/certificates/[id]/AdminCertificateContent'
 import { AdminHistorySection } from '@/app/admin/certificates/[id]/AdminHistorySection'
-import { AdminChatPanel } from '@/app/admin/certificates/[id]/AdminChatPanel'
 import { InlinePDFViewer } from '@/app/(dashboard)/dashboard/reviewer/[id]/InlinePDFViewer'
 import type { CertificateData, Assignee, Feedback, CertificateEvent } from '@/app/admin/certificates/[id]/AdminCertificateClient'
 
@@ -75,8 +74,7 @@ export function InternalRequestClient({
   const [adminNote, setAdminNote] = useState('')
   const [error, setError] = useState('')
 
-  const [isChatExpanded, setIsChatExpanded] = useState(true)
-  const [isActionsExpanded, setIsActionsExpanded] = useState(true)
+  const [isDecisionExpanded, setIsDecisionExpanded] = useState(true)
   const [viewMode, setViewMode] = useState<'details' | 'pdf'>('details')
 
   const isPending = request.status === 'PENDING'
@@ -121,6 +119,9 @@ export function InternalRequestClient({
                   <ArrowLeft className="size-5" strokeWidth={2} />
                 </Link>
                 <span className="text-slate-300 text-xl">|</span>
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Unlock className="size-5 text-blue-600" />
+                </div>
                 <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                   Section Unlock Request
                 </h1>
@@ -260,59 +261,21 @@ export function InternalRequestClient({
         </div>
       </div>
 
-      {/* Right Panel - Chat & Actions */}
+      {/* Right Panel - Decision Panel */}
       <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
-        {/* Chat Section */}
-        <div className={cn(
-          'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
-          isChatExpanded ? 'min-h-[400px] max-h-[600px]' : 'flex-shrink-0'
-        )}>
-          <button
-            onClick={() => setIsChatExpanded(!isChatExpanded)}
-            className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              {isChatExpanded ? (
-                <ChevronDown className="size-4 text-slate-400" />
-              ) : (
-                <ChevronRight className="size-4 text-slate-400" />
-              )}
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">Chat</span>
-            </div>
-            {!isChatExpanded && (
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span>Eng</span>
-                <span>|</span>
-                <span>Cust</span>
-              </div>
-            )}
-          </button>
-
-          {isChatExpanded && (
-            <div className="flex-1 min-h-0 border-t border-slate-100">
-              <AdminChatPanel
-                certificateId={certificate.id}
-                assignee={assignee}
-                customerName={certificate.customerName}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Unlock Request Panel */}
         <div className="flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <button
-            onClick={() => setIsActionsExpanded(!isActionsExpanded)}
+            onClick={() => setIsDecisionExpanded(!isDecisionExpanded)}
             className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 transition-colors"
           >
             <div className="flex items-center gap-2">
-              {isActionsExpanded ? (
+              {isDecisionExpanded ? (
                 <ChevronDown className="size-4 text-slate-400" />
               ) : (
                 <ChevronRight className="size-4 text-slate-400" />
               )}
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Unlock Request
+                Decision Panel
               </span>
             </div>
             <Badge className={cn(
@@ -325,7 +288,7 @@ export function InternalRequestClient({
             </Badge>
           </button>
 
-          {isActionsExpanded && (
+          {isDecisionExpanded && (
             <div className="border-t border-slate-100">
               {/* Request Info */}
               <div className="p-4 bg-slate-50/50 border-b border-slate-100">

@@ -11,6 +11,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { unlink } from 'fs/promises'
 import { join } from 'path'
+import { certificateLogger as logger } from '@/lib/logger'
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'uuc-images')
 
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     })
   } catch (error) {
-    console.error('[UUC Image API] GET error:', error)
+    logger.error({ err: error }, 'Error fetching UUC image')
     return NextResponse.json(
       { error: 'Failed to fetch image' },
       { status: 500 }
@@ -121,7 +122,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ image: updated })
   } catch (error) {
-    console.error('[UUC Image API] PATCH error:', error)
+    logger.error({ err: error }, 'Error updating UUC image')
     return NextResponse.json(
       { error: 'Failed to update image' },
       { status: 500 }
@@ -164,7 +165,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       const filePath = join(UPLOAD_DIR, image.storagePath)
       await unlink(filePath)
     } catch (fileErr) {
-      console.error('[UUC Image API] Failed to delete file:', fileErr)
+      logger.warn({ err: fileErr }, 'Failed to delete UUC image file')
       // Continue with database deletion even if file deletion fails
     }
 
@@ -175,7 +176,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('[UUC Image API] DELETE error:', error)
+    logger.error({ err: error }, 'Error deleting UUC image')
     return NextResponse.json(
       { error: 'Failed to delete image' },
       { status: 500 }

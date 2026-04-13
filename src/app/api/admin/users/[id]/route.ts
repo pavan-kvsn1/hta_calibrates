@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('users')
 
 // GET /api/admin/users/[id] - Get user details
 export async function GET(
@@ -71,7 +74,7 @@ export async function GET(
       stats,
     })
   } catch (error) {
-    console.error('Error fetching user:', error)
+    logger.error({ err: error }, 'Failed to fetch user')
     return NextResponse.json({ error: 'Failed to fetch user' }, { status: 500 })
   }
 }
@@ -216,7 +219,7 @@ export async function PUT(
       },
     })
   } catch (error) {
-    console.error('Error updating user:', error)
+    logger.error({ err: error }, 'Failed to update user')
     return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
   }
 }
@@ -275,7 +278,7 @@ export async function DELETE(
       message: 'User deactivated successfully',
     })
   } catch (error) {
-    console.error('Error deactivating user:', error)
+    logger.error({ err: error }, 'Failed to deactivate user')
     return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
   }
 }

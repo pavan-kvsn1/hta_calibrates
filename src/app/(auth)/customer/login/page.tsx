@@ -106,7 +106,15 @@ function CustomerLoginForm() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="password">Password</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <a
+              href="/customer/forgot-password"
+              className="text-sm text-green-700 hover:text-green-800"
+            >
+              Forgot password?
+            </a>
+          </div>
           <Input
             id="password"
             type="password"
@@ -164,17 +172,10 @@ function LoginFormSkeleton() {
 
 export default function CustomerLoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full mx-4">
-        <Suspense fallback={<LoginFormSkeleton />}>
-          <CustomerLoginForm />
-        </Suspense>
-
-        {/* Footer */}
-        <p className="text-center text-sm text-gray-500 mt-4">
-          HTA Instrumentation (P) Ltd.
-        </p>
-      </div>
+    <div className="max-w-md w-full mx-4">
+      <Suspense fallback={<LoginFormSkeleton />}>
+        <CustomerLoginForm />
+      </Suspense>
     </div>
   )
 }

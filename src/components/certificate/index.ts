@@ -27,3 +27,9 @@ export type { MetaInfoItemProps } from './MetaInfoItem'
 
 export { TATBadge, formatTAT } from './TATBadge'
 export type { TATBadgeProps, TATStatus } from './TATBadge'
+
+export { ImageGalleryModal } from './ImageGalleryModal'
+export type { ImageGalleryModalProps, GalleryImage } from './ImageGalleryModal'
+
+export { ReadingImagesViewModal } from './ReadingImagesViewModal'
+export type { ReadingImagesViewModalProps, ParameterReadingImages, ReadingImageData } from './ReadingImagesViewModal'

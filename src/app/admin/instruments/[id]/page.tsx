@@ -1,8 +1,16 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import {
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Trash2,
+  ArrowLeft,
+  Loader2,
+  AlertTriangle,
+} from 'lucide-react'
 
 interface RangeDataItem {
   parameter?: string
@@ -35,44 +43,34 @@ interface Instrument {
   createdBy: { id: string; name: string; email: string } | null
   createdAt: string
   changeReason: string | null
+  parameterGroup: string | null
+  parameterCapabilities: string[]
+  parameterRoles: string[]
+  sopReferences: string[]
 }
 
-interface InstrumentFormData {
-  category: string
-  description: string
-  make: string
-  model: string
-  assetNumber: string
-  serialNumber: string
-  usage: string
-  calibratedAtLocation: string
-  reportNo: string
-  calibrationDueDate: string
-  remarks: string
-  status: string
-  isActive: boolean
-  rangeData: RangeDataItem[]
-  changeReason: string
+const PARAMETER_ROLES: Record<string, string> = {
+  source: 'Source',
+  measuring: 'Measuring',
 }
 
-const CATEGORIES = [
-  'DIMENSIONAL',
-  'ELECTRICAL',
-  'TEMPERATURE',
-  'PRESSURE',
-  'MASS',
-  'FORCE',
-  'FLOW',
-  'TIME',
-  'OPTICAL',
-  'CHEMICAL',
-  'OTHER',
-]
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'Active' },
-  { value: 'UNDER_RECAL', label: 'Under Recalibration' },
-]
+const PARAMETER_CAPABILITIES: Record<string, string> = {
+  rtd: 'RTD',
+  thermocouple: 'Thermocouple',
+  ac_voltage: 'AC Voltage',
+  dc_voltage: 'DC Voltage',
+  ac_current: 'AC Current',
+  dc_current: 'DC Current',
+  frequency: 'Frequency',
+  resistance: 'Resistance',
+  capacitance: 'Capacitance',
+  temperature: 'Temperature',
+  humidity: 'Humidity',
+  pressure: 'Pressure',
+  power: 'Power',
+  conductivity: 'Conductivity',
+  time: 'Time',
+}
 
 function getStatusBadge(status: string) {
   const styles: Record<string, string> = {
@@ -94,33 +92,60 @@ function getStatusBadge(status: string) {
   )
 }
 
-export default function EditInstrumentPage({ params }: { params: Promise<{ id: string }> }) {
+function CollapsibleSection({
+  title,
+  isExpanded,
+  onToggle,
+  children,
+}: {
+  title: string
+  isExpanded: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+      <button
+        onClick={onToggle}
+        className="w-full px-4 py-3 flex items-center justify-between bg-primary hover:bg-primary/90 transition-colors"
+      >
+        <span className="font-semibold text-primary-foreground text-sm">{title}</span>
+        {isExpanded ? (
+          <ChevronUp className="h-5 w-5 text-primary-foreground/70" />
+        ) : (
+          <ChevronDown className="h-5 w-5 text-primary-foreground/70" />
+        )}
+      </button>
+      {isExpanded && <div className="p-4 bg-white">{children}</div>}
+    </div>
+  )
+}
+
+function InfoField({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <dt className="text-xs font-semibold text-slate-600 tracking-wider">{label}</dt>
+      <dd className="mt-1 text-sm text-slate-900">{value || '-'}</dd>
+    </div>
+  )
+}
+
+export default function InstrumentViewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [instrument, setInstrument] = useState<Instrument | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
-  const [formData, setFormData] = useState<InstrumentFormData>({
-    category: '',
-    description: '',
-    make: '',
-    model: '',
-    assetNumber: '',
-    serialNumber: '',
-    usage: '',
-    calibratedAtLocation: '',
-    reportNo: '',
-    calibrationDueDate: '',
-    remarks: '',
-    status: '',
-    isActive: true,
-    rangeData: [],
-    changeReason: '',
+  // Section expansion state
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    identity: true,
+    equipment: true,
+    parameters: true,
+    calibration: true,
+    ranges: true,
+    record: true,
   })
 
   useEffect(() => {
@@ -138,31 +163,6 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
       }
       const data = await response.json()
       setInstrument(data)
-      // Get the raw status from the instrument (null means auto-compute)
-      // The API returns status which is the computed/override value, but we need the raw DB value
-      const rawStatus = STATUS_OPTIONS.find(opt => opt.value === data.status && opt.value !== '')
-        ? data.status
-        : ''
-
-      setFormData({
-        category: data.category || '',
-        description: data.description || '',
-        make: data.make || '',
-        model: data.model || '',
-        assetNumber: data.assetNumber || '',
-        serialNumber: data.serialNumber || '',
-        usage: data.usage || '',
-        calibratedAtLocation: data.calibratedAtLocation || '',
-        reportNo: data.reportNo || '',
-        calibrationDueDate: data.calibrationDueDate
-          ? new Date(data.calibrationDueDate).toISOString().split('T')[0]
-          : '',
-        remarks: data.remarks || '',
-        status: rawStatus,
-        isActive: data.isActive,
-        rangeData: data.rangeData || [],
-        changeReason: '',
-      })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -170,46 +170,8 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) => {
-    const { name, value, type } = e.target
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked
-      setFormData(prev => ({ ...prev, [name]: checked }))
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }))
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setSaving(true)
-
-    try {
-      const response = await fetch(`/api/admin/instruments/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          calibrationDueDate: formData.calibrationDueDate || null,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to update instrument')
-      }
-
-      setIsEditing(false)
-      await fetchInstrument()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setSaving(false)
-    }
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
 
   const handleDelete = async () => {
@@ -227,7 +189,7 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
         throw new Error(data.error || 'Failed to delete instrument')
       }
 
-      router.push('/admin/instruments')
+      window.location.href = '/admin/instruments'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
       setShowDeleteConfirm(false)
@@ -236,154 +198,39 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  const handleCancel = () => {
-    if (instrument) {
-      const rawStatus = STATUS_OPTIONS.find(opt => opt.value === instrument.status && opt.value !== '')
-        ? instrument.status
-        : ''
-
-      setFormData({
-        category: instrument.category || '',
-        description: instrument.description || '',
-        make: instrument.make || '',
-        model: instrument.model || '',
-        assetNumber: instrument.assetNumber || '',
-        serialNumber: instrument.serialNumber || '',
-        usage: instrument.usage || '',
-        calibratedAtLocation: instrument.calibratedAtLocation || '',
-        reportNo: instrument.reportNo || '',
-        calibrationDueDate: instrument.calibrationDueDate
-          ? new Date(instrument.calibrationDueDate).toISOString().split('T')[0]
-          : '',
-        remarks: instrument.remarks || '',
-        status: rawStatus,
-        isActive: instrument.isActive,
-        rangeData: instrument.rangeData || [],
-        changeReason: '',
-      })
-    }
-    setIsEditing(false)
-    setError(null)
-  }
-
-  // Range data handlers
-  const addRangeItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      rangeData: [...prev.rangeData, { parameter: '', min: '', max: '', unit: '', uncertainty: '', referencedoc: '' }],
-    }))
-  }
-
-  const updateRangeItem = (index: number, field: keyof RangeDataItem, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      rangeData: prev.rangeData.map((item, i) =>
-        i === index ? { ...item, [field]: value } : item
-      ),
-    }))
-  }
-
-  const removeRangeItem = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      rangeData: prev.rangeData.filter((_, i) => i !== index),
-    }))
-  }
-
   if (loading) {
     return (
-      <div className="p-3 h-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-          <div className="p-6 flex items-center justify-center h-full">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
+      <div className="h-full flex items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-slate-600">Loading instrument...</p>
         </div>
       </div>
     )
   }
 
-  if (!instrument) {
+  if (error || !instrument) {
     return (
-      <div className="p-3 h-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-          <div className="p-6 space-y-6">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/admin/instruments"
-                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
-              <h1 className="text-2xl font-bold text-slate-900">Instrument Not Found</h1>
-            </div>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-              {error || 'The requested instrument could not be found.'}
-            </div>
-          </div>
+      <div className="h-full flex items-center justify-center bg-slate-100">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">
+            {error || 'Instrument not found'}
+          </h2>
+          <Link
+            href="/admin/instruments"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Instruments
+          </Link>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-3 h-full">
-      {/* Master Bounding Box */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-        <div className="p-6 overflow-auto h-full space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/admin/instruments"
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">{instrument.description}</h1>
-              {getStatusBadge(instrument.status)}
-              {!instrument.isActive && (
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">
-                  Inactive
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-slate-600 mt-1 ">
-              Asset: {instrument.assetNumber} | Category: {instrument.category}
-            </p>
-          </div>
-        </div>
-
-        {!isEditing && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
-            >
-              Deactivate
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          {error}
-        </div>
-      )}
-
+    <div className="flex h-full bg-slate-100">
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -412,505 +259,272 @@ export default function EditInstrumentPage({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {/* Form / View */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg border shadow-sm">
-        <div className="p-6 space-y-6">
-          {/* Basic Information */}
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
-                  Category <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <select
-                    id="category"
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Select category</option>
-                    {CATEGORIES.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.category}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="assetNumber" className="block text-sm font-medium text-slate-700 mb-1">
-                  Asset Number <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="assetNumber"
-                    name="assetNumber"
-                    value={formData.assetNumber}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.assetNumber}</p>
-                )}
-              </div>
-
-              <div className="md:col-span-2">
-                <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleChange}
-                    required
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.description}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Equipment Details */}
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Equipment Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="make" className="block text-sm font-medium text-slate-700 mb-1">
-                  Make
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="make"
-                    name="make"
-                    value={formData.make}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.make || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="model" className="block text-sm font-medium text-slate-700 mb-1">
-                  Model
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="model"
-                    name="model"
-                    value={formData.model}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.model || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="serialNumber" className="block text-sm font-medium text-slate-700 mb-1">
-                  Serial Number
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="serialNumber"
-                    name="serialNumber"
-                    value={formData.serialNumber}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.serialNumber || '-'}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Calibration Information */}
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Calibration Information</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="usage" className="block text-sm font-medium text-slate-700 mb-1">
-                  Usage
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="usage"
-                    name="usage"
-                    value={formData.usage}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.usage || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="calibratedAtLocation" className="block text-sm font-medium text-slate-700 mb-1">
-                  Calibrated At
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="calibratedAtLocation"
-                    name="calibratedAtLocation"
-                    value={formData.calibratedAtLocation}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.calibratedAtLocation || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="reportNo" className="block text-sm font-medium text-slate-700 mb-1">
-                  Report Number
-                </label>
-                {isEditing ? (
-                  <input
-                    type="text"
-                    id="reportNo"
-                    name="reportNo"
-                    value={formData.reportNo}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">{formData.reportNo || '-'}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="calibrationDueDate" className="block text-sm font-medium text-slate-700 mb-1">
-                  Calibration Due Date
-                </label>
-                {isEditing ? (
-                  <input
-                    type="date"
-                    id="calibrationDueDate"
-                    name="calibrationDueDate"
-                    value={formData.calibrationDueDate}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                ) : (
-                  <p className="text-slate-900 py-2">
-                    {formData.calibrationDueDate
-                      ? new Date(formData.calibrationDueDate).toLocaleDateString()
-                      : '-'}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Status */}
-          {isEditing && (
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Status</h2>
-              <div>
-                <label htmlFor="status" className="block text-sm font-medium text-slate-700 mb-1">
-                  Instrument Status
-                </label>
-                <select
-                  id="status"
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  className="w-full max-w-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      {/* Left Column - Specs */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="flex-shrink-0 border-b border-slate-200 pl-6 pb-5 pt-5 pr-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/admin/instruments"
+                  className="text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {STATUS_OPTIONS.map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-slate-500 mt-1">
-                  &quot;Active&quot; status is computed from calibration due date (Valid, Expiring, Expired)
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Remarks */}
-          <div>
-            <label htmlFor="remarks" className="block text-sm font-medium text-slate-700 mb-1">
-              Remarks
-            </label>
-            {isEditing ? (
-              <textarea
-                id="remarks"
-                name="remarks"
-                value={formData.remarks}
-                onChange={handleChange}
-                rows={3}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            ) : (
-              <p className="text-slate-900 py-2">{formData.remarks || '-'}</p>
-            )}
-          </div>
-
-          {/* Metadata (view only) */}
-          {!isEditing && (
-            <div className="pt-4 border-t">
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">Record Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-slate-500">Version:</span>{' '}
-                  <span className="text-slate-900">v{instrument.version}</span>
-                </div>
-                <div>
-                  <span className="text-slate-500">Last Updated:</span>{' '}
-                  <span className="text-slate-900">
-                    {new Date(instrument.createdAt).toLocaleString()}
+                  <ArrowLeft className="size-5" strokeWidth={2} />
+                </Link>
+                <span className="text-slate-300 text-xl">|</span>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                  {instrument.description}
+                </h1>
+                {getStatusBadge(instrument.status)}
+                {!instrument.isActive && (
+                  <span className="px-2 py-1 text-xs font-medium rounded-full bg-slate-100 text-slate-600">
+                    Inactive
                   </span>
-                </div>
-                {instrument.createdBy && (
-                  <div>
-                    <span className="text-slate-500">Modified By:</span>{' '}
-                    <span className="text-slate-900">{instrument.createdBy.name}</span>
-                  </div>
-                )}
-                {instrument.changeReason && (
-                  <div>
-                    <span className="text-slate-500">Change Reason:</span>{' '}
-                    <span className="text-slate-900">{instrument.changeReason}</span>
-                  </div>
-                )}
-                {instrument.daysUntilExpiry !== 999 && (
-                  <div>
-                    <span className="text-slate-500">Days Until Expiry:</span>{' '}
-                    <span className={`font-medium ${
-                      instrument.daysUntilExpiry < 0 ? 'text-red-600' :
-                      instrument.daysUntilExpiry <= 30 ? 'text-yellow-600' : 'text-green-600'
-                    }`}>
-                      {instrument.daysUntilExpiry < 0
-                        ? `${Math.abs(instrument.daysUntilExpiry)} days overdue`
-                        : `${instrument.daysUntilExpiry} days`}
-                    </span>
-                  </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {/* Range Data */}
-          <div className="pt-4 border-t">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">Range Data</h2>
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={addRangeItem}
-                  className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/admin/instruments/${id}/edit`}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
                 >
-                  + Add Range
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </Link>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors text-sm"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Deactivate
                 </button>
-              )}
-            </div>
-
-            {isEditing ? (
-              /* Edit Mode */
-              <div className="space-y-4">
-                {formData.rangeData.length === 0 ? (
-                  <p className="text-slate-500 text-sm">No range data. Click &quot;Add Range&quot; to add parameters.</p>
-                ) : (
-                  formData.rangeData.map((range, idx) => (
-                    <div key={idx} className="p-4 bg-slate-50 rounded-lg border space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700">Range {idx + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeRangeItem(idx)}
-                          className="text-red-500 hover:text-red-700 text-sm"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Parameter</label>
-                          <input
-                            type="text"
-                            value={range.parameter || ''}
-                            onChange={(e) => updateRangeItem(idx, 'parameter', e.target.value)}
-                            placeholder="e.g., Temperature"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Min</label>
-                          <input
-                            type="text"
-                            value={range.min || ''}
-                            onChange={(e) => updateRangeItem(idx, 'min', e.target.value)}
-                            placeholder="e.g., 0"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Max</label>
-                          <input
-                            type="text"
-                            value={range.max || ''}
-                            onChange={(e) => updateRangeItem(idx, 'max', e.target.value)}
-                            placeholder="e.g., 100"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Unit</label>
-                          <input
-                            type="text"
-                            value={range.unit || ''}
-                            onChange={(e) => updateRangeItem(idx, 'unit', e.target.value)}
-                            placeholder="e.g., °C"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Uncertainty</label>
-                          <input
-                            type="text"
-                            value={range.uncertainty || ''}
-                            onChange={(e) => updateRangeItem(idx, 'uncertainty', e.target.value)}
-                            placeholder="e.g., ±0.5"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Reference Doc</label>
-                          <input
-                            type="text"
-                            value={range.referencedoc || ''}
-                            onChange={(e) => updateRangeItem(idx, 'referencedoc', e.target.value)}
-                            placeholder="e.g., ISO 12345"
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
               </div>
-            ) : (
-              /* View Mode */
-              instrument.rangeData && instrument.rangeData.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
-                          Parameter
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
-                          Min
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
-                          Max
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
-                          Unit
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
-                          Uncertainty
-                        </th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">
-                          Reference
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-200">
-                      {instrument.rangeData.map((range, idx) => (
-                        <tr key={idx}>
-                          <td className="px-4 py-2 text-sm text-slate-900">
-                            {range.parameter || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-slate-900">
-                            {range.min || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-slate-900">
-                            {range.max || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-slate-900">
-                            {range.unit || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-slate-900">
-                            {range.uncertainty || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-slate-900">
-                            {range.referencedoc || '-'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-slate-500 text-sm">No range data available.</p>
-              )
-            )}
-          </div>
-
-          {/* Change Reason (only when editing) */}
-          {isEditing && (
-            <div className="pt-4 border-t">
-              <label htmlFor="changeReason" className="block text-sm font-medium text-gray-700 mb-1">
-                Reason for Change
-              </label>
-              <input
-                type="text"
-                id="changeReason"
-                name="changeReason"
-                value={formData.changeReason}
-                onChange={handleChange}
-                placeholder="e.g., Updated calibration data, Corrected range values"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="text-xs text-slate-500 mt-1">This will be recorded in the version history.</p>
             </div>
-          )}
-        </div>
 
-        {/* Actions */}
-        {isEditing && (
-          <div className="px-6 py-4 bg-slate-50 border-t flex justify-end gap-3 rounded-b-lg">
-            <button
-              type="button"
-              onClick={handleCancel}
-              className="px-4 py-2 text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            {/* Meta Info Row */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm mt-3">
+              <div className="flex items-center gap-2 text-slate-600">
+                <span className="text-slate-400">Asset:</span>
+                <span className="font-medium text-slate-700">{instrument.assetNumber}</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-600">
+                <span className="text-slate-400">Category:</span>
+                <span>{instrument.category}</span>
+              </div>
+              <div className="flex items-center gap-2 text-slate-600">
+                <span className="text-slate-400">Version:</span>
+                <span>v{instrument.version}</span>
+              </div>
+            </div>
           </div>
-        )}
-      </form>
+
+          {/* Content - Scrollable */}
+          <div className="flex-1 overflow-auto bg-slate-50/30">
+            <div className="p-3 space-y-2 bg-section-inner">
+              {/* Identity Section */}
+              <CollapsibleSection
+                title="Identity"
+                isExpanded={expandedSections.identity}
+                onToggle={() => toggleSection('identity')}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoField label="Asset Number" value={instrument.assetNumber} />
+                  <InfoField label="Category" value={instrument.category} />
+                  <div className="md:col-span-2">
+                    <InfoField label="Description" value={instrument.description} />
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Equipment Section */}
+              <CollapsibleSection
+                title="Equipment Details"
+                isExpanded={expandedSections.equipment}
+                onToggle={() => toggleSection('equipment')}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <InfoField label="Make" value={instrument.make} />
+                  <InfoField label="Model" value={instrument.model} />
+                  <InfoField label="Serial Number" value={instrument.serialNumber} />
+                </div>
+              </CollapsibleSection>
+
+              {/* Parameters Section */}
+              <CollapsibleSection
+                title="Parameter Information"
+                isExpanded={expandedSections.parameters}
+                onToggle={() => toggleSection('parameters')}
+              >
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <InfoField label="Parameter Group" value={instrument.parameterGroup} />
+                    <div>
+                      <dt className="text-xs font-semibold text-slate-600 tracking-wider">Parameter Roles</dt>
+                      <dd className="mt-1 text-sm text-slate-900">
+                        {(instrument.parameterRoles || []).length > 0
+                          ? instrument.parameterRoles.map(r => PARAMETER_ROLES[r] || r).join(', ')
+                          : '-'}
+                      </dd>
+                    </div>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-slate-600 tracking-wider">Parameter Capabilities</dt>
+                    <dd className="mt-2 flex flex-wrap gap-1.5">
+                      {(instrument.parameterCapabilities || []).length > 0 ? (
+                        instrument.parameterCapabilities.map(cap => (
+                          <span key={cap} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
+                            {PARAMETER_CAPABILITIES[cap] || cap}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-500">-</span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-slate-600 tracking-wider">SOP References</dt>
+                    <dd className="mt-2 flex flex-wrap gap-1.5">
+                      {(instrument.sopReferences || []).length > 0 ? (
+                        instrument.sopReferences.map((sop, idx) => (
+                          <span key={idx} className="px-2 py-0.5 bg-slate-100 text-slate-700 text-xs rounded-full">
+                            {sop}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-500">-</span>
+                      )}
+                    </dd>
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Calibration Section */}
+              <CollapsibleSection
+                title="Calibration Information"
+                isExpanded={expandedSections.calibration}
+                onToggle={() => toggleSection('calibration')}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoField label="Usage" value={instrument.usage} />
+                  <InfoField label="Calibrated At" value={instrument.calibratedAtLocation} />
+                  <InfoField label="Report Number" value={instrument.reportNo} />
+                  <div>
+                    <dt className="text-xs font-semibold text-slate-600 tracking-wider">Calibration Due Date</dt>
+                    <dd className="mt-1 text-sm text-slate-900">
+                      {instrument.calibrationDueDate
+                        ? new Date(instrument.calibrationDueDate).toLocaleDateString()
+                        : '-'}
+                    </dd>
+                  </div>
+                  {instrument.daysUntilExpiry !== 999 && (
+                    <div>
+                      <dt className="text-xs font-semibold text-slate-600 tracking-wider">Days Until Expiry</dt>
+                      <dd className={`mt-1 text-sm font-medium ${
+                        instrument.daysUntilExpiry < 0 ? 'text-red-600' :
+                        instrument.daysUntilExpiry <= 30 ? 'text-yellow-600' : 'text-green-600'
+                      }`}>
+                        {instrument.daysUntilExpiry < 0
+                          ? `${Math.abs(instrument.daysUntilExpiry)} days overdue`
+                          : `${instrument.daysUntilExpiry} days`}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="md:col-span-2">
+                    <InfoField label="Remarks" value={instrument.remarks} />
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Range Data Section */}
+              <CollapsibleSection
+                title="Range Data"
+                isExpanded={expandedSections.ranges}
+                onToggle={() => toggleSection('ranges')}
+              >
+                {instrument.rangeData && instrument.rangeData.length > 0 ? (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
+                            Parameter
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
+                            Min
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
+                            Max
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
+                            Unit
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
+                            Uncertainty
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
+                            Reference
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {instrument.rangeData.map((range, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2 text-slate-900">{range.parameter || '-'}</td>
+                            <td className="px-4 py-2 text-slate-700">{range.min || '-'}</td>
+                            <td className="px-4 py-2 text-slate-700">{range.max || '-'}</td>
+                            <td className="px-4 py-2 text-slate-700">{range.unit || '-'}</td>
+                            <td className="px-4 py-2 text-slate-700">{range.uncertainty || '-'}</td>
+                            <td className="px-4 py-2 text-slate-700">{range.referencedoc || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-sm">No range data available.</p>
+                )}
+              </CollapsibleSection>
+
+              {/* Record Information Section */}
+              <CollapsibleSection
+                title="Record Information"
+                isExpanded={expandedSections.record}
+                onToggle={() => toggleSection('record')}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoField label="Version" value={`v${instrument.version}`} />
+                  <InfoField
+                    label="Last Updated"
+                    value={new Date(instrument.createdAt).toLocaleString()}
+                  />
+                  {instrument.createdBy && (
+                    <InfoField label="Modified By" value={instrument.createdBy.name} />
+                  )}
+                  {instrument.changeReason && (
+                    <InfoField label="Change Reason" value={instrument.changeReason} />
+                  )}
+                </div>
+              </CollapsibleSection>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Column - PDF Viewer */}
+      <div className="w-[45%] flex-shrink-0 flex flex-col">
+        <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {/* PDF Header */}
+          <div className="flex-shrink-0 px-4 py-3 border-b border-slate-200 bg-primary">
+            <h2 className="font-semibold text-primary-foreground text-sm">Calibration Certificate</h2>
+          </div>
+          {/* PDF Viewer */}
+          <div className="flex-1 bg-slate-100">
+            <iframe
+              src={`/api/admin/instruments/${id}/certificates/latest?download=true`}
+              className="w-full h-full"
+              title="Calibration Certificate"
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -134,11 +134,11 @@ export function UserListClient() {
             placeholder="Search by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10"
+            className="pl-10 border-slate-300"
           />
         </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[250px] border-slate-300">
             <SelectValue placeholder="Role" />
           </SelectTrigger>
           <SelectContent>
@@ -148,7 +148,7 @@ export function UserListClient() {
           </SelectContent>
         </Select>
         <Select value={activeFilter} onValueChange={setActiveFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[250px] border-slate-300">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -160,7 +160,7 @@ export function UserListClient() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-lg border shadow-sm">
+      <div className="bg-white rounded-lg border shadow-sm border-slate-300">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
@@ -172,8 +172,8 @@ export function UserListClient() {
           </div>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
+            <TableHeader className="border-slate-300">
+              <TableRow className="border-slate-300">
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
@@ -189,7 +189,7 @@ export function UserListClient() {
                 return (
                   <TableRow
                     key={user.id}
-                    className="cursor-pointer hover:bg-slate-50"
+                    className="cursor-pointer hover:bg-slate-300"
                     onClick={() => router.push(`/admin/users/${user.id}/edit`)}
                   >
                     <TableCell className="font-medium">{user.name}</TableCell>

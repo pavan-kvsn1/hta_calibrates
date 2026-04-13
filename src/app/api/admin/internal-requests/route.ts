@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('requests')
 
 // GET /api/admin/internal-requests - List all internal requests
 export async function GET(request: NextRequest) {
@@ -82,7 +85,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching internal requests:', error)
+    logger.error({ err: error }, 'Failed to fetch internal requests')
     return NextResponse.json(
       { error: 'Failed to fetch internal requests' },
       { status: 500 }

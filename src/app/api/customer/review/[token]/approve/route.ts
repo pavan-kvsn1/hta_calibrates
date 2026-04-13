@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { notifyOnCustomerApproval } from '@/lib/services/notifications'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 import { isOpenSignHealthy, selfSignDocument, getSignatureWidgets, withRetry } from '@/lib/services/opensign'
 import { getPageCountFromBuffer } from '@/lib/services/pdf/generator'
 import {
@@ -161,7 +164,7 @@ export async function POST(
         await appendSigningEvidence(tokenRecord.certificateId, customerSignature.id, 'CUSTOMER_SIGNED', evidencePayload, tokenRecord.certificate.currentRevision)
       } catch (evidenceError) {
         // Log but don't fail the approval if evidence capture fails
-        console.error('Failed to capture customer signing evidence:', evidenceError)
+        logger.error({ err: evidenceError }, 'Failed to capture customer signing evidence')
       }
     }
 
@@ -171,7 +174,9 @@ export async function POST(
       certificateNumber: tokenRecord.certificate.certificateNumber,
       assigneeId: tokenRecord.certificate.createdById,
       reviewerId: tokenRecord.certificate.reviewerId,
-    }).catch((err) => console.error('Failed to send notification:', err))
+      customerName: tokenRecord.customer.companyName || tokenRecord.certificate.customerName || undefined,
+      approverName: signerName,
+    }).catch((err) => logger.error({ err }, 'Failed to send notification'))
 
     // Generate signed PDF (best-effort — don't fail the approval)
     try {
@@ -193,18 +198,20 @@ export async function POST(
         signerEmail || tokenRecord.customer.email,
         signerName,
         pdfBuffer
-      ).catch((err) => console.error('OpenSign customer signing failed (non-blocking):', err))
+      ).catch((err) => logger.error({ err }, 'OpenSign customer signing failed (non-blocking)'))
     } catch (pdfError) {
-      console.error('Failed to generate signed PDF:', pdfError)
+      logger.error({ err: pdfError }, 'Failed to generate signed PDF')
       // Approval still succeeded — PDF can be regenerated later
     }
+
+    logger.info({ certificateId: tokenRecord.certificateId, signerName }, 'Certificate approved by customer')
 
     return NextResponse.json({
       success: true,
       message: 'Certificate approved successfully',
     })
   } catch (error) {
-    console.error('Error approving certificate:', error)
+    logger.error({ err: error }, 'Error approving certificate')
     return NextResponse.json(
       { error: 'Failed to approve certificate' },
       { status: 500 }
@@ -352,7 +359,7 @@ async function handleSessionBasedApproval(
       await appendSigningEvidence(certificate.id, customerSignature.id, 'CUSTOMER_SIGNED', evidencePayload, certificate.currentRevision)
     } catch (evidenceError) {
       // Log but don't fail the approval if evidence capture fails
-      console.error('Failed to capture customer signing evidence:', evidenceError)
+      logger.error({ err: evidenceError }, 'Failed to capture customer signing evidence')
     }
   }
 
@@ -362,7 +369,9 @@ async function handleSessionBasedApproval(
     certificateNumber: certificate.certificateNumber,
     assigneeId: certificate.createdById,
     reviewerId: certificate.reviewerId,
-  }).catch((err) => console.error('Failed to send notification:', err))
+    customerName: customer.companyName || certificate.customerName || undefined,
+    approverName: signerName,
+  }).catch((err) => logger.error({ err }, 'Failed to send notification'))
 
   // Generate signed PDF (best-effort — don't fail the approval)
   try {
@@ -384,9 +393,9 @@ async function handleSessionBasedApproval(
       signerEmail || customerEmail,
       signerName,
       pdfBuffer
-    ).catch((err) => console.error('OpenSign customer signing failed (non-blocking):', err))
+    ).catch((err) => logger.error({ err }, 'OpenSign customer signing failed (non-blocking)'))
   } catch (pdfError) {
-    console.error('Failed to generate signed PDF:', pdfError)
+    logger.error({ err: pdfError }, 'Failed to generate signed PDF')
     // Approval still succeeded — PDF can be regenerated later
   }
 

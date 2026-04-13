@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('requests')
 
 // GET /api/admin/internal-requests/[id] - Get internal request details
 export async function GET(
@@ -68,7 +71,7 @@ export async function GET(
       const feedbacks = await prisma.reviewFeedback.findMany({
         where: {
           certificateId: internalRequest.certificate.id,
-          feedbackType: { in: ['REVISION_REQUEST', 'CUSTOMER_REVISION_FORWARDED'] },
+          feedbackType: { in: ['REVISION_REQUESTED', 'REVISION_REQUEST', 'CUSTOMER_REVISION_FORWARDED'] },
           targetSection: { not: null },
         },
         select: { targetSection: true },
@@ -111,7 +114,7 @@ export async function GET(
       currentlyUnlockedSections,
     })
   } catch (error) {
-    console.error('Error fetching internal request:', error)
+    logger.error({ err: error }, 'Failed to fetch internal request')
     return NextResponse.json(
       { error: 'Failed to fetch internal request' },
       { status: 500 }

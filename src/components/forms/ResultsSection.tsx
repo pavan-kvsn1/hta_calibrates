@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { CheckCircle, AlertTriangle, Info } from 'lucide-react'
+import { useMemo, useState, useCallback } from 'react'
+import { CheckCircle, AlertTriangle, Info, Camera, ImageIcon } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -20,6 +20,8 @@ import {
   AccuracyType,
 } from '@/lib/stores/certificate-store'
 import { cn } from '@/lib/utils'
+import { useCertificateImages } from '@/lib/hooks/useCertificateImages'
+import { ReadingImageModal, ReadingImage } from './ReadingImageModal'
 
 const FORMULA_OPTIONS = [
   { value: 'A-B', label: 'A - B' },
@@ -292,6 +294,13 @@ interface ResultsTableProps {
   onResultChange: (resultIndex: number, result: CalibrationResult) => void
   onPointCountChange: (count: number) => void
   onParameterUpdate: (parameter: Parameter) => void
+  certificateId: string | null
+  getReadingImages: (parameterIndex: number, pointNumber: number) => {
+    uuc: ReadingImage | null
+    master: ReadingImage | null
+  }
+  onOpenImageModal: (parameterIndex: number, pointNumber: number) => void
+  disabled?: boolean
 }
 
 function ResultsTable({
@@ -300,6 +309,10 @@ function ResultsTable({
   onResultChange,
   onPointCountChange,
   onParameterUpdate,
+  certificateId,
+  getReadingImages,
+  onOpenImageModal,
+  disabled = false,
 }: ResultsTableProps) {
   // Count out-of-limit points
   const outOfLimitCount = parameter.results.filter((r) => r.isOutOfLimit).length
@@ -394,9 +407,9 @@ function ResultsTable({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-300 overflow-hidden">
       {/* Table Header */}
-      <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 space-y-4">
+      <div className="bg-slate-50 px-6 py-4 border-b border-slate-300 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h3 className="font-black text-slate-900 uppercase text-xs tracking-wider">
@@ -455,7 +468,7 @@ function ResultsTable({
                   onParameterUpdate({ ...parameter, errorFormula: value })
                 }
               >
-                <SelectTrigger className="text-[10px] rounded-lg border-slate-200 py-1 font-bold w-20">
+                <SelectTrigger className="text-[10px] rounded-lg border-slate-300 py-1 font-bold w-20">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -475,7 +488,7 @@ function ResultsTable({
                 value={String(parameter.results.length)}
                 onValueChange={(value) => onPointCountChange(parseInt(value))}
               >
-                <SelectTrigger className="text-[10px] rounded-lg border-slate-200 py-1 font-bold w-16">
+                <SelectTrigger className="text-[10px] rounded-lg border-slate-300 py-1 font-bold w-16">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -550,7 +563,7 @@ function ResultsTable({
       {/* Results Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50/50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+          <thead className="bg-slate-50/50 border-b border-slate-300 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             <tr>
               <th className="px-6 py-3 text-left w-16">Sl.</th>
               <th className="px-6 py-3 text-left">Std. Reading (A)</th>
@@ -561,6 +574,7 @@ function ResultsTable({
               <th className="px-6 py-3 text-left">Error Observed</th>
               <th className="px-6 py-3 text-left">Limit</th>
               <th className="px-6 py-3 text-center w-20">Status</th>
+              <th className="px-3 py-3 text-center w-12">Photo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -615,7 +629,7 @@ function ResultsTable({
                             ? "border-red-400 bg-red-50 focus:border-red-500 focus:ring-red-200"
                             : stdViolation.isViolation
                             ? "border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-200"
-                            : "border-slate-200"
+                            : "border-slate-300"
                         )}
                         title={!operatingRangeViolation.isValid ? operatingRangeViolation.message ?? undefined : stdViolation.isViolation ? stdViolation.message : undefined}
                       />
@@ -648,7 +662,7 @@ function ResultsTable({
                           "w-full max-w-[140px] rounded-lg font-semibold",
                           uucViolation.isViolation
                             ? "border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-200"
-                            : "border-slate-200"
+                            : "border-slate-300"
                         )}
                         title={uucViolation.isViolation ? uucViolation.message : undefined}
                       />
@@ -676,7 +690,7 @@ function ResultsTable({
                             "w-full max-w-[140px] rounded-lg font-semibold",
                             afterViolation.isViolation
                               ? "border-amber-400 bg-amber-50 focus:border-amber-500 focus:ring-amber-200"
-                              : "border-slate-200"
+                              : "border-slate-300"
                           )}
                           title={afterViolation.isViolation ? afterViolation.message : undefined}
                         />
@@ -727,6 +741,39 @@ function ResultsTable({
                       <span className="text-slate-300 text-[10px]">—</span>
                     )}
                   </td>
+                  <td className="px-3 py-4 text-center">
+                    {(() => {
+                      const readingImages = getReadingImages(parameterIndex, result.pointNumber)
+                      const hasUuc = readingImages.uuc !== null
+                      const hasMaster = readingImages.master !== null
+                      const hasBoth = hasUuc && hasMaster
+                      const hasOne = (hasUuc || hasMaster) && !hasBoth
+                      const hasNone = !hasUuc && !hasMaster
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => onOpenImageModal(parameterIndex, result.pointNumber)}
+                          disabled={disabled}
+                          className={cn(
+                            "p-1.5 rounded-lg transition-colors",
+                            hasBoth
+                              ? "bg-green-100 text-green-600 hover:bg-green-200"
+                              : hasOne
+                              ? "bg-red-100 text-red-500 hover:bg-red-200"
+                              : "bg-slate-100 text-slate-400 hover:bg-slate-200 hover:text-slate-600",
+                            disabled && "opacity-50 cursor-not-allowed"
+                          )}
+                          title={hasBoth ? "View/edit photos" : hasOne ? "Missing one photo" : "Add photos"}
+                        >
+                          {hasNone ? (
+                            <Camera className="size-4" />
+                          ) : (
+                            <ImageIcon className="size-4" />
+                          )}
+                        </button>
+                      )
+                    })()}
+                  </td>
                 </tr>
               )
             })}
@@ -769,12 +816,151 @@ interface ResultsSectionProps {
   disabled?: boolean
 }
 
+interface ImageModalState {
+  isOpen: boolean
+  parameterIndex: number
+  pointNumber: number
+}
+
 export function ResultsSection({ feedbackSlot, disabled }: ResultsSectionProps = {}) {
-  const { formData, setResult, setPointCount, setParameter } = useCertificateStore()
+  const { formData, certificateId, setResult, setPointCount, setParameter, saveDraft } = useCertificateStore()
+
+  // Image modal state
+  const [imageModal, setImageModal] = useState<ImageModalState>({
+    isOpen: false,
+    parameterIndex: 0,
+    pointNumber: 1,
+  })
+
+  // Image management
+  const {
+    uploadImageWithId,
+    deleteImage,
+    getReadingImages,
+    refreshWithId,
+  } = useCertificateImages({
+    certificateId,
+  })
+
+  // Auto-save as draft helper - returns the certificate ID
+  const ensureCertificateSaved = useCallback(async (): Promise<string> => {
+    if (certificateId) return certificateId
+
+    const result = await saveDraft()
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to save draft before uploading image')
+    }
+    // Get the new certificateId from the store
+    const newCertId = useCertificateStore.getState().certificateId
+    if (!newCertId) {
+      throw new Error('Failed to get certificate ID after saving draft')
+    }
+    return newCertId
+  }, [certificateId, saveDraft])
+
+  // Open image modal
+  const handleOpenImageModal = useCallback((parameterIndex: number, pointNumber: number) => {
+    setImageModal({
+      isOpen: true,
+      parameterIndex,
+      pointNumber,
+    })
+  }, [])
+
+  // Close image modal
+  const handleCloseImageModal = useCallback(() => {
+    setImageModal((prev) => ({ ...prev, isOpen: false }))
+  }, [])
+
+  // Navigate between points in modal
+  const handleNavigateModal = useCallback(
+    (direction: 'prev' | 'next') => {
+      setImageModal((prev) => {
+        const parameter = formData.parameters[prev.parameterIndex]
+        if (!parameter) return prev
+
+        const totalPoints = parameter.results.length
+        let newPointNumber = prev.pointNumber
+
+        if (direction === 'prev' && prev.pointNumber > 1) {
+          newPointNumber = prev.pointNumber - 1
+        } else if (direction === 'next' && prev.pointNumber < totalPoints) {
+          newPointNumber = prev.pointNumber + 1
+        }
+
+        return { ...prev, pointNumber: newPointNumber }
+      })
+    },
+    [formData.parameters]
+  )
+
+  // Get reading images for modal
+  const getReadingImagesForModal = useCallback(
+    (parameterIndex: number, pointNumber: number) => {
+      const images = getReadingImages(parameterIndex, pointNumber)
+      return {
+        uuc: images.uuc as ReadingImage | null,
+        master: images.master as ReadingImage | null,
+      }
+    },
+    [getReadingImages]
+  )
+
+  // Upload handlers - auto-save as draft if needed
+  const handleUploadUuc = useCallback(
+    async (file: File) => {
+      const certId = await ensureCertificateSaved()
+      await uploadImageWithId(certId, file, {
+        imageType: 'READING_UUC',
+        parameterIndex: imageModal.parameterIndex,
+        pointNumber: imageModal.pointNumber,
+      })
+      await refreshWithId(certId)
+    },
+    [ensureCertificateSaved, uploadImageWithId, refreshWithId, imageModal.parameterIndex, imageModal.pointNumber]
+  )
+
+  const handleUploadMaster = useCallback(
+    async (file: File) => {
+      const certId = await ensureCertificateSaved()
+      await uploadImageWithId(certId, file, {
+        imageType: 'READING_MASTER',
+        parameterIndex: imageModal.parameterIndex,
+        pointNumber: imageModal.pointNumber,
+      })
+      await refreshWithId(certId)
+    },
+    [ensureCertificateSaved, uploadImageWithId, refreshWithId, imageModal.parameterIndex, imageModal.pointNumber]
+  )
+
+  // Delete handlers
+  const handleDeleteUuc = useCallback(
+    async (imageId: string) => {
+      await deleteImage(imageId)
+    },
+    [deleteImage]
+  )
+
+  const handleDeleteMaster = useCallback(
+    async (imageId: string) => {
+      await deleteImage(imageId)
+    },
+    [deleteImage]
+  )
+
+  // Get current modal data
+  const currentParameter = formData.parameters[imageModal.parameterIndex]
+  const currentResult = currentParameter?.results.find(
+    (r) => r.pointNumber === imageModal.pointNumber
+  )
+  const currentImages = getReadingImagesForModal(
+    imageModal.parameterIndex,
+    imageModal.pointNumber
+  )
 
   return (
     <FormSection id="results" sectionNumber="Section 05" title="Calibration Results" feedbackSlot={feedbackSlot} disabled={disabled}>
-      <div className="space-y-10">
+      <div className="space-y-4 p-5 rounded-xl border border-slate-300 bg-section-inner">
         {formData.parameters.map((parameter, parameterIndex) => (
           <ResultsTable
             key={parameter.id}
@@ -785,6 +971,10 @@ export function ResultsSection({ feedbackSlot, disabled }: ResultsSectionProps =
             }
             onPointCountChange={(count) => setPointCount(parameterIndex, count)}
             onParameterUpdate={(param) => setParameter(parameterIndex, param)}
+            certificateId={certificateId}
+            getReadingImages={getReadingImagesForModal}
+            onOpenImageModal={handleOpenImageModal}
+            disabled={disabled}
           />
         ))}
 
@@ -795,6 +985,29 @@ export function ResultsSection({ feedbackSlot, disabled }: ResultsSectionProps =
           </div>
         )}
       </div>
+
+      {/* Reading Image Modal */}
+      {currentParameter && currentResult && (
+        <ReadingImageModal
+          isOpen={imageModal.isOpen}
+          onClose={handleCloseImageModal}
+          certificateId={certificateId || 'pending'}
+          parameterIndex={imageModal.parameterIndex}
+          parameterName={currentParameter.parameterName || `Parameter ${imageModal.parameterIndex + 1}`}
+          pointNumber={imageModal.pointNumber}
+          standardReading={currentResult.standardReading || '—'}
+          uucReading={currentResult.beforeAdjustment || '—'}
+          uucImage={currentImages.uuc}
+          masterImage={currentImages.master}
+          onUploadUuc={handleUploadUuc}
+          onUploadMaster={handleUploadMaster}
+          onDeleteUuc={handleDeleteUuc}
+          onDeleteMaster={handleDeleteMaster}
+          totalPoints={currentParameter.results.length}
+          onNavigate={handleNavigateModal}
+          disabled={disabled}
+        />
+      )}
     </FormSection>
   )
 }

@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -73,6 +74,7 @@ export function AdminSidebar({
   // Navigation items - some are Master Admin only
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard, badge: 0, masterOnly: false },
+    { name: 'Analytics', href: '/admin/analytics', icon: BarChart3, badge: 0, masterOnly: false },
     { name: 'Staff Users', href: '/admin/users', icon: Users, badge: 0, masterOnly: false },
     { name: 'Customer Accounts', href: '/admin/customers', icon: Building2, badge: 0, masterOnly: true },
     {
