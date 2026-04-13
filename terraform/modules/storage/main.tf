@@ -204,3 +204,113 @@ resource "google_storage_bucket_iam_member" "static_public" {
   role   = "roles/storage.objectViewer"
   member = "allUsers"
 }
+
+# ====================
+# CERTIFICATE IMAGES BUCKET
+# ====================
+
+# Images Bucket - for UUC, Master Instrument, and Reading photos
+resource "google_storage_bucket" "images" {
+  name          = "${var.project_id}-certificate-images-${var.environment}"
+  project       = var.project_id
+  location      = var.location
+  storage_class = "STANDARD"
+
+  force_destroy               = var.environment != "prod"
+  uniform_bucket_level_access = true
+
+  # Enable versioning for audit trail
+  versioning {
+    enabled = true
+  }
+
+  # Lifecycle rules for cost optimization
+  # Move older versions to Nearline after 30 days
+  lifecycle_rule {
+    condition {
+      age                   = 30
+      num_newer_versions    = 1  # Only apply to non-latest versions
+      with_state            = "ARCHIVED"
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
+
+  # Move to Coldline after 180 days
+  lifecycle_rule {
+    condition {
+      age                = 180
+      with_state         = "ARCHIVED"
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "COLDLINE"
+    }
+  }
+
+  # Keep last 10 versions, delete older ones (non-prod only)
+  dynamic "lifecycle_rule" {
+    for_each = var.environment != "prod" ? [1] : []
+    content {
+      condition {
+        num_newer_versions = 10
+      }
+      action {
+        type = "Delete"
+      }
+    }
+  }
+
+  # CORS for web access
+  cors {
+    origin          = var.cors_origins
+    method          = ["GET", "HEAD", "PUT", "POST"]
+    response_header = ["Content-Type", "Content-Disposition", "Content-Length"]
+    max_age_seconds = 3600
+  }
+
+  labels = {
+    environment = var.environment
+    project     = "hta-calibration"
+    managed_by  = "terraform"
+    purpose     = "certificate-images"
+  }
+}
+
+# ====================
+# IAM BINDINGS FOR SERVICE ACCOUNT
+# ====================
+
+# Cloud Run service account can read/write to certificates bucket
+resource "google_storage_bucket_iam_member" "certificates_admin" {
+  count  = var.cloudrun_service_account != "" ? 1 : 0
+  bucket = google_storage_bucket.certificates.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.cloudrun_service_account}"
+}
+
+# Cloud Run service account can read/write to signatures bucket
+resource "google_storage_bucket_iam_member" "signatures_admin" {
+  count  = var.cloudrun_service_account != "" ? 1 : 0
+  bucket = google_storage_bucket.signatures.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.cloudrun_service_account}"
+}
+
+# Cloud Run service account can read/write to uploads bucket
+resource "google_storage_bucket_iam_member" "uploads_admin" {
+  count  = var.cloudrun_service_account != "" ? 1 : 0
+  bucket = google_storage_bucket.uploads.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.cloudrun_service_account}"
+}
+
+# Cloud Run service account can read/write to images bucket
+resource "google_storage_bucket_iam_member" "images_admin" {
+  count  = var.cloudrun_service_account != "" ? 1 : 0
+  bucket = google_storage_bucket.images.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${var.cloudrun_service_account}"
+}

@@ -49,3 +49,13 @@ next-env.d.ts
 
 # uploaded files (signed PDFs)
 /uploads
+
+# certificate storage (seeded from reference_docs/certificate_pdfs)
+/storage
+
+# GCP tools
+cloud-sql-proxy.exe
+cloud-sql-proxy
+
+# test results
+/test-results

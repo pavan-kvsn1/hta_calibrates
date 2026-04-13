@@ -51,3 +51,31 @@ variable "create_pdf_signing_key" {
   type        = bool
   default     = false
 }
+
+# Email (Resend) Configuration
+variable "resend_api_key" {
+  description = "Resend API key for sending emails"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "email_from" {
+  description = "Email sender address (e.g., 'HTA Calibration <noreply@hta-calibration.com>')"
+  type        = string
+  default     = ""
+}
+
+# Queue Configuration
+variable "queue_process_secret" {
+  description = "Secret for authenticating queue process API calls"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "create_queue_secret" {
+  description = "Auto-generate a queue process secret if not provided"
+  type        = bool
+  default     = true
+}

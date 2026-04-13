@@ -152,3 +152,120 @@ resource "google_secret_manager_secret_iam_member" "google_client_secret_access"
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${var.app_service_account_email}"
 }
+
+# ============================================
+# Email Configuration (Resend)
+# ============================================
+
+# Resend API Key for sending emails
+resource "google_secret_manager_secret" "resend_api_key" {
+  count = var.resend_api_key != "" ? 1 : 0
+
+  secret_id = "${var.project_id}-resend-api-key-${var.environment}"
+  project   = var.project_id
+
+  labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "resend_api_key" {
+  count = var.resend_api_key != "" ? 1 : 0
+
+  secret      = google_secret_manager_secret.resend_api_key[0].id
+  secret_data = var.resend_api_key
+}
+
+resource "google_secret_manager_secret_iam_member" "resend_api_key_access" {
+  count = var.resend_api_key != "" ? 1 : 0
+
+  secret_id = google_secret_manager_secret.resend_api_key[0].secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.app_service_account_email}"
+}
+
+# Email From address (non-secret, but stored for consistency)
+resource "google_secret_manager_secret" "email_from" {
+  count = var.email_from != "" ? 1 : 0
+
+  secret_id = "${var.project_id}-email-from-${var.environment}"
+  project   = var.project_id
+
+  labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "email_from" {
+  count = var.email_from != "" ? 1 : 0
+
+  secret      = google_secret_manager_secret.email_from[0].id
+  secret_data = var.email_from
+}
+
+resource "google_secret_manager_secret_iam_member" "email_from_access" {
+  count = var.email_from != "" ? 1 : 0
+
+  secret_id = google_secret_manager_secret.email_from[0].secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.app_service_account_email}"
+}
+
+# ============================================
+# Queue Processing Secret
+# ============================================
+
+# Queue process secret for securing the queue API endpoint
+resource "google_secret_manager_secret" "queue_process_secret" {
+  count = var.queue_process_secret != "" || var.create_queue_secret ? 1 : 0
+
+  secret_id = "${var.project_id}-queue-process-secret-${var.environment}"
+  project   = var.project_id
+
+  labels = {
+    environment = var.environment
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+}
+
+# Generate a random queue secret if not provided but enabled
+resource "random_password" "queue_process_secret" {
+  count   = var.create_queue_secret && var.queue_process_secret == "" ? 1 : 0
+  length  = 32
+  special = false
+}
+
+resource "google_secret_manager_secret_version" "queue_process_secret" {
+  count = var.queue_process_secret != "" || var.create_queue_secret ? 1 : 0
+
+  secret      = google_secret_manager_secret.queue_process_secret[0].id
+  secret_data = var.queue_process_secret != "" ? var.queue_process_secret : random_password.queue_process_secret[0].result
+}
+
+resource "google_secret_manager_secret_iam_member" "queue_process_secret_access" {
+  count = var.queue_process_secret != "" || var.create_queue_secret ? 1 : 0
+
+  secret_id = google_secret_manager_secret.queue_process_secret[0].secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${var.app_service_account_email}"
+}

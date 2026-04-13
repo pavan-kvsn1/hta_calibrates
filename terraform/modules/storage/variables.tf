@@ -25,3 +25,9 @@ variable "cors_origins" {
   type        = list(string)
   default     = ["http://localhost:3000"]
 }
+
+variable "cloudrun_service_account" {
+  description = "Service account email for Cloud Run (for IAM bindings)"
+  type        = string
+  default     = ""
+}

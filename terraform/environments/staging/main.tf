@@ -1,5 +1,5 @@
 # Staging Environment - Main Configuration
-# Provisions all infrastructure for the staging environment
+# Provisions all infrastructure for the staging environment using GKE Autopilot
 
 terraform {
   required_version = ">= 1.5.0"
@@ -36,7 +36,7 @@ provider "google-beta" {
   region  = var.region
 }
 
-# Enable required APIs (shared APIs like iam, artifactregistry are in terraform/shared)
+# Enable required APIs
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "compute.googleapis.com",
@@ -46,6 +46,8 @@ resource "google_project_service" "required_apis" {
     "secretmanager.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
+    "redis.googleapis.com",
+    "artifactregistry.googleapis.com",
   ])
 
   project = var.project_id
@@ -77,7 +79,7 @@ module "storage" {
   project_id   = var.project_id
   location     = "ASIA"
   environment  = "staging"
-  cors_origins = ["https://staging.htacalibration.com"]
+  cors_origins = ["https://staging.hta-calibration.com"]
 
   depends_on = [google_project_service.required_apis]
 }
@@ -122,34 +124,58 @@ module "secrets" {
   project_id                = var.project_id
   environment               = "staging"
   app_service_account_email = module.iam.app_service_account_email
-  nextauth_url              = "https://staging.htacalibration.com"
+  nextauth_url              = "https://staging.hta-calibration.com"
+
+  # Email configuration
+  resend_api_key = var.resend_api_key
+  email_from     = var.email_from
+
+  # Queue configuration
+  create_queue_secret = true
 
   depends_on = [module.iam]
 }
 
-# GKE Module - Using Zonal Standard cluster (single zone, cost-effective)
+# Memorystore (Redis) Module for caching
+module "memorystore" {
+  source = "../../modules/memorystore"
+
+  project_id  = var.project_id
+  region      = var.region
+  environment = "staging"
+  vpc_id      = module.vpc.vpc_id
+
+  # Staging settings - basic tier, minimal resources
+  tier           = "BASIC"
+  memory_size_gb = 1
+  redis_version  = "REDIS_7_0"
+
+  # Security
+  auth_enabled            = true
+  transit_encryption_mode = "SERVER_AUTHENTICATION"
+
+  # Grant access to app service account
+  app_service_account_email = module.iam.app_service_account_email
+
+  depends_on = [module.vpc, module.iam]
+}
+
+# GKE Module - Using Autopilot (Google manages nodes)
 module "gke" {
   source = "../../modules/gke"
 
   project_id             = var.project_id
   region                 = var.region
   environment            = "staging"
-  cluster_mode           = "zonal"  # Single zone cluster, lower cost than regional
+  cluster_mode           = "autopilot"  # Google manages nodes - simpler & cheaper
   vpc_name               = module.vpc.vpc_name
   gke_subnet_name        = module.vpc.gke_subnet_name
   gke_pod_range_name     = module.vpc.gke_pod_range_name
   gke_service_range_name = module.vpc.gke_service_range_name
   master_ipv4_cidr_block = "172.16.1.0/28"
 
-  # Staging-specific settings (moderate size)
-  node_count                = 2
-  min_node_count            = 2
-  max_node_count            = 4
-  machine_type              = "e2-medium"
-  disk_size_gb              = 50
-  node_service_account      = module.iam.gke_node_service_account_email
-  release_channel           = "REGULAR"
-  enable_managed_prometheus = true
+  # Autopilot doesn't need node configuration - Google manages it
+  release_channel = "REGULAR"
 
   master_authorized_networks = [
     {
@@ -170,4 +196,146 @@ resource "google_service_account_iam_member" "app_workload_identity" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[hta-calibration/hta-app]"
 
   depends_on = [module.gke]
+}
+
+# ============================================
+# DATABASE_URL Secret
+# Complete connection string for the application
+# ============================================
+
+data "google_secret_manager_secret_version" "db_password" {
+  secret  = module.cloudsql.database_password_secret_id
+  project = var.project_id
+
+  depends_on = [module.cloudsql]
+}
+
+resource "google_secret_manager_secret" "database_url" {
+  secret_id = "${var.project_id}-database-url-staging"
+  project   = var.project_id
+
+  labels = {
+    environment = "staging"
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "database_url" {
+  secret      = google_secret_manager_secret.database_url.id
+  secret_data = "postgresql://${module.cloudsql.database_user}:${data.google_secret_manager_secret_version.db_password.secret_data}@${module.cloudsql.private_ip_address}:5432/${module.cloudsql.database_name}"
+
+  depends_on = [module.cloudsql]
+}
+
+resource "google_secret_manager_secret_iam_member" "database_url_access" {
+  secret_id = google_secret_manager_secret.database_url.secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.iam.app_service_account_email}"
+}
+
+# ============================================
+# REDIS_URL Secret
+# ============================================
+
+data "google_secret_manager_secret_version" "redis_auth" {
+  count   = module.memorystore.redis_auth_enabled ? 1 : 0
+  secret  = module.memorystore.redis_auth_secret_id
+  project = var.project_id
+
+  depends_on = [module.memorystore]
+}
+
+resource "google_secret_manager_secret" "redis_url" {
+  secret_id = "${var.project_id}-redis-url-staging"
+  project   = var.project_id
+
+  labels = {
+    environment = "staging"
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "redis_url" {
+  secret      = google_secret_manager_secret.redis_url.id
+  secret_data = module.memorystore.redis_auth_enabled ? "redis://:${data.google_secret_manager_secret_version.redis_auth[0].secret_data}@${module.memorystore.redis_host}:${module.memorystore.redis_port}" : "redis://${module.memorystore.redis_host}:${module.memorystore.redis_port}"
+
+  depends_on = [module.memorystore]
+}
+
+resource "google_secret_manager_secret_iam_member" "redis_url_access" {
+  secret_id = google_secret_manager_secret.redis_url.secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.iam.app_service_account_email}"
+}
+
+# ============================================
+# Artifact Registry (for container images)
+# ============================================
+
+resource "google_artifact_registry_repository" "app" {
+  location      = var.region
+  repository_id = "hta-calibration"
+  description   = "Docker repository for HTA Calibration"
+  format        = "DOCKER"
+
+  labels = {
+    environment = "staging"
+    managed_by  = "terraform"
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_artifact_registry_repository_iam_member" "cicd_writer" {
+  location   = google_artifact_registry_repository.app.location
+  repository = google_artifact_registry_repository.app.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${module.iam.cicd_service_account_email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "app_reader" {
+  location   = google_artifact_registry_repository.app.location
+  repository = google_artifact_registry_repository.app.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${module.iam.app_service_account_email}"
+}
+
+# ============================================
+# Monitoring Module - Dashboard and Alerts
+# ============================================
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_id             = var.project_id
+  environment            = "staging"
+  region                 = var.region
+  cloud_run_service_name = "hta-calibration"  # Used for metric filters
+
+  # Alert configuration (more lenient for staging)
+  alert_email           = var.alert_email
+  error_rate_threshold  = 25      # Higher threshold for staging
+  latency_threshold_ms  = 3000    # 3 seconds for staging
+  cpu_threshold_percent = 85
+
+  enable_dashboard = var.enable_monitoring
+  enable_alerts    = var.enable_monitoring
+
+  depends_on = [google_project_service.required_apis]
 }

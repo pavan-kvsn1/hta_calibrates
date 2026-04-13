@@ -6,3 +6,7 @@ project_id = "hta-calibration-dev1"
 
 # OPTIONAL: Override the default region (asia-south1)
 # region = "asia-south1"
+
+# OPTIONAL: Enable monitoring (disabled by default for dev)
+# enable_monitoring = true
+# alert_email = "dev-alerts@yourcompany.com"

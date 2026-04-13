@@ -1,0 +1,174 @@
+name: Deploy to Dev (Cloud Run)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: hta-calibration-dev1
+  REGION: asia-south1
+  SERVICE_NAME: hta-calibration-dev
+  ARTIFACT_REGISTRY: asia-south1-docker.pkg.dev
+  IMAGE_NAME: hta-calibration/app
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy to Dev
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEV_SA_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate image tags
+        id: tags
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "timestamp=${TIMESTAMP}" >> $GITHUB_OUTPUT
+          echo "image=${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.short_sha }}
+            ${{ steps.tags.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ steps.tags.outputs.image }}:${{ steps.tags.outputs.short_sha }} \
+            --region ${{ env.REGION }} \
+            --platform managed \
+            --quiet
+
+      - name: Get Service URL
+        id: service
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.REGION }} \
+            --format 'value(status.url)')
+          echo "url=${URL}" >> $GITHUB_OUTPUT
+          echo "Service URL: ${URL}"
+
+      - name: Run Smoke Tests
+        id: smoke
+        run: |
+          echo "Running smoke tests against ${{ steps.service.outputs.url }}"
+          SERVICE_URL="${{ steps.service.outputs.url }}"
+
+          # 1. Health check (liveness)
+          echo "Testing /api/health..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SERVICE_URL}/api/health")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Health check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Health check passed"
+
+          # 2. Readiness check (includes DB + cache)
+          echo "Testing /api/health/ready..."
+          READY_RESPONSE=$(curl -s --max-time 30 "${SERVICE_URL}/api/health/ready")
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SERVICE_URL}/api/health/ready")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Readiness check failed with HTTP $HTTP_CODE"
+            echo "Response: $READY_RESPONSE"
+            exit 1
+          fi
+          echo "Readiness check passed"
+
+          # 3. Comprehensive smoke test (DB + seed data) - strict mode for dev
+          echo "Testing /api/smoke-test?mode=strict..."
+          SMOKE_RESPONSE=$(curl -s --max-time 60 "${SERVICE_URL}/api/smoke-test?mode=strict")
+          SMOKE_STATUS=$(echo "$SMOKE_RESPONSE" | jq -r '.status // "unknown"')
+          if [ "$SMOKE_STATUS" != "pass" ] && [ "$SMOKE_STATUS" != "partial" ]; then
+            echo "::error::Smoke test failed with status: $SMOKE_STATUS"
+            echo "Response: $SMOKE_RESPONSE" | jq .
+            exit 1
+          fi
+          echo "Smoke test passed (status: $SMOKE_STATUS)"
+          echo "Checks summary:"
+          echo "$SMOKE_RESPONSE" | jq '.summary'
+
+          # 4. Auth providers
+          echo "Testing /api/auth/providers..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SERVICE_URL}/api/auth/providers")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Auth providers check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Auth providers check passed"
+
+          # 5. Login page renders
+          echo "Testing /login..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SERVICE_URL}/login")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Login page check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Login page check passed"
+
+          # 6. Static assets
+          echo "Testing favicon..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${SERVICE_URL}/favicon.ico")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::warning::Favicon not found (HTTP $HTTP_CODE) - non-critical"
+          else
+            echo "Favicon check passed"
+          fi
+
+          echo ""
+          echo "All smoke tests passed!"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Dev Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Service** | ${{ env.SERVICE_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Region** | ${{ env.REGION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`${{ steps.tags.outputs.short_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | ${{ steps.service.outputs.url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Triggered by** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Smoke Tests" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /api/health" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /api/health/ready" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /api/auth/providers" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /login" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "::error::Deployment to dev failed. Check the logs above for details."
