@@ -668,6 +668,8 @@ describe('POST /api/customer/review/[token]/approve', () => {
         certificateNumber: 'HTA-001',
         assigneeId: 'engineer-456',
         reviewerId: 'reviewer-789',
+        customerName: 'Test Corp',
+        approverName: 'John Customer',
       })
     })
 
@@ -699,6 +701,8 @@ describe('POST /api/customer/review/[token]/approve', () => {
         certificateNumber: 'HTA-001',
         assigneeId: 'engineer-456',
         reviewerId: 'reviewer-789',
+        customerName: 'Test Corp',
+        approverName: 'John Customer',
       })
     })
 

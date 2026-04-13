@@ -7,6 +7,17 @@ vi.mock('@/lib/auth', () => ({
   canAccessAdmin: vi.fn(),
 }))
 
+// Mock cache to bypass caching
+vi.mock('@/lib/cache', () => ({
+  cached: vi.fn(async (_key: string, fn: () => Promise<unknown>) => fn()),
+  CacheKeys: {
+    certificateStats: () => 'stats:certificates',
+  },
+  CacheTTL: {
+    VERY_SHORT: 30,
+  },
+}))
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     certificate: {
