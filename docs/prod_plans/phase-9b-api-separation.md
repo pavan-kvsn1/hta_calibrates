@@ -98,6 +98,35 @@ Before starting separation:
 - [ ] Monitoring dashboards in place
 - [ ] Team aligned on timeline
 
+### Existing Features Requiring Migration
+
+The current monolith has these features that must be properly migrated to the monorepo structure:
+
+| Feature Category | Current Location | Target Location | Migration Complexity |
+|-----------------|------------------|-----------------|---------------------|
+| **Security Hardening** | | | |
+| Password change UI | `src/app/(auth)/` | `apps/web/` | Low |
+| Forgot password flow | `src/app/api/auth/` | `apps/api/routes/auth/` | Medium |
+| Rate limiting | `src/lib/security/` | `packages/shared/security/` | Medium |
+| Auth audit logging | `src/lib/audit.ts` | `packages/shared/audit/` | Low |
+| Session management | `src/lib/auth.ts` | `apps/api/` + `apps/web/` | High |
+| **Email Notifications** | | | |
+| Email templates | `src/emails/` | `packages/shared/emails/` | Low |
+| Notification service | `src/lib/notifications/` | `apps/worker/` | High |
+| Workflow triggers | API routes | `apps/api/` → queue → `apps/worker/` | High |
+| **Customer Access** | | | |
+| DownloadToken model | `prisma/schema.prisma` | `packages/database/` | Low |
+| Download link API | `src/app/api/admin/` | `apps/api/routes/admin/` | Medium |
+| Customer download page | `src/app/customer/` | `apps/web/` | Low |
+| **Caching** | | | |
+| Cache providers | `src/lib/cache/` | `packages/shared/cache/` | Medium |
+| Cache utilities | `src/lib/cache/index.ts` | `packages/shared/cache/` | Low |
+| Invalidation hooks | Throughout codebase | Service-specific | High |
+| **Security Headers** | | | |
+| CSP, HSTS, etc. | `next.config.ts` | `apps/web/next.config.ts` | Low |
+| CORS | `src/lib/security/cors.ts` | `apps/api/middleware/` | Medium |
+| Account lockout | `src/lib/security/` | `packages/shared/security/` | Medium |
+
 ---
 
 ## 3. Current Architecture
@@ -494,11 +523,215 @@ export * from '@prisma/client'
 
 ### Step 2.2: Create packages/shared
 
-Move these files from `src/lib/`:
-- `auth.ts` → `packages/shared/src/auth/`
-- `logger.ts` → `packages/shared/src/logger/`
-- `cache/` → `packages/shared/src/cache/`
-- `security/` → `packages/shared/src/security/`
+#### Migration Inventory
+
+The following modules from `src/lib/` must be migrated to `packages/shared/`:
+
+```
+packages/shared/
+├── src/
+│   ├── auth/
+│   │   ├── index.ts              # Re-export all
+│   │   ├── session.ts            # From src/lib/auth.ts (session logic)
+│   │   ├── password.ts           # Password hashing, validation
+│   │   └── tokens.ts             # JWT, reset tokens
+│   │
+│   ├── security/
+│   │   ├── index.ts
+│   │   ├── rate-limiter.ts       # From src/lib/security/rate-limiter.ts
+│   │   ├── account-lockout.ts    # From src/lib/security/rate-limiter.ts
+│   │   ├── cors.ts               # From src/lib/security/cors.ts
+│   │   └── headers.ts            # Security headers config
+│   │
+│   ├── cache/
+│   │   ├── index.ts              # From src/lib/cache/index.ts
+│   │   ├── memory-provider.ts    # From src/lib/cache/memory-provider.ts
+│   │   ├── redis-provider.ts     # From src/lib/cache/redis-provider.ts
+│   │   └── types.ts
+│   │
+│   ├── audit/
+│   │   ├── index.ts              # From src/lib/audit.ts
+│   │   └── types.ts              # Audit event types
+│   │
+│   ├── logger/
+│   │   ├── index.ts              # From src/lib/logger.ts
+│   │   └── formatters.ts
+│   │
+│   └── notifications/
+│       ├── index.ts              # From src/lib/notifications/
+│       ├── types.ts              # 26 notification types
+│       └── triggers.ts           # Event triggers (used by API, consumed by Worker)
+```
+
+#### Migration Steps
+
+**Step 2.2.1: Security Module**
+
+```bash
+# Create directory structure
+mkdir -p packages/shared/src/security
+
+# Copy and adapt files
+cp src/lib/security/rate-limiter.ts packages/shared/src/security/
+cp src/lib/security/cors.ts packages/shared/src/security/
+```
+
+```typescript
+// packages/shared/src/security/rate-limiter.ts
+// Adapt imports to use @hta/shared/cache instead of relative
+import { cache } from '@hta/shared/cache'
+
+export const RateLimitConfig = {
+  LOGIN: { limit: 5, windowSeconds: 15 * 60, keyPrefix: 'ratelimit:login:' },
+  REGISTRATION: { limit: 3, windowSeconds: 60 * 60, keyPrefix: 'ratelimit:register:' },
+  FORGOT_PASSWORD: { limit: 3, windowSeconds: 60 * 60, keyPrefix: 'ratelimit:forgot:' },
+  PASSWORD_RESET: { limit: 3, windowSeconds: 60 * 60, keyPrefix: 'ratelimit:reset:' },
+}
+
+export const AccountLockoutConfig = {
+  maxFailedAttempts: 5,
+  lockoutDurationSeconds: 15 * 60, // 15 minutes
+}
+
+// ... rest of implementation
+```
+
+**Step 2.2.2: Cache Module**
+
+```typescript
+// packages/shared/src/cache/index.ts
+// Migrate from src/lib/cache/index.ts
+// Update to work across services
+
+import { CacheProvider, CacheConfig } from './types'
+import { MemoryProvider } from './memory-provider'
+import { RedisProvider } from './redis-provider'
+
+let cacheInstance: CacheProvider | null = null
+
+export function getCache(): CacheProvider {
+  if (!cacheInstance) {
+    const redisUrl = process.env.REDIS_URL
+    cacheInstance = redisUrl 
+      ? new RedisProvider(redisUrl)
+      : new MemoryProvider()
+  }
+  return cacheInstance
+}
+
+export const cache = getCache()
+
+// Export utilities
+export { cached, cachedSWR } from './utilities'
+```
+
+**Step 2.2.3: Audit Module**
+
+```typescript
+// packages/shared/src/audit/index.ts
+// Migrate from src/lib/audit.ts
+import { prisma } from '@hta/database'
+import { createLogger } from '@hta/shared/logger'
+
+const logger = createLogger('audit')
+
+export type AuditAction = 
+  | 'LOGIN_SUCCESS'
+  | 'LOGIN_FAILED'
+  | 'LOGOUT'
+  | 'PASSWORD_CHANGE'
+  | 'PASSWORD_RESET_REQUEST'
+  | 'PASSWORD_RESET_COMPLETE'
+  | 'ACCOUNT_LOCKED'
+  | 'SESSION_INVALIDATED'
+  // ... all auth events
+
+export interface AuditEvent {
+  action: AuditAction
+  userId?: string
+  email?: string
+  ipAddress?: string
+  userAgent?: string
+  metadata?: Record<string, unknown>
+}
+
+export async function logAuditEvent(event: AuditEvent): Promise<void> {
+  logger.info({ audit: true, ...event }, `Audit: ${event.action}`)
+  
+  await prisma.auditLog.create({
+    data: {
+      action: event.action,
+      userId: event.userId,
+      email: event.email,
+      ipAddress: event.ipAddress,
+      userAgent: event.userAgent,
+      metadata: event.metadata ? JSON.stringify(event.metadata) : null,
+    },
+  })
+}
+```
+
+**Step 2.2.4: Notifications Module**
+
+```typescript
+// packages/shared/src/notifications/types.ts
+// Migrate 26 notification types from src/lib/notifications/
+
+export type NotificationType =
+  // Certificate lifecycle
+  | 'CERTIFICATE_CREATED'
+  | 'CERTIFICATE_SUBMITTED'
+  | 'CERTIFICATE_APPROVED'
+  | 'CERTIFICATE_REJECTED'
+  | 'CERTIFICATE_REVISION_REQUESTED'
+  | 'CERTIFICATE_AUTHORIZED'
+  // Customer notifications
+  | 'CUSTOMER_REVIEW_READY'
+  | 'CUSTOMER_APPROVED'
+  | 'CUSTOMER_REJECTED'
+  | 'CUSTOMER_DOWNLOAD_LINK'
+  // Staff notifications
+  | 'STAFF_ACTIVATION'
+  | 'STAFF_PASSWORD_RESET'
+  // ... all 26 types
+
+export interface NotificationPayload {
+  type: NotificationType
+  recipientEmail: string
+  recipientName?: string
+  data: Record<string, unknown>
+  priority?: 'high' | 'normal' | 'low'
+}
+```
+
+```typescript
+// packages/shared/src/notifications/triggers.ts
+// API calls these, Worker processes them
+
+import { cache } from '@hta/shared/cache'
+import { NotificationPayload, NotificationType } from './types'
+
+const NOTIFICATION_QUEUE_KEY = 'notifications:queue'
+
+export async function queueNotification(payload: NotificationPayload): Promise<void> {
+  // Add to Redis list for Worker to process
+  await cache.rpush(NOTIFICATION_QUEUE_KEY, JSON.stringify({
+    ...payload,
+    queuedAt: new Date().toISOString(),
+  }))
+}
+
+// Convenience methods for common notifications
+export async function notifyCertificateSubmitted(certId: string, engineerEmail: string) {
+  await queueNotification({
+    type: 'CERTIFICATE_SUBMITTED',
+    recipientEmail: engineerEmail,
+    data: { certificateId: certId },
+  })
+}
+
+// ... other convenience methods
+```
 
 ```json
 // packages/shared/package.json
@@ -511,20 +744,95 @@ Move these files from `src/lib/`:
     "./auth": "./dist/auth/index.js",
     "./logger": "./dist/logger/index.js",
     "./cache": "./dist/cache/index.js",
-    "./security": "./dist/security/index.js"
+    "./security": "./dist/security/index.js",
+    "./audit": "./dist/audit/index.js",
+    "./notifications": "./dist/notifications/index.js"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@hta/database": "workspace:*",
-    "next-auth": "^5.0.0",
-    "pino": "^8.0.0"
+    "ioredis": "^5.0.0",
+    "pino": "^8.0.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "@types/bcryptjs": "^2.4.0"
   }
 }
 ```
 
-### Step 2.3: Update Import Paths
+### Step 2.3: Create packages/emails
+
+```bash
+# Create email templates package
+mkdir -p packages/emails/src/templates
+```
+
+```
+packages/emails/
+├── src/
+│   ├── templates/
+│   │   ├── certificate-submitted.tsx    # From src/emails/
+│   │   ├── certificate-approved.tsx
+│   │   ├── certificate-rejected.tsx
+│   │   ├── customer-review-ready.tsx
+│   │   ├── customer-download-link.tsx
+│   │   ├── staff-activation.tsx
+│   │   ├── password-reset.tsx
+│   │   └── password-changed.tsx
+│   │
+│   ├── render.ts                        # Email rendering utility
+│   └── index.ts
+├── package.json
+└── tsconfig.json
+```
+
+```typescript
+// packages/emails/src/render.ts
+import { render } from '@react-email/render'
+import * as templates from './templates'
+
+export async function renderEmail(
+  template: keyof typeof templates,
+  props: Record<string, unknown>
+): Promise<{ html: string; text: string }> {
+  const Template = templates[template]
+  const html = render(Template(props))
+  const text = render(Template(props), { plainText: true })
+  return { html, text }
+}
+```
+
+```json
+// packages/emails/package.json
+{
+  "name": "@hta/emails",
+  "version": "0.0.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "email dev --dir src/templates"
+  },
+  "dependencies": {
+    "@react-email/components": "^0.0.14",
+    "@react-email/render": "^0.0.12",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "react-email": "^2.0.0",
+    "typescript": "^5.0.0"
+  }
+}
+```
+
+### Step 2.4: Update Import Paths
 
 ```typescript
 // Before (in apps/web or apps/api)
@@ -700,44 +1008,175 @@ main().catch((err) => {
 })
 ```
 
-### Step 4.2: Job Processing
+### Step 4.2: Notification Processing
+
+The Worker consumes notifications queued by the API service via Redis.
 
 ```typescript
-// apps/worker/src/jobs/email.ts
-import { prisma } from '@hta/database'
-import { sendEmail } from '@hta/shared/email'
+// apps/worker/src/jobs/notifications.ts
+import { cache } from '@hta/shared/cache'
+import { renderEmail } from '@hta/emails'
+import { createLogger } from '@hta/shared/logger'
+import { NotificationPayload, NotificationType } from '@hta/shared/notifications'
+import { sendEmail } from './email-sender'
+
+const logger = createLogger('worker:notifications')
+const QUEUE_KEY = 'notifications:queue'
+
+// Map notification types to email templates
+const NOTIFICATION_TEMPLATES: Record<NotificationType, string> = {
+  'CERTIFICATE_CREATED': 'certificate-created',
+  'CERTIFICATE_SUBMITTED': 'certificate-submitted',
+  'CERTIFICATE_APPROVED': 'certificate-approved',
+  'CERTIFICATE_REJECTED': 'certificate-rejected',
+  'CERTIFICATE_REVISION_REQUESTED': 'certificate-revision',
+  'CERTIFICATE_AUTHORIZED': 'certificate-authorized',
+  'CUSTOMER_REVIEW_READY': 'customer-review-ready',
+  'CUSTOMER_APPROVED': 'customer-approved',
+  'CUSTOMER_REJECTED': 'customer-rejected',
+  'CUSTOMER_DOWNLOAD_LINK': 'customer-download-link',
+  'STAFF_ACTIVATION': 'staff-activation',
+  'STAFF_PASSWORD_RESET': 'password-reset',
+  // ... all 26 types mapped
+}
+
+export async function processNotifications() {
+  logger.info('Notification processor started')
+  
+  while (true) {
+    try {
+      // Block and wait for new notification (BLPOP)
+      const result = await cache.blpop(QUEUE_KEY, 30) // 30 second timeout
+      
+      if (!result) continue // Timeout, check again
+      
+      const payload: NotificationPayload = JSON.parse(result[1])
+      
+      logger.info({ type: payload.type, to: payload.recipientEmail }, 'Processing notification')
+      
+      // Get template and render email
+      const template = NOTIFICATION_TEMPLATES[payload.type]
+      const { html, text } = await renderEmail(template, {
+        recipientName: payload.recipientName,
+        ...payload.data,
+      })
+      
+      // Send email
+      await sendEmail({
+        to: payload.recipientEmail,
+        subject: getSubjectForType(payload.type, payload.data),
+        html,
+        text,
+      })
+      
+      logger.info({ type: payload.type }, 'Notification sent')
+      
+    } catch (error) {
+      logger.error({ error }, 'Failed to process notification')
+      // Could implement dead-letter queue here
+      await new Promise(resolve => setTimeout(resolve, 5000))
+    }
+  }
+}
+
+function getSubjectForType(type: NotificationType, data: Record<string, unknown>): string {
+  const subjects: Record<NotificationType, string> = {
+    'CERTIFICATE_SUBMITTED': `Certificate ${data.certificateNumber} Submitted for Review`,
+    'CERTIFICATE_APPROVED': `Certificate ${data.certificateNumber} Approved`,
+    'CUSTOMER_REVIEW_READY': `Your Calibration Certificate is Ready for Review`,
+    'CUSTOMER_DOWNLOAD_LINK': `Download Your Calibration Certificate`,
+    'STAFF_ACTIVATION': `Activate Your HTA Calibration Account`,
+    'STAFF_PASSWORD_RESET': `Reset Your Password`,
+    // ... all subjects
+  }
+  return subjects[type] || 'HTA Calibration Notification'
+}
+```
+
+### Step 4.3: Email Sender
+
+```typescript
+// apps/worker/src/jobs/email-sender.ts
+import { Resend } from 'resend' // or SendGrid, etc.
 import { createLogger } from '@hta/shared/logger'
 
-const logger = createLogger('worker:email')
+const logger = createLogger('worker:email-sender')
+const resend = new Resend(process.env.RESEND_API_KEY)
 
-export async function processEmailQueue() {
-  while (true) {
-    const jobs = await prisma.emailQueue.findMany({
-      where: { status: 'PENDING' },
-      take: 10,
-      orderBy: { createdAt: 'asc' },
-    })
+interface EmailPayload {
+  to: string
+  subject: string
+  html: string
+  text: string
+}
 
-    for (const job of jobs) {
-      try {
-        await sendEmail(job.to, job.template, job.data)
-        await prisma.emailQueue.update({
-          where: { id: job.id },
-          data: { status: 'SENT', sentAt: new Date() },
-        })
-        logger.info({ jobId: job.id }, 'Email sent')
-      } catch (error) {
-        await prisma.emailQueue.update({
-          where: { id: job.id },
-          data: { status: 'FAILED', error: String(error) },
-        })
-        logger.error({ jobId: job.id, error }, 'Email failed')
-      }
-    }
-
-    // Wait before checking again
-    await new Promise((resolve) => setTimeout(resolve, 5000))
+export async function sendEmail(payload: EmailPayload): Promise<void> {
+  const { to, subject, html, text } = payload
+  
+  const result = await resend.emails.send({
+    from: process.env.EMAIL_FROM || 'noreply@htacalibration.com',
+    to,
+    subject,
+    html,
+    text,
+  })
+  
+  if (result.error) {
+    throw new Error(`Email send failed: ${result.error.message}`)
   }
+  
+  logger.info({ to, messageId: result.data?.id }, 'Email sent')
+}
+```
+
+### Step 4.4: Cleanup Jobs
+
+```typescript
+// apps/worker/src/jobs/cleanup.ts
+import { prisma } from '@hta/database'
+import { createLogger } from '@hta/shared/logger'
+
+const logger = createLogger('worker:cleanup')
+
+export async function processCleanup() {
+  logger.info('Running cleanup jobs')
+  
+  // Clean expired download tokens
+  const expiredTokens = await prisma.downloadToken.deleteMany({
+    where: {
+      expiresAt: { lt: new Date() },
+    },
+  })
+  logger.info({ count: expiredTokens.count }, 'Expired download tokens cleaned')
+  
+  // Clean old audit logs (retain 1 year)
+  const oneYearAgo = new Date()
+  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+  
+  const oldAuditLogs = await prisma.auditLog.deleteMany({
+    where: {
+      createdAt: { lt: oneYearAgo },
+    },
+  })
+  logger.info({ count: oldAuditLogs.count }, 'Old audit logs archived')
+  
+  // Clean expired sessions
+  const expiredSessions = await prisma.session.deleteMany({
+    where: {
+      expires: { lt: new Date() },
+    },
+  })
+  logger.info({ count: expiredSessions.count }, 'Expired sessions cleaned')
+  
+  // Clean stale rate limit keys (handled by Redis TTL, but cleanup orphaned DB records)
+  const staleRateLimits = await prisma.failedLoginAttempt.deleteMany({
+    where: {
+      createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // 24 hours
+    },
+  })
+  logger.info({ count: staleRateLimits.count }, 'Stale rate limit records cleaned')
+  
+  logger.info('Cleanup complete')
 }
 ```
 
@@ -3613,3 +4052,4 @@ Initiate rollback if:
 | 1.0 | 2026-04-13 | Initial plan |
 | 1.1 | 2026-04-13 | Added Docker, GitHub Actions, expanded Testing sections |
 | 1.2 | 2026-04-13 | Added Monitoring, Secrets, Performance, Compliance sections |
+| 1.3 | 2026-04-13 | Added existing feature migration inventory (Phases 1-4), expanded shared packages migration, notification processing in Worker |
