@@ -32,7 +32,7 @@
     "test:visual": "playwright test tests/e2e/visual/",
     "test:visual:update": "playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots",
     "test:visual:docker": "docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit",
-    "chromatic": "npx playwright test tests/e2e/evals/visual-regression.spec.ts --project=chromium && npx chromatic --playwright --project-token=chpt_0db32ba30b7c67f"
+    "chromatic": "npm run db:seed && npx playwright test tests/e2e/evals/visual-regression.spec.ts --project=chromium && npx chromatic --playwright --project-token=chpt_0db32ba30b7c67f"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

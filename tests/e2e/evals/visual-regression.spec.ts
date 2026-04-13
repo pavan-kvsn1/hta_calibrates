@@ -37,8 +37,8 @@ test.describe('Visual Regression - Public Pages', () => {
   })
 })
 
-test.describe.skip('Visual Regression - Engineer Dashboard', () => {
-  // Skip: Requires seeded database with test users
+test.describe('Visual Regression - Engineer Dashboard', () => {
+  // Requires seeded database with test users (npm run db:seed)
   test.beforeEach(async ({ page }) => {
     await loginAsEngineer(page)
   })
@@ -81,8 +81,8 @@ test.describe.skip('Visual Regression - Engineer Dashboard', () => {
   })
 })
 
-test.describe.skip('Visual Regression - Admin Dashboard', () => {
-  // Skip: Requires seeded database with test users
+test.describe('Visual Regression - Admin Dashboard', () => {
+  // Requires seeded database with test users (npm run db:seed)
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
   })
@@ -102,8 +102,8 @@ test.describe.skip('Visual Regression - Admin Dashboard', () => {
   })
 })
 
-test.describe.skip('Visual Regression - Customer Portal', () => {
-  // Skip: Requires seeded database with test users
+test.describe('Visual Regression - Customer Portal', () => {
+  // Requires seeded database with test users (npm run db:seed)
   test.beforeEach(async ({ page }) => {
     await loginAsCustomer(page)
   })
