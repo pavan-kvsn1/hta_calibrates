@@ -2882,18 +2882,46 @@ interface UserDataExport {
 - [x] Document secrets rotation procedures (`docs/runbooks/secrets-rotation.md`)
 - [x] Set up automated backup testing (`backup-test.yml` monthly workflow)
 
-### Phase 7: Performance & Load Testing (Week 9-10)
+### Phase 7: Performance & Load Testing (Week 9-10) ✅
 
-- [ ] Set up k6 for realistic load testing
-- [ ] Create production-safe load test scripts (read-only operations)
-- [ ] Document performance baselines
-- [ ] Run load tests against production (off-peak, low concurrency)
-- [ ] Create capacity planning documentation
-- [ ] Enable database slow query logging
-- [ ] Create GitHub Actions workflow for scheduled load tests
+- [x] Set up k6 for realistic load testing
+- [x] Create production-safe load test scripts (read-only operations)
+- [x] Document performance baselines
+- [x] Create capacity planning documentation
+- [x] Enable database slow query logging (Terraform config)
+- [x] Create GitHub Actions workflow for scheduled load tests
+- [ ] Run initial baseline tests *(post-deployment)*
+- [ ] Apply Terraform for slow query logging *(requires `terraform apply`)*
+
+**Implementation Summary:**
+
+| Component | File | Description |
+|-----------|------|-------------|
+| Load test config | `tests/load/config.js` | Shared profiles (smoke/gentle/moderate) |
+| Health check test | `tests/load/health-check.js` | Unauthenticated endpoint testing |
+| Read-only workflow | `tests/load/read-only-workflow.js` | Certificate list/view/search (auth required) |
+| Dashboard test | `tests/load/dashboard.js` | Dashboard stats queries (auth required) |
+| GitHub Actions | `.github/workflows/load-test.yml` | Manual + weekly scheduled runs |
+| Performance targets | `docs/runbooks/performance-baselines.md` | P95 < 500ms, error rate < 1% |
+| Capacity planning | `docs/system_design/capacity-planning.md` | Scaling triggers, cost estimates |
+| Slow query logging | `terraform/modules/cloudsql/main.tf` | `log_min_duration_statement = 1000ms` |
+
+**Production-Safe Testing Strategy:**
+- Read-only operations only (no mutations)
+- Low concurrency: max 20 VUs (gentle profile)
+- Off-peak scheduling: Sundays 3 AM UTC
+- Health checks before load application
+
+**npm Scripts:**
+```bash
+npm run test:load           # Health check (localhost)
+npm run test:load:smoke     # 3 users, 2 min
+npm run test:load:gentle    # 10 users, 6 min
+npm run test:load:dashboard # Dashboard queries
+```
 
 **Note:** No staging environment - all tests target production with safety constraints.
-See `docs/prod_plans/phase-7-performance-testing.md` for implementation details.
+See `docs/prod_plans/phase-7-performance-testing.md` for full implementation details.
 
 ### Phase 8: Compliance & Data Privacy (Week 10-11)
 
