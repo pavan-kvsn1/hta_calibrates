@@ -15,7 +15,10 @@ import {
   Settings,
   UserCog,
   Building2,
+  Download,
+  Shield,
 } from 'lucide-react'
+import { DeleteAccountDialog } from '@/components/delete-account-dialog'
 import { format } from 'date-fns'
 
 interface TeamMember {
@@ -240,6 +243,67 @@ export default function SettingsPage() {
 
           {/* Password Change - Available to all users */}
           <ChangePasswordForm apiEndpoint="/api/customer/change-password" />
+
+          {/* Data Privacy Section */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Shield className="h-5 w-5 text-slate-400" />
+                Data & Privacy
+              </CardTitle>
+              <CardDescription>
+                Manage your personal data and account
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Data Export */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-medium text-slate-900">Export Your Data</h3>
+                  <p className="text-sm text-slate-500">
+                    Download a copy of your personal data in JSON format
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    window.location.href = '/api/customer/data-export'
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  Export Data
+                </Button>
+              </div>
+
+              {/* Privacy Policy Link */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-medium text-slate-900">Privacy Policy</h3>
+                  <p className="text-sm text-slate-500">
+                    Learn how we collect, use, and protect your data
+                  </p>
+                </div>
+                <Link href="/privacy">
+                  <Button variant="outline" className="gap-2">
+                    View Privacy Policy
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Delete Account */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-900">Delete Account</h3>
+                  <p className="text-sm text-slate-500">
+                    Permanently delete your account and personal data
+                  </p>
+                </div>
+                <DeleteAccountDialog />
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

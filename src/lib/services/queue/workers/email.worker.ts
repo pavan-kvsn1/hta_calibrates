@@ -17,6 +17,7 @@ import { Job, JobWorker } from '../types'
 
 // React Email Templates
 import {
+  AccountDeleted,
   PasswordChanged,
   PasswordReset,
   StaffActivation,
@@ -41,6 +42,35 @@ type TemplateConfig = {
 }
 
 const emailTemplates: Record<string, TemplateConfig> = {
+  'account-deleted': {
+    subject: 'Your HTA Calibr8s Account Has Been Deleted',
+    render: async (data) => ({
+      html: await render(AccountDeleted({
+        userName: String(data.userName || 'User'),
+      })),
+      text: await render(AccountDeleted({
+        userName: String(data.userName || 'User'),
+      }), { plainText: true }),
+    }),
+    fallbackText: (data) => `
+Hello ${data.userName},
+
+Your HTA Calibr8s account has been successfully deleted as requested.
+
+What happens now:
+- Your personal information has been removed from our systems
+- You will no longer receive emails from us
+- Calibration certificates are retained for 7 years per regulatory requirements
+
+If you did not request this deletion, please contact us immediately at support@htacalibr8s.com.
+
+Thank you for using HTA Calibr8s.
+
+Best regards,
+HTA Instrumentation (P) Ltd.
+    `.trim(),
+  },
+
   'password-changed': {
     subject: 'Your Password Has Been Changed',
     render: async (data) => ({

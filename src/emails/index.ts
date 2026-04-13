@@ -1,4 +1,5 @@
 // Email Templates
+export { AccountDeleted } from './AccountDeleted'
 export { PasswordChanged } from './PasswordChanged'
 export { PasswordReset } from './PasswordReset'
 export { StaffActivation } from './StaffActivation'
