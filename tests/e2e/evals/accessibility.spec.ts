@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import { TEST_USERS } from '../fixtures/test-data'
+import { loginAsEngineer, loginAsAdmin, loginAsCustomer } from '../fixtures/test-utils'
 
 /**
  * Accessibility Tests (WCAG 2.1 AA Compliance)
@@ -66,11 +67,7 @@ test.describe('Accessibility Audit', () => {
 
   test.describe('Authenticated Pages - Engineer', () => {
     test.beforeEach(async ({ page }) => {
-      await page.goto('/login')
-      await page.fill('input[type="email"], input[name="email"]', TEST_USERS.engineer.email)
-      await page.fill('input[type="password"]', TEST_USERS.engineer.password)
-      await page.click('button[type="submit"]')
-      await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+      await loginAsEngineer(page)
     })
 
     test('engineer dashboard should have no accessibility violations', async ({ page }) => {
@@ -110,11 +107,7 @@ test.describe('Accessibility Audit', () => {
 
   test.describe('Authenticated Pages - Admin', () => {
     test.beforeEach(async ({ page }) => {
-      await page.goto('/login')
-      await page.fill('input[type="email"], input[name="email"]', TEST_USERS.admin.email)
-      await page.fill('input[type="password"]', TEST_USERS.admin.password)
-      await page.click('button[type="submit"]')
-      await expect(page).toHaveURL(/admin|dashboard/, { timeout: 10000 })
+      await loginAsAdmin(page)
     })
 
     test('Admin dashboard should have no accessibility violations', async ({ page }) => {
@@ -133,11 +126,7 @@ test.describe('Accessibility Audit', () => {
 
   test.describe('Authenticated Pages - Customer', () => {
     test.beforeEach(async ({ page }) => {
-      await page.goto('/customer/login')
-      await page.fill('input[type="email"], input[name="email"]', TEST_USERS.customer.email)
-      await page.fill('input[type="password"]', TEST_USERS.customer.password)
-      await page.click('button[type="submit"]')
-      await expect(page).toHaveURL(/customer\/dashboard/, { timeout: 10000 })
+      await loginAsCustomer(page)
     })
 
     test('customer dashboard should have no accessibility violations', async ({ page }) => {

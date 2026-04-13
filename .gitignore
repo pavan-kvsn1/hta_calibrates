@@ -63,3 +63,6 @@ build-archive.log
 
 # load test results (keep .gitkeep, ignore actual results)
 tests/load/results/*.json
+
+# Playwright auth sessions
+tests/e2e/.auth/

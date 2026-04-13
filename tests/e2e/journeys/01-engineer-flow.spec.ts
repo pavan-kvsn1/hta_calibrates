@@ -1,14 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { TEST_USERS } from '../fixtures/test-data'
+import { loginAsEngineer } from '../fixtures/test-utils'
 
 test.describe('Engineer Flow', () => {
   test.beforeEach(async ({ page }) => {
-    // Login as engineer before each test
-    await page.goto('/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.engineer.email)
-    await page.fill('input[type="password"], input[name="password"]', TEST_USERS.engineer.password)
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 })
+    // Login as engineer before each test (skips if already authenticated via storageState)
+    await loginAsEngineer(page)
   })
 
   test('can view dashboard with certificates list', async ({ page }) => {

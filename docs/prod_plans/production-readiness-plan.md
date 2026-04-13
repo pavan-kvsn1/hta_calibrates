@@ -2938,32 +2938,35 @@ See `docs/prod_plans/phase-8-compliance-privacy.md` for full implementation deta
 
 ### Phase 9: Architecture Evolution (Future)
 
-**Infrastructure:**
-- [ ] Evaluate API separation requirements (see Section 3.2)
-- [ ] Set up CDN for static assets
-- [ ] Implement Prisma Accelerate or query caching
-- [ ] Cross-region disaster recovery setup
+**Track A: CDN & Static Assets** (P1 - Quick Win) ✅
+- [x] Configure Cloud CDN for static assets (Terraform module)
+- [x] Set up cache headers for Next.js static files
+- [x] Implement image optimization with CDN
 
-**Security Enhancements (Deferred from Phase 4):**
-- [ ] Implement CSP with nonces (tighten `unsafe-inline`/`unsafe-eval`)
+**Track B: API Separation** (P2 - Strategic, defer until needed)
+- [x] Implement Prisma Accelerate for connection pooling ✅
+- [ ] Evaluate separation requirements (see Section 3.2)
+- [ ] Set up monorepo structure (if separating)
+- [ ] Configure load balancer routing
+
+**Track C: Security Enhancements** (P1 - Important)
 - [ ] Add 2FA for admin accounts (TOTP or WebAuthn)
-- [ ] Configure CORS for separated API service (`CORS_ALLOWED_ORIGINS`)
+- [ ] Implement CSP with nonces
 - [ ] Add GCP Cloud Armor WAF rules for DDoS protection
 
-**Monitoring Enhancements (Deferred from Phase 5):**
-- [ ] Distributed tracing across services (after API separation)
-- [ ] APM with detailed transaction traces
-- [ ] Custom business metrics (certificate processing times, etc.)
-- [ ] PagerDuty/Slack integration for on-call alerting
-- [ ] SLO/SLA dashboards and error budgets
+**Track D: Monitoring & Alerting** (P2 - Operational)
+- [ ] Implement OpenTelemetry distributed tracing
+- [ ] Add custom business metrics
+- [ ] Set up PagerDuty/Slack integration
+- [ ] Create SLO/SLA dashboards
 
-**Disaster Recovery Testing (Deferred from Phase 8):**
-- [ ] Restore database backup to test instance
-- [ ] Verify data integrity after restore
-- [ ] Document recovery time (actual vs expected)
+**Track E: Disaster Recovery** (P1 - Critical)
+- [ ] Document and test backup restore procedure
 - [ ] Establish monthly DR drill schedule
-- [ ] Cross-region Cloud SQL replica setup
-- [ ] GCS multi-region bucket configuration
+- [ ] Configure cross-region Cloud SQL replica
+- [ ] Set up GCS multi-region buckets
+
+See `docs/prod_plans/phase-9-architecture-evolution.md` for full implementation details.
 
 ---
 

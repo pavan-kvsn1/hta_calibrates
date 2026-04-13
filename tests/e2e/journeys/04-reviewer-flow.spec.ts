@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
-import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
+import { STATUS_LABELS } from '../fixtures/test-data'
+import { loginAsReviewer } from '../fixtures/test-utils'
 
 /**
  * Reviewer Flow E2E Tests
@@ -13,13 +14,8 @@ import { TEST_USERS, STATUS_LABELS } from '../fixtures/test-data'
 
 test.describe('Reviewer Flow', () => {
   test.beforeEach(async ({ page }) => {
-    // Login as Reviewer before each test
-    await page.goto('/login')
-    await page.fill('input[type="email"], input[name="email"]', TEST_USERS.reviewer.email)
-    await page.fill('input[type="password"], input[name="password"]', TEST_USERS.reviewer.password)
-    await page.click('button[type="submit"]')
-    // Reviewer should be redirected to their dashboard (may redirect to /admin for admin-level reviewers)
-    await expect(page).toHaveURL(/dashboard|admin/, { timeout: 10000 })
+    // Login as Reviewer before each test (skips if already authenticated via storageState)
+    await loginAsReviewer(page)
   })
 
   test('can access reviewer dashboard and see team statistics', async ({ page }) => {

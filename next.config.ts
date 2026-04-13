@@ -52,15 +52,82 @@ const nextConfig: NextConfig = {
   // This creates a minimal production build that includes only necessary files
   output: 'standalone',
 
-  // Apply security headers to all routes
+  // CDN asset prefix (set CDN_URL env var in production)
+  // When set, static assets will be served from the CDN
+  assetPrefix: process.env.CDN_URL || undefined,
+
+  // Apply security headers and cache headers to all routes
   async headers() {
     return [
       {
-        // Apply to all routes
+        // Apply security headers to all routes
         source: '/:path*',
         headers: securityHeaders,
       },
+      {
+        // Cache Next.js static assets (immutable - hash in filename)
+        source: '/_next/static/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Cache static files in public directory
+        source: '/images/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
+      {
+        // Cache fonts
+        source: '/fonts/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Cache favicon and manifest
+        source: '/(favicon.ico|site.webmanifest|robots.txt)',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+        ],
+      },
     ];
+  },
+
+  // Image optimization configuration
+  images: {
+    // Enable remote patterns for CDN-served images
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'storage.googleapis.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.storage.googleapis.com',
+        pathname: '/**',
+      },
+    ],
+    // Optimize image formats
+    formats: ['image/avif', 'image/webp'],
+    // Device sizes for responsive images
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    // Image sizes for next/image component
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
 };
 
