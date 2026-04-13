@@ -13,25 +13,28 @@
 
 1. [Executive Summary](#1-executive-summary)
 2. [Decision Framework](#2-decision-framework)
-3. [Current Architecture](#3-current-architecture)
-4. [Target Architecture](#4-target-architecture)
-5. [Monorepo Structure](#5-monorepo-structure)
-6. [Migration Strategy](#6-migration-strategy)
-7. [Phase 1: Monorepo Setup](#7-phase-1-monorepo-setup)
-8. [Phase 2: Shared Packages](#8-phase-2-shared-packages)
-9. [Phase 3: API Extraction](#9-phase-3-api-extraction)
-10. [Phase 4: Worker Service](#10-phase-4-worker-service)
-11. [Phase 5: Load Balancer & Routing](#11-phase-5-load-balancer--routing)
-12. [Phase 6: Deployment & Cutover](#12-phase-6-deployment--cutover)
-13. [Docker Configuration](#13-docker-configuration)
-14. [GitHub Actions CI/CD](#14-github-actions-cicd)
-15. [Testing Strategy](#15-testing-strategy)
-16. [Monitoring Implementation](#16-monitoring-implementation)
-17. [Secrets Infrastructure](#17-secrets-infrastructure)
-18. [Performance Management](#18-performance-management)
-19. [Compliance Management](#19-compliance-management)
-20. [Rollback Plan](#20-rollback-plan)
-21. [Post-Migration Checklist](#21-post-migration-checklist)
+3. [Migration Approach: New Repository](#3-migration-approach-new-repository)
+4. [Current Architecture](#4-current-architecture)
+5. [Target Architecture](#5-target-architecture)
+6. [Monorepo Structure](#6-monorepo-structure)
+7. [Migration Strategy](#7-migration-strategy)
+8. [Phase 1: Monorepo Setup](#8-phase-1-monorepo-setup)
+9. [Phase 2: Shared Packages](#9-phase-2-shared-packages)
+10. [Phase 3: API Extraction](#10-phase-3-api-extraction)
+11. [Phase 4: Worker Service](#11-phase-4-worker-service)
+12. [Phase 5: Load Balancer & Routing](#12-phase-5-load-balancer--routing)
+13. [Phase 6: Deployment & Cutover](#13-phase-6-deployment--cutover)
+14. [Docker Configuration](#14-docker-configuration)
+15. [GitHub Actions CI/CD](#15-github-actions-cicd)
+16. [Testing Strategy](#16-testing-strategy)
+17. [Monitoring Implementation](#17-monitoring-implementation)
+18. [Security Enhancements](#18-security-enhancements)
+19. [Disaster Recovery](#19-disaster-recovery)
+20. [Secrets Infrastructure](#20-secrets-infrastructure)
+21. [Performance Management](#21-performance-management)
+22. [Compliance Management](#22-compliance-management)
+23. [Rollback Plan](#23-rollback-plan)
+24. [Post-Migration Checklist](#24-post-migration-checklist)
 
 ---
 
@@ -129,7 +132,105 @@ The current monolith has these features that must be properly migrated to the mo
 
 ---
 
-## 3. Current Architecture
+## 3. Migration Approach: New Repository
+
+### Why a New Repository?
+
+Given the drastic architectural change (single Next.js monolith → Turborepo with 3 services), we recommend creating a **new repository** rather than migrating in-place.
+
+| Factor | In-Place Migration | New Repository |
+|--------|-------------------|----------------|
+| Git history | ✅ Preserved | ❌ Lost |
+| Production risk | ⚠️ Higher (same codebase) | ✅ Lower (isolated) |
+| Complexity | ⚠️ High (branching strategy) | ✅ Simpler (clean start) |
+| Parallel development | ⚠️ Difficult | ✅ Easy |
+| CI/CD migration | ⚠️ Complex (same repo) | ✅ Fresh setup |
+| Team coordination | ⚠️ Same repo conflicts | ✅ Clear separation |
+| Rollback path | ✅ Git revert | ✅ Switch repos |
+
+### Decision: New Repository
+
+**Rationale:**
+1. **Drastic structural change**: `src/app/api/*` → `apps/api/`, `src/lib/*` → `packages/shared/` is a complete restructuring
+2. **3 separate deployment targets**: web, api, worker - each with their own Dockerfile, CI pipeline, Cloud Run service
+3. **Dev/prod isolation**: New repo allows development to proceed without affecting production
+4. **Clean Turborepo setup**: Avoids legacy file structure baggage
+5. **Natural cutover point**: When new repo is stable, do DNS switch
+
+### New Repository Setup
+
+```bash
+# Create new repository
+gh repo create pavan-kvsn1/hta-platform --private
+
+# Initialize with Turborepo
+npx create-turbo@latest hta-platform
+cd hta-platform
+
+# Set up workspace structure
+mkdir -p apps/{web,api,worker}/src
+mkdir -p packages/{database,shared,emails,ui}/src
+```
+
+### Migration Timeline
+
+```
+Week 1-2: New Repo Setup
+├── Create github.com/pavan-kvsn1/hta-platform
+├── Initialize Turborepo structure
+├── Set up apps/web, apps/api, apps/worker, packages/*
+├── Configure CI/CD pipelines
+└── Set up GCP project secrets
+
+Week 3-4: Code Migration
+├── Copy packages/database (schema, prisma)
+├── Copy packages/shared (auth, cache, security, emails)
+├── Migrate apps/api routes
+├── Migrate apps/web pages
+└── Keep old repo running prod
+
+Week 5: Testing
+├── Run full test suite in new repo
+├── Load testing against staging
+├── Security audit
+└── Team review
+
+Week 6: Cutover
+├── Deploy new services to prod GCP
+├── DNS cutover (or gradual traffic shift)
+├── Monitor for 1 week
+└── Archive old repo
+```
+
+### Old Repository Handling
+
+```bash
+# After successful migration (Week 7+)
+# Archive the old repository
+gh repo edit pavan-kvsn1/hta_calibrates --archived
+
+# Keep for reference:
+# - Git history (blame, bisect for old bugs)
+# - Old deployment configs
+# - Reference implementation
+```
+
+### GitHub Project Settings Migration
+
+These must be recreated in the new repository:
+
+| Setting | Action |
+|---------|--------|
+| Branch protection | Configure for `main` |
+| Secrets | Copy from old repo |
+| Variables | Copy environment variables |
+| Environments | Create prod/staging |
+| Actions | Set up Workload Identity Federation |
+| Webhooks | Update for new repo |
+
+---
+
+## 4. Current Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -193,7 +294,7 @@ hta-calibration/
 
 ---
 
-## 4. Target Architecture
+## 5. Target Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -242,7 +343,7 @@ hta-calibration/
 
 ---
 
-## 5. Monorepo Structure
+## 6. Monorepo Structure
 
 ### Directory Layout
 
@@ -359,7 +460,7 @@ hta-calibration/
 
 ---
 
-## 6. Migration Strategy
+## 7. Migration Strategy
 
 ### Approach: Strangler Fig Pattern
 
@@ -402,7 +503,7 @@ Phase 7: Remove old API routes from frontend
 
 ---
 
-## 7. Phase 1: Monorepo Setup
+## 8. Phase 1: Monorepo Setup
 
 ### Step 1.1: Initialize Turborepo
 
@@ -478,7 +579,7 @@ mkdir -p packages/{database,shared,emails,ui}/src
 
 ---
 
-## 8. Phase 2: Shared Packages
+## 9. Phase 2: Shared Packages
 
 ### Step 2.1: Create packages/database
 
@@ -846,7 +947,7 @@ import { createLogger } from '@hta/shared/logger'
 
 ---
 
-## 9. Phase 3: API Extraction
+## 10. Phase 3: API Extraction
 
 ### Step 3.1: Choose API Framework
 
@@ -974,7 +1075,7 @@ CMD ["node", "dist/server.js"]
 
 ---
 
-## 10. Phase 4: Worker Service
+## 11. Phase 4: Worker Service
 
 ### Step 4.1: Worker Structure
 
@@ -1210,7 +1311,7 @@ CMD ["node", "dist/index.js"]
 
 ---
 
-## 11. Phase 5: Load Balancer & Routing
+## 12. Phase 5: Load Balancer & Routing
 
 ### Step 5.1: Terraform Configuration
 
@@ -1361,7 +1462,7 @@ resource "google_compute_backend_service" "api" {
 
 ---
 
-## 12. Phase 6: Deployment & Cutover
+## 13. Phase 6: Deployment & Cutover
 
 ### Step 6.1: Shadow Mode Testing
 
@@ -1418,7 +1519,7 @@ resource "google_cloud_run_v2_service" "api" {
 
 ---
 
-## 13. Docker Configuration
+## 14. Docker Configuration
 
 ### 13.1 Root Docker Compose
 
@@ -1645,7 +1746,7 @@ turbo run docker:build
 
 ---
 
-## 14. GitHub Actions CI/CD
+## 15. GitHub Actions CI/CD
 
 ### 14.1 Workflow Structure
 
@@ -2030,7 +2131,7 @@ Enable Turbo remote caching for faster CI:
 
 ---
 
-## 15. Testing Strategy
+## 16. Testing Strategy
 
 ### 15.1 Test Organization
 
@@ -2263,7 +2364,7 @@ export default function () {
 
 ---
 
-## 16. Monitoring Implementation
+## 17. Monitoring Implementation
 
 > **Note:** We use Sentry (already configured) for error tracking, performance monitoring, and distributed tracing. No need for separate OpenTelemetry setup.
 
@@ -2734,9 +2835,883 @@ resource "google_monitoring_alert_policy" "worker_backlog" {
 }
 ```
 
+### 17.9 PagerDuty Integration
+
+```typescript
+// packages/shared/src/alerting/pagerduty.ts
+import { createLogger } from '../logger'
+
+const logger = createLogger('pagerduty')
+
+interface PagerDutyEvent {
+  routing_key: string
+  event_action: 'trigger' | 'acknowledge' | 'resolve'
+  dedup_key?: string
+  payload: {
+    summary: string
+    severity: 'critical' | 'error' | 'warning' | 'info'
+    source: string
+    custom_details?: Record<string, unknown>
+  }
+}
+
+export async function triggerPagerDutyAlert(
+  summary: string,
+  severity: 'critical' | 'error' | 'warning' | 'info',
+  details?: Record<string, unknown>,
+  dedupKey?: string
+): Promise<void> {
+  if (!process.env.PAGERDUTY_ROUTING_KEY) {
+    logger.warn('PagerDuty routing key not configured')
+    return
+  }
+
+  const event: PagerDutyEvent = {
+    routing_key: process.env.PAGERDUTY_ROUTING_KEY,
+    event_action: 'trigger',
+    dedup_key: dedupKey,
+    payload: {
+      summary,
+      severity,
+      source: `hta-calibr8s-${process.env.SERVICE_NAME || 'unknown'}`,
+      custom_details: details,
+    },
+  }
+
+  try {
+    const response = await fetch('https://events.pagerduty.com/v2/enqueue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    })
+
+    if (!response.ok) {
+      throw new Error(`PagerDuty API error: ${response.status}`)
+    }
+
+    logger.info({ summary, severity }, 'PagerDuty alert triggered')
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to trigger PagerDuty alert')
+  }
+}
+
+export async function resolvePagerDutyAlert(dedupKey: string): Promise<void> {
+  if (!process.env.PAGERDUTY_ROUTING_KEY) return
+
+  await fetch('https://events.pagerduty.com/v2/enqueue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      routing_key: process.env.PAGERDUTY_ROUTING_KEY,
+      event_action: 'resolve',
+      dedup_key: dedupKey,
+    }),
+  })
+}
+
+// Usage with health checks
+export async function alertOnHealthFailure(service: string, checks: Record<string, any>) {
+  const failedChecks = Object.entries(checks)
+    .filter(([_, v]) => v.status === 'error')
+    .map(([k]) => k)
+
+  if (failedChecks.length > 0) {
+    await triggerPagerDutyAlert(
+      `${service}: Health check failed - ${failedChecks.join(', ')}`,
+      'error',
+      { service, failedChecks, checks },
+      `health-${service}-${failedChecks.sort().join('-')}`
+    )
+  }
+}
+```
+
+### 17.10 SLO/SLA Dashboard
+
+```hcl
+# terraform/modules/monitoring/slo-dashboard.tf
+
+resource "google_monitoring_dashboard" "slo" {
+  dashboard_json = jsonencode({
+    displayName = "HTA Calibr8s - SLO Dashboard"
+    gridLayout = {
+      columns = 2
+      widgets = [
+        {
+          title = "API Availability (Target: 99.9%)"
+          scorecard = {
+            timeSeriesQuery = {
+              timeSeriesFilterRatio = {
+                numerator = {
+                  filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_count\" AND metric.labels.response_code_class=\"2xx\" AND resource.labels.service_name=\"hta-api\""
+                }
+                denominator = {
+                  filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_count\" AND resource.labels.service_name=\"hta-api\""
+                }
+              }
+            }
+            thresholds = [
+              { value = 99.9, color = "GREEN" },
+              { value = 99.5, color = "YELLOW" },
+              { value = 99.0, color = "RED" }
+            ]
+          }
+        },
+        {
+          title = "API Latency p95 (Target: <200ms)"
+          xyChart = {
+            dataSets = [{
+              timeSeriesQuery = {
+                timeSeriesFilter = {
+                  filter = "resource.type=\"cloud_run_revision\" AND metric.type=\"run.googleapis.com/request_latencies\" AND resource.labels.service_name=\"hta-api\""
+                  aggregation = {
+                    alignmentPeriod = "300s"
+                    perSeriesAligner = "ALIGN_PERCENTILE_95"
+                  }
+                }
+              }
+            }]
+            yAxis = {
+              scale = "LINEAR"
+              label = "Latency (ms)"
+            }
+          }
+        },
+        {
+          title = "Error Budget Remaining (Monthly)"
+          scorecard = {
+            timeSeriesQuery = {
+              timeSeriesFilter = {
+                filter = "metric.type=\"custom.googleapis.com/slo/error_budget_remaining\""
+              }
+            }
+            thresholds = [
+              { value = 50, color = "GREEN" },
+              { value = 25, color = "YELLOW" },
+              { value = 0, color = "RED" }
+            ]
+          }
+        },
+        {
+          title = "Worker Job Success Rate (Target: 99%)"
+          scorecard = {
+            timeSeriesQuery = {
+              timeSeriesFilterRatio = {
+                numerator = {
+                  filter = "metric.type=\"custom.googleapis.com/worker/job/count\" AND metric.labels.success=\"true\""
+                }
+                denominator = {
+                  filter = "metric.type=\"custom.googleapis.com/worker/job/count\""
+                }
+              }
+            }
+            thresholds = [
+              { value = 99, color = "GREEN" },
+              { value = 95, color = "YELLOW" },
+              { value = 90, color = "RED" }
+            ]
+          }
+        }
+      ]
+    }
+  })
+}
+```
+
+### 17.11 Monitoring Checklist
+
+| Capability | Implementation | Status |
+|------------|----------------|--------|
+| Error tracking | Sentry | ✅ Done |
+| Performance monitoring | Sentry APM | ✅ Done |
+| Distributed tracing | Sentry + sentry-trace headers | ✅ Done |
+| Custom metrics | Sentry metrics API | ✅ Done |
+| Structured logging | Pino + Cloud Logging | ✅ Done |
+| Health endpoints | `/health`, `/ready` | ✅ Done |
+| Cloud dashboards | Terraform managed | ⏳ Planned |
+| Alert policies | GCP Monitoring | ⏳ Planned |
+| PagerDuty integration | Events API v2 | ⏳ Planned |
+| SLO dashboards | GCP Monitoring | ⏳ Planned |
+| Error budget alerts | Custom metric + alert | ⏳ Planned |
+
 ---
 
-## 17. Secrets Infrastructure
+## 18. Security Enhancements
+
+### 18.1 Two-Factor Authentication (2FA)
+
+#### TOTP Implementation
+
+```typescript
+// packages/shared/src/auth/totp.ts
+import { authenticator } from 'otplib'
+import { createLogger } from '../logger'
+
+const logger = createLogger('totp')
+
+export function generateTOTPSecret(email: string): {
+  secret: string
+  qrCodeUrl: string
+} {
+  const secret = authenticator.generateSecret()
+  const otpauth = authenticator.keyuri(email, 'HTA Calibr8s', secret)
+  
+  logger.info({ email }, 'Generated TOTP secret')
+  
+  return {
+    secret,
+    qrCodeUrl: otpauth, // Use qrcode library to generate QR
+  }
+}
+
+export function verifyTOTP(token: string, secret: string): boolean {
+  return authenticator.verify({ token, secret })
+}
+
+export function generateBackupCodes(count: number = 10): string[] {
+  const codes: string[] = []
+  for (let i = 0; i < count; i++) {
+    codes.push(crypto.randomBytes(4).toString('hex').toUpperCase())
+  }
+  return codes
+}
+```
+
+#### Database Schema Addition
+
+```prisma
+// packages/database/prisma/schema.prisma
+
+model User {
+  // ... existing fields
+  
+  // 2FA fields
+  totpSecret        String?
+  totpEnabled       Boolean   @default(false)
+  totpVerifiedAt    DateTime?
+  backupCodes       String[]  // Encrypted backup codes
+  
+  // WebAuthn
+  webauthnCredentials WebAuthnCredential[]
+}
+
+model WebAuthnCredential {
+  id              String    @id @default(cuid())
+  credentialId    String    @unique
+  publicKey       Bytes
+  counter         Int
+  deviceType      String?
+  deviceName      String?
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime?
+  
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+}
+```
+
+#### 2FA Setup Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    2FA SETUP FLOW                            │
+├─────────────────────────────────────────────────────────────┤
+│  1. Admin navigates to Settings > Security                  │
+│           │                                                  │
+│           ▼                                                  │
+│  2. Click "Enable 2FA"                                      │
+│           │                                                  │
+│           ▼                                                  │
+│  3. Choose method: TOTP (Google Auth) or WebAuthn (Passkey)│
+│           │                                                  │
+│           ▼                                                  │
+│  4a. TOTP: Scan QR code, enter verification code            │
+│  4b. WebAuthn: Register security key or biometric           │
+│           │                                                  │
+│           ▼                                                  │
+│  5. Generate and save backup codes                          │
+│           │                                                  │
+│           ▼                                                  │
+│  6. 2FA enabled - required on next login                    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 18.2 WebAuthn Implementation
+
+```typescript
+// packages/shared/src/auth/webauthn.ts
+import { 
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse
+} from '@simplewebauthn/server'
+
+const rpName = 'HTA Calibr8s'
+const rpID = process.env.WEBAUTHN_RP_ID || 'htacalibr8s.com'
+const origin = process.env.WEBAUTHN_ORIGIN || `https://${rpID}`
+
+export async function startRegistration(user: { id: string; email: string }) {
+  const options = await generateRegistrationOptions({
+    rpName,
+    rpID,
+    userID: user.id,
+    userName: user.email,
+    attestationType: 'none',
+    authenticatorSelection: {
+      residentKey: 'preferred',
+      userVerification: 'preferred',
+    },
+  })
+  
+  return options
+}
+
+export async function finishRegistration(
+  response: RegistrationResponseJSON,
+  expectedChallenge: string
+) {
+  const verification = await verifyRegistrationResponse({
+    response,
+    expectedChallenge,
+    expectedOrigin: origin,
+    expectedRPID: rpID,
+  })
+  
+  return verification
+}
+
+export async function startAuthentication(
+  credentials: { id: string; transports?: AuthenticatorTransport[] }[]
+) {
+  const options = await generateAuthenticationOptions({
+    rpID,
+    allowCredentials: credentials.map(cred => ({
+      id: cred.id,
+      type: 'public-key',
+      transports: cred.transports,
+    })),
+    userVerification: 'preferred',
+  })
+  
+  return options
+}
+```
+
+### 18.3 CSP with Nonces
+
+```typescript
+// apps/web/src/middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import crypto from 'crypto'
+
+export function middleware(request: NextRequest) {
+  const nonce = crypto.randomBytes(16).toString('base64')
+  
+  // Strict CSP with nonces
+  const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'nonce-${nonce}' 'strict-dynamic';
+    style-src 'self' 'nonce-${nonce}';
+    img-src 'self' data: blob: https://storage.googleapis.com;
+    font-src 'self' data:;
+    connect-src 'self' https://*.sentry.io wss://*.pusher.com;
+    frame-ancestors 'none';
+    base-uri 'self';
+    form-action 'self';
+    upgrade-insecure-requests;
+  `.replace(/\s{2,}/g, ' ').trim()
+
+  const response = NextResponse.next()
+  response.headers.set('Content-Security-Policy', cspHeader)
+  response.headers.set('X-Nonce', nonce) // Pass to components
+  
+  return response
+}
+
+export const config = {
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+  ],
+}
+```
+
+```typescript
+// apps/web/src/app/layout.tsx
+import { headers } from 'next/headers'
+import Script from 'next/script'
+
+export default function RootLayout({ children }) {
+  const nonce = headers().get('X-Nonce') || ''
+  
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        {/* All inline scripts must use nonce */}
+        <Script nonce={nonce} id="analytics">
+          {`/* analytics code */`}
+        </Script>
+      </body>
+    </html>
+  )
+}
+```
+
+### 18.4 Cloud Armor WAF
+
+```hcl
+# terraform/modules/cloud-armor/main.tf
+
+resource "google_compute_security_policy" "waf" {
+  name = "hta-waf-policy"
+
+  # Default rule - allow all
+  rule {
+    action   = "allow"
+    priority = "2147483647"
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+    description = "Default allow rule"
+  }
+
+  # Block SQL injection
+  rule {
+    action   = "deny(403)"
+    priority = "1000"
+    match {
+      expr {
+        expression = "evaluatePreconfiguredExpr('sqli-v33-stable')"
+      }
+    }
+    description = "Block SQL injection"
+  }
+
+  # Block XSS
+  rule {
+    action   = "deny(403)"
+    priority = "1001"
+    match {
+      expr {
+        expression = "evaluatePreconfiguredExpr('xss-v33-stable')"
+      }
+    }
+    description = "Block XSS attacks"
+  }
+
+  # Block remote code execution
+  rule {
+    action   = "deny(403)"
+    priority = "1002"
+    match {
+      expr {
+        expression = "evaluatePreconfiguredExpr('rce-v33-stable')"
+      }
+    }
+    description = "Block RCE attempts"
+  }
+
+  # Rate limiting - 1000 requests per minute per IP
+  rule {
+    action   = "throttle"
+    priority = "2000"
+    match {
+      versioned_expr = "SRC_IPS_V1"
+      config {
+        src_ip_ranges = ["*"]
+      }
+    }
+    rate_limit_options {
+      conform_action = "allow"
+      exceed_action  = "deny(429)"
+      rate_limit_threshold {
+        count        = 1000
+        interval_sec = 60
+      }
+    }
+    description = "Rate limit all IPs"
+  }
+
+  # Geo-blocking (optional - enable for specific regions)
+  # rule {
+  #   action   = "deny(403)"
+  #   priority = "500"
+  #   match {
+  #     expr {
+  #       expression = "origin.region_code == 'XX'"
+  #     }
+  #   }
+  #   description = "Geo-block specific regions"
+  # }
+}
+
+# Attach WAF policy to backend services
+resource "google_compute_backend_service" "api" {
+  name                  = "hta-api-backend"
+  security_policy       = google_compute_security_policy.waf.id
+  # ... other config
+}
+```
+
+### 18.5 CORS for Separated Services
+
+```typescript
+// apps/api/src/middleware/cors.ts
+import { FastifyPluginCallback } from 'fastify'
+import cors from '@fastify/cors'
+
+export const corsPlugin: FastifyPluginCallback = (fastify, _, done) => {
+  const allowedOrigins = [
+    process.env.WEB_URL || 'https://htacalibr8s.com',
+    process.env.CUSTOMER_URL || 'https://customer.htacalibr8s.com',
+  ]
+
+  // Add staging/dev origins
+  if (process.env.NODE_ENV !== 'production') {
+    allowedOrigins.push('http://localhost:3000', 'http://localhost:3001')
+  }
+
+  fastify.register(cors, {
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, server-to-server)
+      if (!origin) {
+        callback(null, true)
+        return
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error('CORS not allowed'), false)
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'sentry-trace', 'baggage'],
+    credentials: true,
+    maxAge: 86400, // 24 hours
+  })
+
+  done()
+}
+```
+
+### 18.6 Security Checklist
+
+| Feature | Status | Location | Priority |
+|---------|--------|----------|----------|
+| 2FA (TOTP) | ⏳ Planned | `packages/shared/src/auth/totp.ts` | P1 |
+| WebAuthn | ⏳ Planned | `packages/shared/src/auth/webauthn.ts` | P2 |
+| CSP with nonces | ⏳ Planned | `apps/web/src/middleware.ts` | P1 |
+| Cloud Armor WAF | ⏳ Planned | `terraform/modules/cloud-armor/` | P1 |
+| CORS for services | ⏳ Planned | `apps/api/src/middleware/cors.ts` | P1 |
+| Rate limiting | ✅ Done | `packages/shared/src/security/` | - |
+| Account lockout | ✅ Done | `packages/shared/src/security/` | - |
+| Security headers | ✅ Done | `next.config.ts` | - |
+
+---
+
+## 19. Disaster Recovery
+
+### 19.1 Backup Configuration
+
+```hcl
+# terraform/modules/cloudsql/main.tf
+
+resource "google_sql_database_instance" "main" {
+  name             = "hta-main"
+  database_version = "POSTGRES_16"
+  region           = "asia-south1"
+
+  settings {
+    tier              = "db-custom-2-4096"
+    availability_type = "REGIONAL" # HA with automatic failover
+
+    backup_configuration {
+      enabled                        = true
+      start_time                     = "03:00" # 3 AM IST
+      point_in_time_recovery_enabled = true
+      transaction_log_retention_days = 7
+      
+      backup_retention_settings {
+        retained_backups = 30
+        retention_unit   = "COUNT"
+      }
+    }
+
+    maintenance_window {
+      day          = 7 # Sunday
+      hour         = 4 # 4 AM IST
+      update_track = "stable"
+    }
+  }
+
+  deletion_protection = true
+}
+```
+
+### 19.2 Backup Restore Procedure
+
+```bash
+#!/bin/bash
+# scripts/dr-restore.sh
+
+set -e
+
+# Configuration
+PROJECT_ID="hta-calibration-prod"
+INSTANCE_NAME="hta-main"
+BACKUP_ID="$1"
+TARGET_INSTANCE="hta-restore-test"
+START_TIME=$(date +%s)
+
+echo "=== HTA Calibr8s Disaster Recovery Restore ==="
+echo "Backup ID: $BACKUP_ID"
+echo "Target: $TARGET_INSTANCE"
+
+# 1. Create restore instance
+echo "Creating restore instance..."
+gcloud sql instances clone $INSTANCE_NAME $TARGET_INSTANCE \
+  --project=$PROJECT_ID
+
+# 2. Restore from backup
+echo "Restoring from backup..."
+gcloud sql backups restore $BACKUP_ID \
+  --restore-instance=$TARGET_INSTANCE \
+  --project=$PROJECT_ID
+
+# 3. Wait for restore to complete
+echo "Waiting for restore..."
+while true; do
+  STATUS=$(gcloud sql operations list --instance=$TARGET_INSTANCE \
+    --filter="operationType=RESTORE_VOLUME" --format="value(status)" \
+    --limit=1)
+  if [ "$STATUS" == "DONE" ]; then
+    break
+  fi
+  echo "Status: $STATUS"
+  sleep 30
+done
+
+# 4. Verify data integrity
+echo "Verifying data integrity..."
+CERT_COUNT=$(gcloud sql connect $TARGET_INSTANCE --database=hta_calibration \
+  --quiet -- -c "SELECT COUNT(*) FROM certificates;" | tail -1)
+echo "Certificate count: $CERT_COUNT"
+
+USER_COUNT=$(gcloud sql connect $TARGET_INSTANCE --database=hta_calibration \
+  --quiet -- -c "SELECT COUNT(*) FROM users WHERE is_active = true;" | tail -1)
+echo "Active user count: $USER_COUNT"
+
+# 5. Record restore time
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+echo "Restore completed in $DURATION seconds ($(($DURATION / 60)) minutes)"
+
+# 6. Cleanup (optional)
+read -p "Delete test instance? (y/n) " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  gcloud sql instances delete $TARGET_INSTANCE --project=$PROJECT_ID --quiet
+fi
+```
+
+### 19.3 DR Drill Checklist
+
+```markdown
+# Monthly DR Drill Checklist
+
+**Date:** _______________
+**Conducted by:** _______________
+**Backup used:** _______________
+
+## Pre-Drill Preparation
+- [ ] Notify team of upcoming drill
+- [ ] Identify latest backup to restore
+- [ ] Document expected data counts:
+  - Certificates: _______
+  - Users: _______
+  - Audit logs: _______
+
+## Database Restore
+- [ ] Create test Cloud SQL instance
+- [ ] Restore backup to test instance
+- [ ] Record restore duration: _______ minutes
+- [ ] Verify certificate count matches
+- [ ] Verify user count matches
+
+## Data Integrity Checks
+- [ ] Query sample certificates (10 random)
+- [ ] Verify user accounts can authenticate
+- [ ] Check audit logs present
+- [ ] Validate file attachments accessible (GCS)
+- [ ] Check PDF generation works
+
+## Application Verification
+- [ ] Point test app to restored database
+- [ ] Login as admin - success?
+- [ ] Login as customer - success?
+- [ ] View certificate details
+- [ ] Download PDF certificate
+- [ ] Send test notification
+
+## Results Summary
+| Metric | Target | Actual | Pass? |
+|--------|--------|--------|-------|
+| RTO (Recovery Time) | < 1 hour | _______ | ☐ |
+| RPO (Data Loss) | < 1 hour | _______ | ☐ |
+| Data Integrity | 100% | _______% | ☐ |
+
+## Issues Found
+1. _______________
+2. _______________
+3. _______________
+
+## Action Items
+1. _______________
+2. _______________
+
+## Post-Drill Cleanup
+- [ ] Delete test instance
+- [ ] Document findings in Confluence
+- [ ] Update runbook if needed
+- [ ] Schedule fixes for issues
+
+**Sign-off:** _______________
+**Date:** _______________
+```
+
+### 19.4 Cross-Region Replica
+
+```hcl
+# terraform/modules/cloudsql/replica.tf
+
+resource "google_sql_database_instance" "replica" {
+  name                 = "hta-main-replica"
+  master_instance_name = google_sql_database_instance.main.name
+  region               = "us-west1" # Different region from primary (asia-south1)
+  database_version     = "POSTGRES_16"
+
+  replica_configuration {
+    failover_target = true
+  }
+
+  settings {
+    tier              = "db-custom-2-4096"
+    availability_type = "REGIONAL"
+    
+    backup_configuration {
+      enabled = false # Replica doesn't need separate backups
+    }
+
+    ip_configuration {
+      ipv4_enabled    = false
+      private_network = var.vpc_network_id
+    }
+  }
+
+  deletion_protection = true
+}
+
+# Failover command (manual)
+# gcloud sql instances failover hta-main-replica --project=hta-calibration-prod
+```
+
+### 19.5 GCS Multi-Region Buckets
+
+```hcl
+# terraform/modules/storage/main.tf
+
+resource "google_storage_bucket" "certificates" {
+  name     = "hta-calibr8s-certificates"
+  location = "US" # Multi-region for redundancy
+
+  storage_class = "STANDARD"
+  
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+    condition {
+      age = 90 # Move to Nearline after 90 days
+    }
+  }
+
+  lifecycle_rule {
+    action {
+      type          = "SetStorageClass"
+      storage_class = "COLDLINE"
+    }
+    condition {
+      age = 365 # Move to Coldline after 1 year
+    }
+  }
+
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      age                   = 3650 # Delete after 10 years
+      num_newer_versions    = 1
+      with_state            = "ARCHIVED"
+    }
+  }
+}
+
+resource "google_storage_bucket" "uploads" {
+  name     = "hta-calibr8s-uploads"
+  location = "ASIA" # Multi-region for user-facing content
+
+  storage_class = "STANDARD"
+  
+  versioning {
+    enabled = true
+  }
+
+  cors {
+    origin          = ["https://htacalibr8s.com"]
+    method          = ["GET", "HEAD", "PUT", "POST"]
+    response_header = ["*"]
+    max_age_seconds = 3600
+  }
+}
+```
+
+### 19.6 RTO/RPO Targets
+
+| Metric | Definition | Target | Current Capability |
+|--------|------------|--------|-------------------|
+| **RPO** | Maximum acceptable data loss | 1 hour | 5 min (PITR) |
+| **RTO** | Time to restore service | 1 hour | ~30 min |
+| **MTTR** | Mean time to repair | 2 hours | TBD |
+| **Backup frequency** | Automated backups | Daily | Daily 3 AM |
+| **PITR window** | Point-in-time recovery | 7 days | 7 days |
+| **Backup retention** | How long backups kept | 30 days | 30 days |
+| **Geo-redundancy** | Cross-region failover | Yes | Yes (US-West replica) |
+
+### 19.7 Disaster Scenarios & Responses
+
+| Scenario | Impact | Response | RTO |
+|----------|--------|----------|-----|
+| **Database corruption** | High | Restore from PITR backup | 30 min |
+| **Region failure** | High | Failover to replica region | 15 min |
+| **Accidental deletion** | Medium | Restore from GCS versioning | 10 min |
+| **Security breach** | Critical | Isolate, restore clean backup | 2 hours |
+| **Cloud provider outage** | High | Wait or manual intervention | Variable |
+
+---
+
+## 20. Secrets Infrastructure
 
 ### 17.1 Secret Manager Organization
 
@@ -3042,7 +4017,7 @@ fi
 
 ---
 
-## 18. Performance Management
+## 21. Performance Management
 
 ### 18.1 Performance Baselines
 
@@ -3422,7 +4397,7 @@ const nextConfig = {
 
 ---
 
-## 19. Compliance Management
+## 22. Compliance Management
 
 ### 19.1 GDPR Data Flow Across Services
 
@@ -3964,7 +4939,7 @@ describe('GDPR Compliance', () => {
 
 ---
 
-## 20. Rollback Plan
+## 23. Rollback Plan
 
 ### Immediate Rollback (< 5 minutes)
 
@@ -4012,7 +4987,7 @@ Initiate rollback if:
 
 ---
 
-## 21. Post-Migration Checklist
+## 24. Post-Migration Checklist
 
 ### Operational
 
@@ -4074,3 +5049,4 @@ Initiate rollback if:
 | 1.2 | 2026-04-13 | Added Monitoring, Secrets, Performance, Compliance sections |
 | 1.3 | 2026-04-13 | Added existing feature migration inventory (Phases 1-4), expanded shared packages migration, notification processing in Worker |
 | 1.4 | 2026-04-13 | Replaced OpenTelemetry with Sentry for monitoring (already configured) |
+| 1.5 | 2026-04-13 | Added new repo migration approach, Security Enhancements (Track C: 2FA, WebAuthn, CSP nonces, Cloud Armor WAF), Disaster Recovery (Track E: backup/restore, DR drills, cross-region replica) |
