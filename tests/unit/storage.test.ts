@@ -1,8 +1,7 @@
 /**
  * Storage Unit Tests
  *
- * Tests for storage helpers and utilities
- * Note: Actual file I/O tests would be integration tests
+ * Tests for storage helpers, utilities, and providers
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -14,6 +13,11 @@ import {
   generateImageStorageKey,
   parseImageStorageKey,
   getImageVariantKeys,
+  getStorageProvider,
+  getImageStorageProvider,
+  resetStorageProvider,
+  resetImageStorageProvider,
+  getMasterInstrumentCertificateStorage,
 } from '@/lib/storage'
 
 describe('Storage', () => {
@@ -306,6 +310,434 @@ describe('Storage', () => {
       expect(variants.original).toBe('path/to/image.png')
       expect(variants.optimized).toBe('path/to/image-optimized.jpg')
       expect(variants.thumbnail).toBe('path/to/image-thumbnail.jpg')
+    })
+  })
+
+  describe('getStorageProvider', () => {
+    beforeEach(() => {
+      resetStorageProvider()
+    })
+
+    it('should return a LocalStorageProvider by default', () => {
+      delete process.env.CERTIFICATE_STORAGE_TYPE
+
+      const provider = getStorageProvider()
+
+      expect(provider).toBeDefined()
+      expect(provider.upload).toBeDefined()
+      expect(provider.download).toBeDefined()
+    })
+
+    it('should return same instance on subsequent calls (singleton)', () => {
+      const provider1 = getStorageProvider()
+      const provider2 = getStorageProvider()
+
+      expect(provider1).toBe(provider2)
+    })
+
+    it('should throw error for GCS without bucket configured', () => {
+      process.env.CERTIFICATE_STORAGE_TYPE = 'gcs'
+      delete process.env.GCS_CERTIFICATES_BUCKET
+
+      expect(() => getStorageProvider()).toThrow('GCS_CERTIFICATES_BUCKET environment variable is required')
+    })
+  })
+
+  describe('getImageStorageProvider', () => {
+    beforeEach(() => {
+      resetImageStorageProvider()
+    })
+
+    it('should return a LocalStorageProvider by default', () => {
+      delete process.env.IMAGE_STORAGE_TYPE
+      delete process.env.CERTIFICATE_STORAGE_TYPE
+
+      const provider = getImageStorageProvider()
+
+      expect(provider).toBeDefined()
+    })
+
+    it('should return same instance on subsequent calls (singleton)', () => {
+      const provider1 = getImageStorageProvider()
+      const provider2 = getImageStorageProvider()
+
+      expect(provider1).toBe(provider2)
+    })
+
+    it('should throw error for GCS without bucket configured', () => {
+      process.env.IMAGE_STORAGE_TYPE = 'gcs'
+      delete process.env.GCS_IMAGES_BUCKET
+      delete process.env.GCS_CERTIFICATES_BUCKET
+
+      expect(() => getImageStorageProvider()).toThrow('GCS_IMAGES_BUCKET environment variable is required')
+    })
+  })
+
+  describe('getMasterInstrumentCertificateStorage', () => {
+    beforeEach(() => {
+      resetStorageProvider()
+    })
+
+    it('should return the storage provider', () => {
+      delete process.env.CERTIFICATE_STORAGE_TYPE
+
+      const provider = getMasterInstrumentCertificateStorage()
+
+      expect(provider).toBeDefined()
+    })
+  })
+
+  describe('resetStorageProvider', () => {
+    it('should reset the singleton', () => {
+      delete process.env.CERTIFICATE_STORAGE_TYPE
+
+      const provider1 = getStorageProvider()
+      resetStorageProvider()
+      const provider2 = getStorageProvider()
+
+      // After reset, a new instance should be created
+      expect(provider1).not.toBe(provider2)
+    })
+  })
+
+  describe('resetImageStorageProvider', () => {
+    it('should reset the image storage singleton', () => {
+      delete process.env.IMAGE_STORAGE_TYPE
+      delete process.env.CERTIFICATE_STORAGE_TYPE
+
+      const provider1 = getImageStorageProvider()
+      resetImageStorageProvider()
+      const provider2 = getImageStorageProvider()
+
+      expect(provider1).not.toBe(provider2)
+    })
+  })
+})
+
+// Test LocalStorageProvider directly
+describe('LocalStorageProvider', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetStorageProvider()
+    delete process.env.CERTIFICATE_STORAGE_TYPE
+  })
+
+  describe('getSignedUrl', () => {
+    it('should return API route path', async () => {
+      const provider = getStorageProvider()
+
+      const result = await provider.getSignedUrl('test/file.pdf')
+
+      expect(result).toContain('/api/storage/download')
+      expect(result).toContain('path=')
+    })
+
+    it('should encode file path with special characters', async () => {
+      const provider = getStorageProvider()
+
+      const result = await provider.getSignedUrl('test/file with spaces.pdf')
+
+      expect(result).toContain(encodeURIComponent('test/file with spaces.pdf'))
+    })
+  })
+
+  describe('upload', () => {
+    it('should upload file and return path', async () => {
+      const provider = getStorageProvider()
+      const buffer = Buffer.from('test content')
+
+      const result = await provider.upload('test/file.pdf', buffer)
+
+      expect(result).toBe('test/file.pdf')
+    })
+  })
+
+  describe('exists', () => {
+    it('should check if file exists', async () => {
+      const provider = getStorageProvider()
+
+      // This will actually check the file system, but we're testing the method exists
+      const result = await provider.exists('non-existent-file-12345.pdf')
+
+      expect(typeof result).toBe('boolean')
+    })
+  })
+
+  describe('download', () => {
+    it('should download uploaded file', async () => {
+      const provider = getStorageProvider()
+      const buffer = Buffer.from('download test content')
+      const testPath = 'test-download/file.txt'
+
+      // Upload first
+      await provider.upload(testPath, buffer)
+
+      // Then download
+      const result = await provider.download(testPath)
+
+      expect(result.toString()).toBe('download test content')
+
+      // Clean up
+      await provider.delete(testPath)
+    })
+
+    it('should throw error for non-existent file', async () => {
+      const provider = getStorageProvider()
+
+      await expect(provider.download('absolutely-non-existent-file-xyz.pdf')).rejects.toThrow('File not found')
+    })
+  })
+
+  describe('delete', () => {
+    it('should delete uploaded file', async () => {
+      const provider = getStorageProvider()
+      const buffer = Buffer.from('delete test content')
+      const testPath = 'test-delete/file.txt'
+
+      // Upload first
+      await provider.upload(testPath, buffer)
+
+      // Verify it exists
+      expect(await provider.exists(testPath)).toBe(true)
+
+      // Delete
+      await provider.delete(testPath)
+
+      // Verify it's gone
+      expect(await provider.exists(testPath)).toBe(false)
+    })
+  })
+
+  describe('list', () => {
+    it('should list files in directory', async () => {
+      const provider = getStorageProvider()
+      const buffer = Buffer.from('list test content')
+      const testPath = 'test-list-dir/testfile.txt'
+
+      // Upload file
+      await provider.upload(testPath, buffer)
+
+      // List files - the list function expects a prefix in the directory
+      const files = await provider.list('test-list-dir/testfile')
+
+      expect(files.length).toBeGreaterThanOrEqual(1)
+
+      // Clean up
+      await provider.delete(testPath)
+    })
+
+    it('should return empty array for non-existent directory', async () => {
+      const provider = getStorageProvider()
+
+      const files = await provider.list('non-existent-dir-xyz/')
+
+      expect(files).toEqual([])
+    })
+  })
+
+  describe('getMetadata', () => {
+    it('should return metadata for existing file', async () => {
+      const provider = getStorageProvider()
+      const buffer = Buffer.from('metadata test content')
+      const testPath = 'test-meta/file.pdf'
+
+      // Upload first
+      await provider.upload(testPath, buffer)
+
+      // Get metadata
+      const metadata = await provider.getMetadata(testPath)
+
+      expect(metadata).not.toBeNull()
+      expect(metadata?.path).toBe(testPath)
+      expect(metadata?.size).toBe(buffer.length)
+      expect(metadata?.contentType).toBe('application/pdf')
+
+      // Clean up
+      await provider.delete(testPath)
+    })
+
+    it('should return null for non-existent file', async () => {
+      const provider = getStorageProvider()
+
+      const metadata = await provider.getMetadata('non-existent-file-xyz.pdf')
+
+      expect(metadata).toBeNull()
+    })
+  })
+})
+
+// Test GCSStorageProvider with mocked module
+describe('GCSStorageProvider', () => {
+  // Define mock objects at module level
+  const mockFile = {
+    save: vi.fn().mockResolvedValue(undefined),
+    download: vi.fn().mockResolvedValue([Buffer.from('test content')]),
+    delete: vi.fn().mockResolvedValue(undefined),
+    exists: vi.fn().mockResolvedValue([true]),
+    getSignedUrl: vi.fn().mockResolvedValue(['https://signed-url.example.com']),
+    getMetadata: vi.fn().mockResolvedValue([{
+      size: '1024',
+      contentType: 'application/pdf',
+      updated: '2024-01-01T00:00:00Z',
+    }]),
+  }
+
+  const mockBucket = {
+    file: vi.fn().mockReturnValue(mockFile),
+    getFiles: vi.fn().mockResolvedValue([[
+      { name: 'file1.pdf', metadata: { size: '1024', contentType: 'application/pdf', updated: '2024-01-01' } },
+      { name: 'file2.pdf', metadata: { size: '2048', contentType: 'application/pdf', updated: '2024-01-02' } },
+    ]]),
+  }
+
+  // Mock the Storage class as a constructor function
+  vi.mock('@google-cloud/storage', () => {
+    return {
+      Storage: class MockStorage {
+        bucket() {
+          return {
+            file: () => ({
+              save: vi.fn().mockResolvedValue(undefined),
+              download: vi.fn().mockResolvedValue([Buffer.from('test content')]),
+              delete: vi.fn().mockResolvedValue(undefined),
+              exists: vi.fn().mockResolvedValue([true]),
+              getSignedUrl: vi.fn().mockResolvedValue(['https://signed-url.example.com']),
+              getMetadata: vi.fn().mockResolvedValue([{
+                size: '1024',
+                contentType: 'application/pdf',
+                updated: '2024-01-01T00:00:00Z',
+              }]),
+            }),
+            getFiles: vi.fn().mockResolvedValue([[
+              { name: 'file1.pdf', metadata: { size: '1024', contentType: 'application/pdf', updated: '2024-01-01' } },
+              { name: 'file2.pdf', metadata: { size: '2048', contentType: 'application/pdf', updated: '2024-01-02' } },
+            ]]),
+          }
+        }
+      },
+    }
+  })
+
+  const originalEnv = process.env
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetStorageProvider()
+    process.env = { ...originalEnv }
+    process.env.CERTIFICATE_STORAGE_TYPE = 'gcs'
+    process.env.GCS_CERTIFICATES_BUCKET = 'test-bucket'
+    process.env.GCP_PROJECT_ID = 'test-project'
+  })
+
+  afterEach(() => {
+    process.env = originalEnv
+  })
+
+  describe('upload', () => {
+    it('should upload file to GCS and return path', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+      const buffer = Buffer.from('test content')
+
+      const result = await provider.upload('test/file.pdf', buffer)
+
+      expect(result).toBe('test/file.pdf')
+    })
+
+    it('should accept content type option', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+      const buffer = Buffer.from('test content')
+
+      const result = await provider.upload('test/file.pdf', buffer, { contentType: 'application/pdf' })
+
+      expect(result).toBe('test/file.pdf')
+    })
+  })
+
+  describe('download', () => {
+    it('should download file from GCS', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.download('test/file.pdf')
+
+      expect(result).toBeInstanceOf(Buffer)
+    })
+  })
+
+  describe('exists', () => {
+    it('should check if file exists', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.exists('test/file.pdf')
+
+      expect(typeof result).toBe('boolean')
+    })
+  })
+
+  describe('getSignedUrl', () => {
+    it('should return signed URL', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.getSignedUrl('test/file.pdf')
+
+      expect(result).toBe('https://signed-url.example.com')
+    })
+
+    it('should accept expiration options', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.getSignedUrl('test/file.pdf', { expiresInMinutes: 30 })
+
+      expect(typeof result).toBe('string')
+    })
+
+    it('should accept action option', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.getSignedUrl('test/file.pdf', { action: 'write' })
+
+      expect(typeof result).toBe('string')
+    })
+  })
+
+  describe('list', () => {
+    it('should list files with prefix', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.list('certificates/')
+
+      expect(result).toHaveLength(2)
+      expect(result[0].path).toBe('file1.pdf')
+    })
+  })
+
+  describe('getMetadata', () => {
+    it('should return file metadata', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      const result = await provider.getMetadata('test/file.pdf')
+
+      expect(result).toBeDefined()
+      expect(result?.size).toBe(1024)
+    })
+  })
+
+  describe('delete', () => {
+    it('should delete file from GCS', async () => {
+      const { GCSStorageProvider } = await import('@/lib/storage/gcs-storage')
+      const provider = new GCSStorageProvider('test-bucket', 'test-project')
+
+      // Should complete without throwing
+      await provider.delete('test/file.pdf')
+      expect(true).toBe(true)
     })
   })
 })
