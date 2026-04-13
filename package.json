@@ -31,7 +31,8 @@
     "test:a11y": "playwright test tests/e2e/accessibility/",
     "test:visual": "playwright test tests/e2e/visual/",
     "test:visual:update": "playwright test tests/e2e/evals/visual-regression.spec.ts --update-snapshots",
-    "test:visual:docker": "docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit"
+    "test:visual:docker": "docker compose -f docker-compose.playwright.yml up --build --abort-on-container-exit",
+    "chromatic": "npx playwright test tests/e2e/evals/visual-regression.spec.ts --project=chromium && npx chromatic --playwright --project-token=chpt_0db32ba30b7c67f"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
@@ -73,6 +74,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",
+    "@chromatic-com/playwright": "^0.13.1",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -87,6 +89,7 @@
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.4",
     "@vitest/coverage-v8": "^4.0.18",
+    "chromatic": "^16.2.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "husky": "^9.1.7",

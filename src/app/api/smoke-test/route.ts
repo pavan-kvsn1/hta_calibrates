@@ -99,7 +99,7 @@ export async function GET(request: NextRequest) {
     const testKey = 'smoke-test-' + Date.now()
     await cache.set(testKey, 'ok', 10)
     const value = await cache.get(testKey)
-    await cache.del(testKey)
+    await cache.delete(testKey)
     return {
       pass: value === 'ok',
       message: value === 'ok' ? 'Cache read/write successful' : 'Cache value mismatch',
