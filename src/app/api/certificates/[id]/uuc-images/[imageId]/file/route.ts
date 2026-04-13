@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { certificateLogger as logger } from '@/lib/logger'
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'uuc-images')
 
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       },
     })
   } catch (error) {
-    console.error('[UUC Image File API] GET error:', error)
+    logger.error({ err: error }, 'Error serving UUC image file')
 
     // Check if it's a file not found error
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {

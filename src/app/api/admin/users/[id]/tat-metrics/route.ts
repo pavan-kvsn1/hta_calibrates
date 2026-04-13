@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { calculateUserTATMetrics, calculateRequestHandlingMetrics } from '@/lib/utils/user-tat-calculator'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('users')
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -155,7 +158,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       requestHandling,
     })
   } catch (error) {
-    console.error('User TAT metrics fetch error:', error)
+    logger.error({ err: error }, 'Failed to fetch user TAT metrics')
     return NextResponse.json(
       { error: 'Failed to fetch TAT metrics' },
       { status: 500 }

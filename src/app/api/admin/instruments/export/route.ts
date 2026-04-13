@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('instruments')
 
 // GET /api/admin/instruments/export - Export instruments as CSV or JSON
 export async function GET(request: NextRequest) {
@@ -94,7 +97,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error exporting instruments:', error)
+    logger.error({ err: error }, 'Error exporting instruments')
     return NextResponse.json(
       { error: 'Failed to export instruments' },
       { status: 500 }

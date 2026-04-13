@@ -10,6 +10,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { cleanupJobs, resetStuckJobs } from '@/lib/services/queue'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('queue')
 
 const QUEUE_SECRET = process.env.QUEUE_PROCESS_SECRET || 'dev-secret'
 
@@ -39,7 +42,7 @@ export async function POST(req: NextRequest) {
       resetJobs: resetCount,
     })
   } catch (error) {
-    console.error('[Queue API] Cleanup error:', error)
+    logger.error({ err: error }, 'Failed to cleanup queue')
     return NextResponse.json(
       { error: 'Failed to cleanup queue' },
       { status: 500 }

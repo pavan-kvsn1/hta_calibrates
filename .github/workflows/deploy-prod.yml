@@ -1,0 +1,333 @@
+name: Deploy to Production (GKE)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy (e.g., abc1234 or latest). Leave empty to build fresh.'
+        required: false
+        default: ''
+      smoke_test_mode:
+        description: 'Smoke test mode: auto (detect), lenient (first deploy), or strict (has data)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - lenient
+          - strict
+      confirm:
+        description: 'Type "deploy-prod" to confirm production deployment'
+        required: true
+
+env:
+  PROJECT_ID: hta-calibration-prod
+  REGION: asia-south1
+  CLUSTER_NAME: hta-calibration-prod-gke-prod
+  ARTIFACT_REGISTRY: asia-south1-docker.pkg.dev
+  IMAGE_NAME: hta-calibration/app
+  PROD_URL: https://hta-calibration.com
+
+jobs:
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation
+        if: ${{ github.event.inputs.confirm != 'deploy-prod' }}
+        run: |
+          echo "::error::Confirmation failed. You must type 'deploy-prod' to confirm production deployment."
+          exit 1
+
+  build:
+    name: Build Image
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      image_tag: ${{ steps.tags.outputs.tag }}
+      full_image: ${{ steps.tags.outputs.full_image }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_PROD_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_PROD_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.ARTIFACT_REGISTRY }} --quiet
+
+      - name: Determine image tag
+        id: tags
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+            echo "Using provided tag: ${TAG}"
+          else
+            TAG=$(echo ${{ github.sha }} | cut -c1-7)
+            echo "Building fresh image with tag: ${TAG}"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "full_image=${{ env.ARTIFACT_REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.IMAGE_NAME }}:${TAG}" >> $GITHUB_OUTPUT
+
+      - name: Check if image exists
+        id: check
+        run: |
+          if gcloud artifacts docker images describe ${{ steps.tags.outputs.full_image }} &>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Image already exists, skipping build"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "Image does not exist, will build"
+          fi
+
+      - name: Set up Docker Buildx
+        if: steps.check.outputs.exists == 'false'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        if: steps.check.outputs.exists == 'false'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.tags.outputs.full_image }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+
+  deploy:
+    name: Deploy to GKE
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment: production  # Requires environment approval in GitHub
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_PROD_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_PROD_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install gke-gcloud-auth-plugin
+        run: |
+          gcloud components install gke-gcloud-auth-plugin --quiet
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ env.CLUSTER_NAME }} \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }}
+
+      - name: Update image in kustomization
+        run: |
+          cd k8s/overlays/production
+          kustomize edit set image asia-south1-docker.pkg.dev/hta-calibration-dev1/hta-calibration/app:latest=${{ needs.build.outputs.full_image }}
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -k k8s/overlays/production
+
+          echo "Waiting for rollout to complete..."
+          kubectl rollout status deployment/hta-web -n hta-calibration --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          echo "Checking pod status..."
+          kubectl get pods -n hta-calibration -l app.kubernetes.io/name=hta-web
+
+          echo "Checking service..."
+          kubectl get svc -n hta-calibration
+
+      - name: Run Smoke Tests
+        run: |
+          echo "Running smoke tests against ${{ env.PROD_URL }}"
+          PROD_URL="${{ env.PROD_URL }}"
+
+          # Wait for external access to be ready
+          echo "Waiting for service to be ready..."
+          sleep 30
+
+          # 1. Health check (liveness)
+          echo "Testing /api/health..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROD_URL}/api/health")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Health check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Health check passed"
+
+          # 2. Readiness check (includes DB + cache)
+          echo "Testing /api/health/ready..."
+          READY_RESPONSE=$(curl -s --max-time 30 "${PROD_URL}/api/health/ready")
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROD_URL}/api/health/ready")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Readiness check failed with HTTP $HTTP_CODE"
+            echo "Response: $READY_RESPONSE"
+            exit 1
+          fi
+          echo "Readiness check passed"
+
+          # 3. Comprehensive smoke test with auto-detection
+          INPUT_MODE="${{ github.event.inputs.smoke_test_mode }}"
+
+          if [ "$INPUT_MODE" == "auto" ]; then
+            echo "Auto-detecting smoke test mode..."
+            # Run lenient first to check if data exists
+            DETECT_RESPONSE=$(curl -s --max-time 60 "${PROD_URL}/api/smoke-test?mode=lenient")
+
+            # Check multiple indicators for data existence (count > 1 means real data, not just defaults)
+            HAS_DATA=false
+
+            # Check admin
+            ADMIN_MSG=$(echo "$DETECT_RESPONSE" | jq -r '.checks.admin_exists.message // ""')
+            if echo "$ADMIN_MSG" | grep -q "Admin found"; then
+              echo "  - Admin user found"
+              HAS_DATA=true
+            fi
+
+            # Check users count > 1
+            USERS_MSG=$(echo "$DETECT_RESPONSE" | jq -r '.checks.users_exist.message // ""')
+            USERS_COUNT=$(echo "$USERS_MSG" | grep -oP 'Found \K[0-9]+' || echo "0")
+            if [ "$USERS_COUNT" -gt 1 ]; then
+              echo "  - Found $USERS_COUNT users"
+              HAS_DATA=true
+            fi
+
+            # Check customer accounts count > 1
+            CUSTOMERS_MSG=$(echo "$DETECT_RESPONSE" | jq -r '.checks.customer_accounts_exist.message // ""')
+            CUSTOMERS_COUNT=$(echo "$CUSTOMERS_MSG" | grep -oP 'Found \K[0-9]+' || echo "0")
+            if [ "$CUSTOMERS_COUNT" -gt 1 ]; then
+              echo "  - Found $CUSTOMERS_COUNT customer accounts"
+              HAS_DATA=true
+            fi
+
+            # Check customer users count > 1
+            CUSTUSERS_MSG=$(echo "$DETECT_RESPONSE" | jq -r '.checks.customer_users_exist.message // ""')
+            CUSTUSERS_COUNT=$(echo "$CUSTUSERS_MSG" | grep -oP 'Found \K[0-9]+' || echo "0")
+            if [ "$CUSTUSERS_COUNT" -gt 1 ]; then
+              echo "  - Found $CUSTUSERS_COUNT customer users"
+              HAS_DATA=true
+            fi
+
+            if [ "$HAS_DATA" = true ]; then
+              SMOKE_MODE="strict"
+              echo "Data detected - using strict mode"
+            else
+              SMOKE_MODE="lenient"
+              echo "No significant data detected - using lenient mode (first deploy)"
+            fi
+          else
+            SMOKE_MODE="$INPUT_MODE"
+            echo "Using manually selected mode: $SMOKE_MODE"
+          fi
+
+          echo "Testing /api/smoke-test?mode=${SMOKE_MODE}..."
+          SMOKE_RESPONSE=$(curl -s --max-time 60 "${PROD_URL}/api/smoke-test?mode=${SMOKE_MODE}")
+          SMOKE_STATUS=$(echo "$SMOKE_RESPONSE" | jq -r '.status // "unknown"')
+          if [ "$SMOKE_STATUS" != "pass" ] && [ "$SMOKE_STATUS" != "partial" ]; then
+            echo "::error::Smoke test failed with status: $SMOKE_STATUS"
+            echo "Response: $SMOKE_RESPONSE" | jq .
+            exit 1
+          fi
+          echo "Smoke test passed (status: $SMOKE_STATUS, mode: $SMOKE_MODE)"
+          echo "Checks summary:"
+          echo "$SMOKE_RESPONSE" | jq '.summary'
+
+          # Export for summary
+          echo "SMOKE_MODE=${SMOKE_MODE}" >> $GITHUB_ENV
+
+          # 4. Auth providers
+          echo "Testing /api/auth/providers..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROD_URL}/api/auth/providers")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Auth providers check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Auth providers check passed"
+
+          # 5. Login page renders
+          echo "Testing /login..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROD_URL}/login")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::error::Login page check failed with HTTP $HTTP_CODE"
+            exit 1
+          fi
+          echo "Login page check passed"
+
+          # 6. Static assets
+          echo "Testing favicon..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${PROD_URL}/favicon.ico")
+          if [ "$HTTP_CODE" -ne 200 ]; then
+            echo "::warning::Favicon not found (HTTP $HTTP_CODE) - non-critical"
+          else
+            echo "Favicon check passed"
+          fi
+
+          echo ""
+          echo "All smoke tests passed!"
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Production Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Cluster** | ${{ env.CLUSTER_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Region** | ${{ env.REGION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`${{ needs.build.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **URL** | ${{ env.PROD_URL }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Deployed by** | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Smoke Test Mode** | ${{ env.SMOKE_MODE }} (input: ${{ github.event.inputs.smoke_test_mode }}) |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Smoke Tests" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /api/health" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /api/health/ready" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /api/auth/providers" >> $GITHUB_STEP_SUMMARY
+          echo "- [x] /login" >> $GITHUB_STEP_SUMMARY
+
+  rollback-instructions:
+    name: Rollback Instructions
+    needs: [build, deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print rollback instructions
+        run: |
+          echo "## Deployment Failed - Rollback Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To rollback to the previous version:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Get credentials" >> $GITHUB_STEP_SUMMARY
+          echo "gcloud container clusters get-credentials ${{ env.CLUSTER_NAME }} --region ${{ env.REGION }} --project ${{ env.PROJECT_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Rollback deployment" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl rollout undo deployment/hta-web -n hta-calibration" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Verify rollback" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl rollout status deployment/hta-web -n hta-calibration" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

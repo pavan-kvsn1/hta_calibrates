@@ -165,7 +165,7 @@ export function EnvironmentalSection({ feedbackSlot, disabled }: EnvironmentalSe
       feedbackSlot={feedbackSlot}
       disabled={disabled}
     >
-      <div className="space-y-6">
+      <div className="space-y-4 p-5 rounded-xl border border-slate-300 bg-section-inner">
         {/* Category-based requirements info */}
         {selectedCategories.length > 0 && (
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
@@ -187,7 +187,7 @@ export function EnvironmentalSection({ feedbackSlot, disabled }: EnvironmentalSe
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Ambient Temperature */}
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               Ambient Temperature <span className="text-red-500">*</span>
             </Label>
@@ -199,7 +199,7 @@ export function EnvironmentalSection({ feedbackSlot, disabled }: EnvironmentalSe
                 onChange={(e) => setFormField('ambientTemperature', e.target.value)}
                 placeholder={requirements.tempReference.toString()}
                 className={cn(
-                  "w-32 rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-bold text-center",
+                  "w-32 rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-bold text-center",
                   tempValidation.isValid === false && "border-red-300 bg-red-50"
                 )}
               />
@@ -231,7 +231,7 @@ export function EnvironmentalSection({ feedbackSlot, disabled }: EnvironmentalSe
           </div>
 
           {/* Relative Humidity */}
-          <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200">
             <Label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
               Relative Humidity <span className="text-red-500">*</span>
             </Label>
@@ -243,7 +243,7 @@ export function EnvironmentalSection({ feedbackSlot, disabled }: EnvironmentalSe
                 onChange={(e) => setFormField('relativeHumidity', e.target.value)}
                 placeholder="50"
                 className={cn(
-                  "w-32 rounded-xl border-slate-200 h-12 px-4 focus:ring-primary focus:border-primary font-bold text-center",
+                  "w-32 rounded-xl border-slate-300 h-12 px-4 focus:ring-primary focus:border-primary font-bold text-center",
                   rhValidation.isValid === false && "border-red-300 bg-red-50"
                 )}
               />

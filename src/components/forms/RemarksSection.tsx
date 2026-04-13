@@ -64,7 +64,7 @@ export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps =
       feedbackSlot={feedbackSlot}
       disabled={disabled}
     >
-      <div className="space-y-8">
+      <div className="space-y-4 p-5 rounded-xl border border-slate-300 bg-section-inner">
         {/* System Recommendation */}
         {recommendation && (
           <div className="bg-blue-50 rounded-2xl p-6 border border-blue-100 flex items-start gap-4">
@@ -82,7 +82,7 @@ export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps =
         )}
 
         {/* Calibration Status */}
-        <div>
+        <div className="bg-white rounded-xl p-4 border border-slate-200">
           <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">
             Calibration Status (check all that apply)
           </Label>
@@ -96,14 +96,14 @@ export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps =
                     'flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all',
                     isChecked
                       ? 'border-primary/20 bg-primary/5'
-                      : 'border-slate-100 bg-slate-50/30 hover:bg-white'
+                      : 'border-slate-300 bg-slate-50 hover:bg-slate-100'
                   )}
                 >
                   <input
                     type="checkbox"
                     checked={isChecked}
                     onChange={() => toggleCalibrationStatus(option.id)}
-                    className="rounded text-primary focus:ring-primary size-4"
+                    className="rounded border-slate-300 text-primary focus:ring-primary size-4"
                   />
                   <span
                     className={cn(
@@ -120,7 +120,7 @@ export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps =
         </div>
 
         {/* Sticker Status */}
-        <div className="pt-6 border-t border-slate-100">
+        <div className="bg-white rounded-xl p-4 border border-slate-200">
           <Label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">
             Sticker Status (internal tracking)
           </Label>
@@ -147,8 +147,8 @@ export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps =
                             ? 'border-green-500 bg-green-100 text-green-700'
                             : option.value === 'no'
                             ? 'border-red-500 bg-red-100 text-red-700'
-                            : 'border-slate-400 bg-slate-200 text-slate-700'
-                          : 'border-slate-100'
+                            : 'border-slate-300 bg-slate-200 text-slate-700'
+                          : 'border-slate-300'
                       )}
                     >
                       {option.label}
@@ -180,8 +180,8 @@ export function RemarksSection({ feedbackSlot, disabled }: RemarksSectionProps =
                             ? 'border-green-500 bg-green-100 text-green-700'
                             : option.value === 'no'
                             ? 'border-red-500 bg-red-100 text-red-700'
-                            : 'border-slate-400 bg-slate-200 text-slate-700'
-                          : 'border-slate-100'
+                            : 'border-slate-300 bg-slate-200 text-slate-700'
+                          : 'border-slate-300'
                       )}
                     >
                       {option.label}

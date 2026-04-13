@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -273,7 +274,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       reviewers,
     })
   } catch (error) {
-    console.error('Admin certificate fetch error:', error)
+    logger.error({ err: error }, 'Admin certificate fetch error')
     return NextResponse.json(
       { error: 'Failed to fetch certificate' },
       { status: 500 }

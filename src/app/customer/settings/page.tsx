@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { ChangePasswordForm } from '@/components/auth/ChangePasswordForm'
 import {
   Loader2,
   Crown,
@@ -14,7 +15,10 @@ import {
   Settings,
   UserCog,
   Building2,
+  Download,
+  Shield,
 } from 'lucide-react'
+import { DeleteAccountDialog } from '@/components/delete-account-dialog'
 import { format } from 'date-fns'
 
 interface TeamMember {
@@ -62,13 +66,6 @@ export default function SettingsPage() {
           throw new Error('Failed to fetch data')
         }
         const data = await res.json()
-
-        // Non-POC users should be redirected to dashboard
-        if (!data.isPrimaryPoc) {
-          router.push('/customer/dashboard')
-          return
-        }
-
         setTeamData(data)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load settings')
@@ -135,7 +132,8 @@ export default function SettingsPage() {
             <p className="text-slate-500 mt-1">{teamData.account.companyName}</p>
           </div>
 
-          {/* POC Change Section */}
+          {/* POC Change Section - Only visible to POC users */}
+          {teamData.isPrimaryPoc && (
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -211,31 +209,98 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+          )}
 
-          {/* Account Info */}
-          <Card>
+          {/* Account Info - Only for POC */}
+          {teamData.isPrimaryPoc && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-slate-400" />
+                  Account Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between py-2 border-b border-slate-100">
+                    <span className="text-slate-500">Company Name</span>
+                    <span className="font-medium">{teamData.account.companyName}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-slate-100">
+                    <span className="text-slate-500">Team Members</span>
+                    <span className="font-medium">{teamData.users.length}</span>
+                  </div>
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-500">Active Users</span>
+                    <span className="font-medium">
+                      {teamData.users.filter(u => u.isActive).length}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Password Change - Available to all users */}
+          <ChangePasswordForm apiEndpoint="/api/customer/change-password" />
+
+          {/* Data Privacy Section */}
+          <Card className="mt-6">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Building2 className="h-5 w-5 text-slate-400" />
-                Account Information
+                <Shield className="h-5 w-5 text-slate-400" />
+                Data & Privacy
               </CardTitle>
+              <CardDescription>
+                Manage your personal data and account
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between py-2 border-b border-slate-100">
-                  <span className="text-slate-500">Company Name</span>
-                  <span className="font-medium">{teamData.account.companyName}</span>
+            <CardContent className="space-y-6">
+              {/* Data Export */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-medium text-slate-900">Export Your Data</h3>
+                  <p className="text-sm text-slate-500">
+                    Download a copy of your personal data in JSON format
+                  </p>
                 </div>
-                <div className="flex justify-between py-2 border-b border-slate-100">
-                  <span className="text-slate-500">Team Members</span>
-                  <span className="font-medium">{teamData.users.length}</span>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    window.location.href = '/api/customer/data-export'
+                  }}
+                >
+                  <Download className="h-4 w-4" />
+                  Export Data
+                </Button>
+              </div>
+
+              {/* Privacy Policy Link */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-medium text-slate-900">Privacy Policy</h3>
+                  <p className="text-sm text-slate-500">
+                    Learn how we collect, use, and protect your data
+                  </p>
                 </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-slate-500">Active Users</span>
-                  <span className="font-medium">
-                    {teamData.users.filter(u => u.isActive).length}
-                  </span>
+                <Link href="/privacy">
+                  <Button variant="outline" className="gap-2">
+                    View Privacy Policy
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Delete Account */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-medium text-slate-900">Delete Account</h3>
+                  <p className="text-sm text-slate-500">
+                    Permanently delete your account and personal data
+                  </p>
                 </div>
+                <DeleteAccountDialog />
               </div>
             </CardContent>
           </Card>

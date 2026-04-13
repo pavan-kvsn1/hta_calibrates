@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 // GET /api/customer/register/companies - Get list of active customer accounts for registration
 export async function GET() {
@@ -15,7 +18,7 @@ export async function GET() {
 
     return NextResponse.json({ companies: accounts })
   } catch (error) {
-    console.error('Error fetching companies:', error)
+    logger.error({ err: error }, 'Failed to fetch companies for registration')
     return NextResponse.json(
       { error: 'Failed to fetch companies' },
       { status: 500 }

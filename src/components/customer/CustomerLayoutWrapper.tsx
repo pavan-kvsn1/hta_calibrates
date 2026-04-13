@@ -3,6 +3,7 @@
 import { useState, useEffect, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { CustomerPortalHeader } from './CustomerPortalHeader'
+import { AppFooter } from '@/components/layout/AppFooter'
 
 interface CustomerLayoutWrapperProps {
   children: ReactNode
@@ -50,19 +51,22 @@ export function CustomerLayoutWrapper({
   return (
     <div
       className={cn(
-        'min-h-screen flex flex-col transition-all duration-200',
+        'h-screen flex flex-col transition-all duration-200 overflow-hidden',
         isCollapsed ? 'ml-16' : 'ml-56'
       )}
     >
       {/* Green Header Banner */}
-      <CustomerPortalHeader
-        companyName={companyName}
-        isPrimaryPoc={isPrimaryPoc}
-      />
+      <div className="flex-shrink-0">
+        <CustomerPortalHeader
+          companyName={companyName}
+          isPrimaryPoc={isPrimaryPoc}
+        />
+      </div>
 
-      {/* Main Content */}
-      <main className="flex-1">
-        {children}
+      {/* Main Content - fills remaining height */}
+      <main className="flex-1 overflow-auto flex flex-col">
+        <div className="flex-1">{children}</div>
+        <AppFooter />
       </main>
     </div>
   )

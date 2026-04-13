@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { AdminHeader } from './AdminHeader'
+import { AppFooter } from '@/components/layout/AppFooter'
 
 const STORAGE_KEY = 'admin-sidebar-collapsed'
 
@@ -54,8 +55,9 @@ export function AdminLayoutWrapper({ children, showEngineerSwitch = false }: Adm
       <AdminHeader showEngineerSwitch={showEngineerSwitch} />
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        {children}
+      <main className="flex-1 overflow-auto bg-section-inner flex flex-col">
+        <div className="flex-1">{children}</div>
+        <AppFooter />
       </main>
     </div>
   )

@@ -97,14 +97,19 @@ const TypedSignature = forwardRef<TypedSignatureHandle, TypedSignatureProps>(
       return true
     }, [name, fontLoaded])
 
-    // Render signature whenever name changes
+    // Notify when name is valid (for button enable/disable)
+    useEffect(() => {
+      const hasValidName = name.trim().length > 0
+      setHasSignature(hasValidName)
+      onSignatureReady?.(hasValidName)
+    }, [name, onSignatureReady])
+
+    // Render signature on canvas whenever name or font changes
     useEffect(() => {
       if (fontLoaded) {
-        const hasValidSignature = renderSignature()
-        setHasSignature(hasValidSignature)
-        onSignatureReady?.(hasValidSignature)
+        renderSignature()
       }
-    }, [name, fontLoaded, renderSignature, onSignatureReady])
+    }, [name, fontLoaded, renderSignature])
 
     useImperativeHandle(ref, () => ({
       clear: () => {

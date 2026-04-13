@@ -51,6 +51,11 @@ interface CustomerFeedback {
   requestedAt: string
 }
 
+interface LastSentCustomerInfo {
+  email: string | null
+  name: string | null
+}
+
 interface ReviewerPageClientProps {
   certificate: CertificateData
   assignee: Assignee
@@ -59,6 +64,7 @@ interface ReviewerPageClientProps {
   headerData: HeaderData
   userRole: string
   customerFeedback: CustomerFeedback | null
+  lastSentCustomerInfo: LastSentCustomerInfo | null
 }
 
 
@@ -70,6 +76,7 @@ export function ReviewerPageClient({
   headerData,
   userRole,
   customerFeedback,
+  lastSentCustomerInfo,
 }: ReviewerPageClientProps) {
   const router = useRouter()
 
@@ -301,13 +308,13 @@ export function ReviewerPageClient({
   }, [certificate.id, certificate.certificateNumber])
 
   return (
-    <div className="flex h-full bg-slate-100 p-3 gap-3">
+    <div className="flex h-full bg-slate-100">
       {/* Left Side - Header + Content (Scrollable) */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Certificate Card - Bounding Box */}
         <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header Section - Fixed at top of content area */}
-          <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
+          <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4 bg-slate-50">
           {/* Header Content */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -345,7 +352,7 @@ export function ReviewerPageClient({
           </div>
 
           {/* Meta Info Row */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm mt-3">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm mt-3 pt-3 border-t border-muted-foreground/40">
             <MetaInfoItem icon={User} emphasized>{headerData.assigneeName}</MetaInfoItem>
             <MetaInfoItem icon={Building2}>{headerData.customerName}</MetaInfoItem>
             <MetaInfoItem icon={MapPin}>
@@ -359,16 +366,14 @@ export function ReviewerPageClient({
           </div>
 
           {/* Content Area - Scrollable */}
-          <div className="flex-1 overflow-auto bg-slate-50/30">
+          <div className="flex-1 overflow-auto p-6 bg-section-inner">
             {viewMode === 'details' ? (
-              <div className="p-6">
-                <ReviewerContent
-                  certificate={certificate}
-                  assignee={assignee}
-                  feedbacks={feedbacks}
-                  customerFeedback={customerFeedback}
-                />
-              </div>
+              <ReviewerContent
+                certificate={certificate}
+                assignee={assignee}
+                feedbacks={feedbacks}
+                customerFeedback={customerFeedback}
+              />
             ) : (
               <InlinePDFViewer
                 certificateId={certificate.id}
@@ -380,11 +385,11 @@ export function ReviewerPageClient({
       </div>
 
       {/* Right Panel - Collapsible Chat & Actions */}
-      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3">
+      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 bg-section-inner p-2">
 
         {/* ===== CHAT SECTION ===== */}
         <div className={cn(
-          'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
+          'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden ',
           isChatExpanded ? 'flex-1 min-h-0' : 'flex-shrink-0'
         )}>
           {/* Chat Header - Collapsible */}
@@ -552,7 +557,7 @@ export function ReviewerPageClient({
                     onClick={() => setShowRevisionModal(true)}
                     variant="outline"
                     size="sm"
-                    className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 h-9 text-xs font-medium"
+                    className="w-full bg-amber-600 hover:bg-amber-700 text-white h-9 text-xs font-medium"
                   >
                     <RotateCcw className="h-3.5 w-3.5 mr-2" />
                     Request Revision
@@ -563,7 +568,7 @@ export function ReviewerPageClient({
                     onClick={() => setShowRejectModal(true)}
                     variant="outline"
                     size="sm"
-                    className="w-full border-red-300 text-red-700 hover:bg-red-50 h-9 text-xs font-medium"
+                    className="w-full bg-red-600 hover:bg-red-700 text-white h-9 text-xs font-medium"
                   >
                     <XCircle className="h-3.5 w-3.5 mr-2" />
                     Reject
@@ -673,7 +678,8 @@ export function ReviewerPageClient({
         certificateId={certificate.id}
         certificateNumber={certificate.certificateNumber}
         uucDescription={certificate.uucDescription}
-        customerName={certificate.customerName}
+        customerName={certificate.customerContactName || certificate.customerName}
+        customerEmail={certificate.customerContactEmail || customerFeedback?.customerEmail || lastSentCustomerInfo?.email || null}
         onApprove={handleApprove}
       />
 

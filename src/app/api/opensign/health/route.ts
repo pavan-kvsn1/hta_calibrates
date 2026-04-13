@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { isOpenSignHealthy } from '@/lib/services/opensign'
 import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('opensign')
 
 /**
  * GET /api/opensign/health
@@ -48,7 +51,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('OpenSign health check error:', error)
+    logger.error({ err: error }, 'OpenSign health check failed')
     return NextResponse.json(
       { error: 'Health check failed', configured: false, healthy: false },
       { status: 500 }

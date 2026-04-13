@@ -13,6 +13,8 @@ import {
   type ClientEvidence,
 } from '@/lib/stores/signing-evidence'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { invalidateOnCertificateStatusChange } from '@/lib/cache/invalidation'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -334,9 +336,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
         await appendSigningEvidence(id, signature.id, 'ASSIGNEE_SIGNED', evidencePayload, updatedCert.currentRevision)
       } catch (evidenceError) {
         // Log but don't fail the submission if evidence capture fails
-        console.error('Failed to capture signing evidence:', evidenceError)
+        logger.error({ err: evidenceError }, 'Failed to capture signing evidence')
       }
     }
+
+    // Invalidate caches after status change
+    await invalidateOnCertificateStatusChange(updatedCert.id, session.user.id)
 
     // Send notifications (fire and forget, don't block response)
     if (useNewWorkflow && reviewer) {
@@ -347,14 +352,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
           certificateNumber: updatedCert.certificateNumber,
           assigneeName: session.user.name || 'Engineer',
           reviewerId: reviewer.id,
-        }).catch((err) => console.error('Failed to send notification:', err))
+        }).catch((err) => logger.error({ err }, 'Failed to send reviewer notification'))
       } else {
         notifyReviewerOnSubmit({
           certificateId: updatedCert.id,
           certificateNumber: updatedCert.certificateNumber,
           assigneeName: session.user.name || 'Engineer',
           reviewerId: reviewer.id,
-        }).catch((err) => console.error('Failed to send notification:', err))
+          customerName: certificate.customerName || undefined,
+        }).catch((err) => logger.error({ err }, 'Failed to send reviewer notification'))
       }
     }
 
@@ -372,7 +378,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     })
   } catch (error) {
-    console.error('Error submitting certificate:', error)
+    logger.error({ err: error }, 'Error submitting certificate')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

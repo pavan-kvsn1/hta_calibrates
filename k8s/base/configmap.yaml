@@ -7,11 +7,13 @@ metadata:
     app.kubernetes.io/name: hta-calibration
     app.kubernetes.io/part-of: hta-calibration
 data:
+  # Base values - overridden by environment overlays
   NODE_ENV: "production"
   PORT: "3000"
-  NEXTAUTH_URL: "http://34.93.30.240"
-  AUTH_URL: "http://34.180.4.228"
   AUTH_TRUST_HOST: "true"
-  GCS_CERTIFICATES_BUCKET: "hta-calibration-dev1-certificates-dev"
-  GCS_SIGNATURES_BUCKET: "hta-calibration-dev1-signatures-dev"
-  GCS_UPLOADS_BUCKET: "hta-calibration-dev1-uploads-dev"
+  # These MUST be set in overlay patches:
+  NEXTAUTH_URL: "https://REPLACE_IN_OVERLAY"
+  AUTH_URL: "https://REPLACE_IN_OVERLAY"
+  GCS_CERTIFICATES_BUCKET: "REPLACE_IN_OVERLAY"
+  GCS_SIGNATURES_BUCKET: "REPLACE_IN_OVERLAY"
+  GCS_UPLOADS_BUCKET: "REPLACE_IN_OVERLAY"

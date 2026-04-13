@@ -5,7 +5,7 @@ metadata:
   namespace: hta-calibration
 spec:
   domains:
-    - http://34.180.25.98       # TODO: Replace with your actual domain
+    - hta-calibration.com  # Override in overlay for dev/staging
 
 ---
 apiVersion: networking.k8s.io/v1
@@ -14,8 +14,11 @@ metadata:
   name: hta-calibration-ingress
   namespace: hta-calibration
   annotations:
+    kubernetes.io/ingress.class: "gce"
     kubernetes.io/ingress.global-static-ip-name: hta-calibration-ip
     networking.gke.io/managed-certificates: hta-calibration-cert
+    # Enable HTTPS redirect
+    kubernetes.io/ingress.allow-http: "false"
 spec:
   defaultBackend:
     service:

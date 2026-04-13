@@ -1,0 +1,22 @@
+# Ingress and ManagedCertificate patch for Production
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: hta-calibration-cert
+  namespace: hta-calibration
+spec:
+  domains:
+    - hta-calibration.com
+    - www.hta-calibration.com
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hta-calibration-ingress
+  namespace: hta-calibration
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: hta-calibration-prod-ip
+    networking.gke.io/managed-certificates: hta-calibration-cert

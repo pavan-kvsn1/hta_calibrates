@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { cached, CacheKeys, CacheTTL } from '@/lib/cache'
 
 // Render at runtime, not build time (needs database)
 export const dynamic = 'force-dynamic'
@@ -10,54 +11,68 @@ import { Button } from '@/components/ui/button'
 import { Plus, FileText, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 
 async function getCertificates(userId: string): Promise<CertificateListItem[]> {
-  const certificates = await prisma.certificate.findMany({
-    where: {
-      createdById: userId,
-    },
-    include: {
-      reviewer: {
-        select: { id: true, name: true },
-      },
-    },
-    orderBy: { updatedAt: 'desc' },
-  })
+  // Cache engineer's certificates for 30 seconds - they work actively on these
+  return cached(
+    CacheKeys.engineerCertificates(userId),
+    async () => {
+      const certificates = await prisma.certificate.findMany({
+        where: {
+          createdById: userId,
+        },
+        include: {
+          reviewer: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: { updatedAt: 'desc' },
+      })
 
-  return certificates.map((cert) => ({
-    id: cert.id,
-    certificateNumber: cert.certificateNumber,
-    status: cert.status,
-    customerName: cert.customerName || '-',
-    uucDescription: cert.uucDescription || '-',
-    dateOfCalibration: cert.dateOfCalibration?.toISOString() || '',
-    currentVersion: cert.currentRevision,
-    createdAt: cert.createdAt.toISOString(),
-    reviewerName: cert.reviewer?.name || undefined,
-  }))
+      return certificates.map((cert) => ({
+        id: cert.id,
+        certificateNumber: cert.certificateNumber,
+        status: cert.status,
+        customerName: cert.customerName || '-',
+        uucDescription: cert.uucDescription || '-',
+        dateOfCalibration: cert.dateOfCalibration?.toISOString() || '',
+        currentVersion: cert.currentRevision,
+        createdAt: cert.createdAt.toISOString(),
+        reviewerName: cert.reviewer?.name || undefined,
+      }))
+    },
+    { ttl: CacheTTL.VERY_SHORT }
+  )
 }
 
 async function getStats(userId: string) {
-  const [draft, pending, approved, revision] = await Promise.all([
-    prisma.certificate.count({
-      where: { createdById: userId, status: 'DRAFT' },
-    }),
-    prisma.certificate.count({
-      where: {
-        createdById: userId,
-        status: { in: ['PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'] },
-      },
-    }),
-    prisma.certificate.count({
-      where: { createdById: userId, status: 'APPROVED' },
-    }),
-    prisma.certificate.count({
-      where: {
-        createdById: userId,
-        status: { in: ['REVISION_REQUIRED', 'CUSTOMER_REVISION_REQUIRED'] },
-      },
-    }),
-  ])
+  // Cache engineer's stats for 30 seconds
+  return cached(
+    CacheKeys.engineerDashboard(userId),
+    async () => {
+      const [draft, pending, approved, revision] = await Promise.all([
+        prisma.certificate.count({
+          where: { createdById: userId, status: 'DRAFT' },
+        }),
+        prisma.certificate.count({
+          where: {
+            createdById: userId,
+            status: { in: ['PENDING_REVIEW', 'PENDING_CUSTOMER_APPROVAL'] },
+          },
+        }),
+        prisma.certificate.count({
+          where: { createdById: userId, status: 'APPROVED' },
+        }),
+        prisma.certificate.count({
+          where: {
+            createdById: userId,
+            status: { in: ['REVISION_REQUIRED', 'CUSTOMER_REVISION_REQUIRED'] },
+          },
+        }),
+      ])
 
-  return { draft, pending, approved, revision }
+      return { draft, pending, approved, revision }
+    },
+    { ttl: CacheTTL.VERY_SHORT }
+  )
 }
 
 export default async function EngineerDashboard() {

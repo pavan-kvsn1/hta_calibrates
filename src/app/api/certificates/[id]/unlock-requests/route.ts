@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { certificateLogger as logger } from '@/lib/logger'
 
 // GET /api/certificates/[id]/unlock-requests - Get section unlock requests for a certificate
 export async function GET(
@@ -61,7 +62,7 @@ export async function GET(
     const feedbacks = await prisma.reviewFeedback.findMany({
       where: {
         certificateId,
-        feedbackType: { in: ['REVISION_REQUEST', 'CUSTOMER_REVISION_FORWARDED'] },
+        feedbackType: { in: ['REVISION_REQUESTED', 'CUSTOMER_REVISION_FORWARDED'] },
         targetSection: { not: null },
       },
       select: { targetSection: true },
@@ -102,7 +103,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error fetching unlock requests:', error)
+    logger.error({ err: error }, 'Error fetching unlock requests')
     return NextResponse.json(
       { error: 'Failed to fetch unlock requests' },
       { status: 500 }

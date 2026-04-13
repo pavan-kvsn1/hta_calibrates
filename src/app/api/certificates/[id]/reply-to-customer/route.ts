@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { notifyCustomerOnReviewerReply } from '@/lib/services/notifications'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -221,7 +222,7 @@ export async function POST(
         certificateId: certificate.id,
         certificateNumber: certificate.certificateNumber,
         customerId: result.customerId,
-      }).catch((err) => console.error('Failed to send notification:', err))
+      }).catch((err) => logger.error({ err }, 'Failed to send customer notification'))
     }
 
     return NextResponse.json({
@@ -234,7 +235,7 @@ export async function POST(
       resent: result.resent,
     })
   } catch (error) {
-    console.error('Error replying to customer:', error)
+    logger.error({ err: error }, 'Error replying to customer')
     return NextResponse.json(
       { error: 'Failed to reply to customer' },
       { status: 500 }

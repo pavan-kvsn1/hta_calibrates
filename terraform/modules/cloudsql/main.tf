@@ -74,6 +74,12 @@ resource "google_sql_database_instance" "main" {
       value = "0"
     }
 
+    # Slow query logging - log queries taking > 1 second
+    database_flags {
+      name  = "log_min_duration_statement"
+      value = "1000"  # milliseconds
+    }
+
     database_flags {
       name  = "max_connections"
       value = var.max_connections

@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { CustomerCertificateHeader } from './CustomerCertificateHeader'
 import { CustomerCertificateContent } from './CustomerCertificateContent'
 import { CustomerApprovalActions } from './CustomerApprovalActions'
 import { ChatSidebar } from '@/components/chat/ChatSidebar'
 import { InlinePDFViewer } from '@/app/(dashboard)/dashboard/reviewer/[id]/InlinePDFViewer'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Clock, AlertTriangle } from 'lucide-react'
 import type {
   CertificateData,
   CertificateSignature,
@@ -26,6 +26,94 @@ interface CustomerCertReviewClientProps {
   signatures: Signature[]
   chatThreadId: string | null
   headerData: HeaderData
+  expiresAt: string | null
+  sentAt: string | null
+}
+
+function formatDate(dateString: string | null): string {
+  if (!dateString) return '-'
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function formatTATTime(ms: number): { hours: number; minutes: number } {
+  const hours = Math.floor(ms / (1000 * 60 * 60))
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  return { hours, minutes }
+}
+
+function TATBanner({ sentAt, targetHours = 48 }: { sentAt: string; targetHours?: number }) {
+  const [elapsed, setElapsed] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 })
+  const [remaining, setRemaining] = useState<{ hours: number; minutes: number }>({ hours: 0, minutes: 0 })
+  const [status, setStatus] = useState<'good' | 'warning' | 'critical'>('good')
+
+  useEffect(() => {
+    const calculateTAT = () => {
+      const sentTime = new Date(sentAt).getTime()
+      const now = Date.now()
+      const elapsedMs = now - sentTime
+      const targetMs = targetHours * 60 * 60 * 1000
+      const remainingMs = targetMs - elapsedMs
+
+      setElapsed(formatTATTime(elapsedMs))
+
+      if (remainingMs <= 0) {
+        setRemaining({ hours: 0, minutes: 0 })
+        setStatus('critical')
+      } else if (remainingMs <= 6 * 60 * 60 * 1000) { // < 6 hours
+        setRemaining(formatTATTime(remainingMs))
+        setStatus('warning')
+      } else {
+        setRemaining(formatTATTime(remainingMs))
+        setStatus('good')
+      }
+    }
+
+    calculateTAT()
+    const interval = setInterval(calculateTAT, 60000) // Update every minute
+
+    return () => clearInterval(interval)
+  }, [sentAt, targetHours])
+
+  const statusColors = {
+    good: 'bg-green-50 border-green-200 text-green-800',
+    warning: 'bg-amber-50 border-amber-200 text-amber-800',
+    critical: 'bg-red-50 border-red-200 text-red-800',
+  }
+
+  const statusIcons = {
+    good: <Clock className="h-4 w-4 text-green-600" />,
+    warning: <AlertTriangle className="h-4 w-4 text-amber-600" />,
+    critical: <AlertTriangle className="h-4 w-4 text-red-600" />,
+  }
+
+  return (
+    <div className={`px-4 py-2 rounded-lg border ${statusColors[status]} flex items-center justify-between text-sm mb-3`}>
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          {statusIcons[status]}
+          <span className="font-medium">
+            TAT: {elapsed.hours}h {elapsed.minutes}m elapsed
+          </span>
+        </div>
+        <span className="text-gray-500">|</span>
+        <span>Target: {targetHours}h</span>
+      </div>
+      <div>
+        {status === 'critical' ? (
+          <span className="font-medium text-red-700">Target exceeded</span>
+        ) : (
+          <span>
+            {remaining.hours}h {remaining.minutes}m remaining
+          </span>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function CustomerCertReviewClient({
@@ -34,6 +122,8 @@ export function CustomerCertReviewClient({
   signatures,
   chatThreadId,
   headerData,
+  expiresAt,
+  sentAt,
 }: CustomerCertReviewClientProps) {
   // View mode state: 'details' shows certificate content, 'pdf' shows PDF preview
   const [viewMode, setViewMode] = useState<'details' | 'pdf'>('details')
@@ -46,6 +136,9 @@ export function CustomerCertReviewClient({
   // Check if customer can take action
   const canApprove = certificate.status === 'PENDING_CUSTOMER_APPROVAL' || certificate.status === 'CUSTOMER_REVISION_REQUIRED'
   const isAuthorized = certificate.status === 'AUTHORIZED'
+
+  // Check if certificate is completed (read-only)
+  const isCompleted = ['APPROVED', 'PENDING_ADMIN_AUTHORIZATION', 'PENDING_ADMIN_APPROVAL', 'AUTHORIZED'].includes(certificate.status)
 
   // Handle download PDF (only for authorized certificates)
   const handleDownload = useCallback(async () => {
@@ -74,25 +167,37 @@ export function CustomerCertReviewClient({
   }, [certificate.id, certificate.certificateNumber])
 
   return (
-    <div className="flex h-full bg-slate-100 p-3 gap-3">
-      {/* Left Side - Header + Content (Scrollable) */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Certificate Card - Bounding Box */}
-        <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Header Section - Fixed at top of content area */}
-          <CustomerCertificateHeader
-            headerData={headerData}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            isAuthorized={isAuthorized}
-            onDownload={isAuthorized ? handleDownload : undefined}
-            isDownloading={isDownloading}
-          />
+    <div className="flex flex-col h-full bg-slate-100 pt-3 overflow-hidden">
+      {/* TAT Banner - Only show when not completed and has sentAt */}
+      {sentAt && !isCompleted && (
+        <div className="flex-shrink-0">
+          <TATBanner sentAt={sentAt} />
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Left Side - Certificate with scrollable content */}
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          {/* Certificate Card */}
+          <div className="flex-1 flex flex-col rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Header Section - Fixed */}
+            <div className="flex-shrink-0">
+              <CustomerCertificateHeader
+              headerData={headerData}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              isAuthorized={isAuthorized}
+              onDownload={isAuthorized ? handleDownload : undefined}
+              isDownloading={isDownloading}
+              expiresAt={expiresAt}
+            />
+          </div>
 
           {/* Content Area - Scrollable */}
-          <div className="flex-1 overflow-auto bg-slate-50/30">
+          <div className="flex-1 overflow-y-auto bg-section-inner">
             {viewMode === 'details' ? (
-              <div className="p-6 space-y-6">
+              <div className="p-4 space-y-6">
                 <CustomerCertificateContent
                   certificate={certificate}
                   signatures={signatures}
@@ -108,8 +213,8 @@ export function CustomerCertReviewClient({
         </div>
       </div>
 
-      {/* Right Panel - Collapsible Chat & Actions */}
-      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+      {/* Right Panel - Fixed to screen height, no independent scroll */}
+      <div className="w-[380px] flex-shrink-0 flex flex-col p-2 gap-3 h-full overflow-hidden bg-section-inner">
         {/* ===== CHAT SECTION ===== */}
         <div className={cn(
           'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',
@@ -195,6 +300,7 @@ export function CustomerCertReviewClient({
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

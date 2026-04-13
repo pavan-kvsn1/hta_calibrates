@@ -23,6 +23,7 @@ export async function createTestUser(
     name: string
     role: string
     isAdmin: boolean
+    isActive: boolean
     passwordHash: string
     assignedAdminId: string | null
   }> = {}
@@ -32,6 +33,7 @@ export async function createTestUser(
     name: 'Test User',
     role: 'ENGINEER',
     isAdmin: false,
+    isActive: true, // Test users are assumed to be activated
     passwordHash: DEFAULT_PASSWORD_HASH,
     assignedAdminId: null,
   }

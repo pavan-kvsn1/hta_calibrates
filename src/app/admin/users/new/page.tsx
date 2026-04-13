@@ -14,7 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ArrowLeft, Loader2, Mail, CheckCircle } from 'lucide-react'
 
 interface Admin {
   id: string
@@ -28,15 +29,12 @@ export default function CreateUserPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [success, setSuccess] = useState<{ email: string } | null>(null)
   const [admins, setAdmins] = useState<Admin[]>([])
 
   const [formData, setFormData] = useState({
     email: '',
     name: '',
-    password: '',
-    confirmPassword: '',
     role: 'ENGINEER',
     assignedAdminId: '',
     adminType: 'WORKER',
@@ -53,22 +51,7 @@ export default function CreateUserPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    // Validation
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters')
-      return
-    }
-
-    if (!/\d/.test(formData.password)) {
-      setError('Password must contain at least one number')
-      return
-    }
+    setSuccess(null)
 
     if (formData.role === 'ENGINEER' && !formData.assignedAdminId) {
       setError('Please select an Admin for this engineer')
@@ -84,7 +67,6 @@ export default function CreateUserPage() {
         body: JSON.stringify({
           email: formData.email,
           name: formData.name,
-          password: formData.password,
           role: formData.role,
           assignedAdminId: formData.role === 'ENGINEER' ? formData.assignedAdminId : undefined,
           adminType: formData.role === 'ADMIN' ? formData.adminType : undefined,
@@ -97,7 +79,7 @@ export default function CreateUserPage() {
         throw new Error(data.error || 'Failed to create user')
       }
 
-      router.push('/admin/users')
+      setSuccess({ email: formData.email })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create user')
     } finally {
@@ -105,16 +87,69 @@ export default function CreateUserPage() {
     }
   }
 
+  if (success) {
+    return (
+      <div className="p-3 h-full">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+          <div className="p-6 overflow-auto h-full">
+            <div className="max-w-md mx-auto mt-12">
+              <div className="text-center">
+                <div className="size-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                </div>
+                <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                  User Created Successfully
+                </h2>
+                <p className="text-slate-600 mb-6">
+                  An activation email has been sent to{' '}
+                  <strong>{success.email}</strong>
+                </p>
+                <Alert className="mb-6 text-left">
+                  <Mail className="h-4 w-4" />
+                  <AlertDescription>
+                    The user will need to click the activation link in their email
+                    to set their password and activate their account. The link
+                    expires in 24 hours.
+                  </AlertDescription>
+                </Alert>
+                <div className="flex gap-3 justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSuccess(null)
+                      setFormData({
+                        email: '',
+                        name: '',
+                        role: 'ENGINEER',
+                        assignedAdminId: '',
+                        adminType: 'WORKER',
+                      })
+                    }}
+                  >
+                    Create Another User
+                  </Button>
+                  <Button onClick={() => router.push('/admin/users')}>
+                    Back to Users
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-3 h-full">
       {/* Master Bounding Box */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
         <div className="p-6 overflow-auto h-full">
-          <div className="max-w-2xl">
+          <div className="border border-slate-300 rounded-lg">
             {/* Back Link */}
             <Link
               href="/admin/users"
-              className="inline-flex items-center text-sm text-slate-600 hover:text-slate-900 mb-6"
+              className="inline-flex items-center text-lg font-semibold text-slate-1000 hover:text-slate-600 mb-6 pt-6 pl-6"
             >
               <ArrowLeft className="h-4 w-4 mr-1" />
               Back to Users
@@ -123,6 +158,9 @@ export default function CreateUserPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Create Staff User</CardTitle>
+                <p className="text-sm text-slate-500 mt-1">
+                  An activation email will be sent to the user to set their password.
+                </p>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
@@ -144,7 +182,11 @@ export default function CreateUserPage() {
                         setFormData((prev) => ({ ...prev, email: e.target.value }))
                       }
                       required
+                      className='border border-slate-300 rounded-sm'
                     />
+                    <p className="text-xs text-slate-500">
+                      Activation link will be sent to this email
+                    </p>
                   </div>
 
                   {/* Name */}
@@ -159,66 +201,8 @@ export default function CreateUserPage() {
                         setFormData((prev) => ({ ...prev, name: e.target.value }))
                       }
                       required
+                      className='border border-slate-300 rounded-sm'
                     />
-                  </div>
-
-                  {/* Password */}
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? 'text' : 'password'}
-                        placeholder="At least 8 characters with 1 number"
-                        value={formData.password}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, password: e.target.value }))
-                        }
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Confirm Password */}
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <div className="relative">
-                      <Input
-                        id="confirmPassword"
-                        type={showConfirm ? 'text' : 'password'}
-                        placeholder="Re-enter password"
-                        value={formData.confirmPassword}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            confirmPassword: e.target.value,
-                          }))
-                        }
-                        required
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowConfirm(!showConfirm)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      >
-                        {showConfirm ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    </div>
                   </div>
 
                   {/* Role */}
@@ -230,7 +214,7 @@ export default function CreateUserPage() {
                         setFormData((prev) => ({ ...prev, role: value, assignedAdminId: '', adminType: 'WORKER' }))
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="border border-slate-300 rounded-sm si">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -250,7 +234,7 @@ export default function CreateUserPage() {
                           setFormData((prev) => ({ ...prev, assignedAdminId: value }))
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="border border-slate-300 rounded-sm">
                           <SelectValue placeholder="Select Admin..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -324,8 +308,17 @@ export default function CreateUserPage() {
                       className="bg-green-600 hover:bg-green-700"
                       disabled={loading}
                     >
-                      {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      Create User
+                      {loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="h-4 w-4 mr-2" />
+                          Create & Send Activation Email
+                        </>
+                      )}
                     </Button>
                   </div>
                 </form>

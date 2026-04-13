@@ -7,6 +7,7 @@ import {
   User,
   Shield,
   Building2,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CollapsibleSection } from '@/components/certificate/CollapsibleSection'
@@ -16,6 +17,12 @@ import { MasterInstrumentsTable } from '@/components/certificate/MasterInstrumen
 import { CalibrationResultsTable } from '@/components/certificate/CalibrationResultsTable'
 import { getConclusionText } from '@/components/pdf/pdf-utils'
 import { CALIBRATION_STATUS_OPTIONS } from '@/components/forms/RemarksSection'
+import {
+  ImageGalleryModal,
+  ReadingImagesViewModal,
+  type GalleryImage,
+  type ParameterReadingImages,
+} from '@/components/certificate'
 import type { CertificateData, Signature } from './CustomerCertReviewClient'
 
 interface CustomerCertificateContentProps {
@@ -38,8 +45,132 @@ export function CustomerCertificateContent({
     section7: true,
   })
 
+  // Image modal state
+  const [uucImagesModal, setUucImagesModal] = useState<{
+    isOpen: boolean
+    images: GalleryImage[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, images: [], isLoading: false, error: null })
+
+  const [readingImagesModal, setReadingImagesModal] = useState<{
+    isOpen: boolean
+    parameters: ParameterReadingImages[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, parameters: [], isLoading: false, error: null })
+
+  const [masterImagesModal, setMasterImagesModal] = useState<{
+    isOpen: boolean
+    images: GalleryImage[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, images: [], isLoading: false, error: null })
+
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  // Fetch UUC images
+  const fetchUucImages = async () => {
+    setUucImagesModal({ isOpen: true, images: [], isLoading: true, error: null })
+    try {
+      const response = await fetch(`/api/certificates/${certificate.id}/images?type=UUC`)
+      if (!response.ok) throw new Error('Failed to fetch images')
+      const data = await response.json()
+      setUucImagesModal({
+        isOpen: true,
+        images: data.images || [],
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setUucImagesModal({
+        isOpen: true,
+        images: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
+  }
+
+  // Fetch reading images for all parameters
+  const fetchReadingImages = async () => {
+    setReadingImagesModal({ isOpen: true, parameters: [], isLoading: true, error: null })
+    try {
+      const [uucResponse, masterResponse] = await Promise.all([
+        fetch(`/api/certificates/${certificate.id}/images?type=READING_UUC`),
+        fetch(`/api/certificates/${certificate.id}/images?type=READING_MASTER`),
+      ])
+
+      if (!uucResponse.ok || !masterResponse.ok) throw new Error('Failed to fetch images')
+
+      const [uucData, masterData] = await Promise.all([
+        uucResponse.json(),
+        masterResponse.json(),
+      ])
+
+      // Build parameter structure with images
+      const parameters: ParameterReadingImages[] = certificate.parameters.map((param, paramIndex) => ({
+        parameterIndex: paramIndex,
+        parameterName: param.parameterName,
+        parameterUnit: param.parameterUnit,
+        points: param.results.map((result) => {
+          const uucImage = uucData.images?.find(
+            (img: { parameterIndex: number; pointNumber: number }) =>
+              img.parameterIndex === paramIndex && img.pointNumber === result.pointNumber
+          )
+          const masterImage = masterData.images?.find(
+            (img: { parameterIndex: number; pointNumber: number }) =>
+              img.parameterIndex === paramIndex && img.pointNumber === result.pointNumber
+          )
+          return {
+            pointNumber: result.pointNumber,
+            standardReading: result.standardReading,
+            uucReading: result.beforeAdjustment,
+            uucImage: uucImage || null,
+            masterImage: masterImage || null,
+          }
+        }),
+      }))
+
+      setReadingImagesModal({
+        isOpen: true,
+        parameters,
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setReadingImagesModal({
+        isOpen: true,
+        parameters: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
+  }
+
+  // Fetch master instrument images
+  const fetchMasterImages = async () => {
+    setMasterImagesModal({ isOpen: true, images: [], isLoading: true, error: null })
+    try {
+      const response = await fetch(`/api/certificates/${certificate.id}/images?type=MASTER_INSTRUMENT`)
+      if (!response.ok) throw new Error('Failed to fetch images')
+      const data = await response.json()
+      setMasterImagesModal({
+        isOpen: true,
+        images: data.images || [],
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setMasterImagesModal({
+        isOpen: true,
+        images: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -159,6 +290,19 @@ export function CustomerCertificateContent({
         title="Section 2: UUC Details"
         isExpanded={expandedSections.section2}
         onToggle={() => toggleSection('section2')}
+        actionButton={
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              fetchUucImages()
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+          >
+            <ImageIcon className="size-3.5" />
+            View Images
+          </button>
+        }
       >
         <div className="space-y-6">
           {/* Basic UUC Info */}
@@ -301,6 +445,19 @@ export function CustomerCertificateContent({
         title="Section 3: Master Instruments"
         isExpanded={expandedSections.section3}
         onToggle={() => toggleSection('section3')}
+        actionButton={
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              fetchMasterImages()
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+          >
+            <ImageIcon className="size-3.5" />
+            View Images
+          </button>
+        }
       >
         <MasterInstrumentsTable instruments={certificate.masterInstruments} />
       </CollapsibleSection>
@@ -333,6 +490,21 @@ export function CustomerCertificateContent({
             <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
               Out of Limit
             </span>
+          ) : undefined
+        }
+        actionButton={
+          certificate.parameters.length > 0 ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                fetchReadingImages()
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+            >
+              <ImageIcon className="size-3.5" />
+              View Images
+            </button>
           ) : undefined
         }
       >
@@ -409,6 +581,34 @@ export function CustomerCertificateContent({
           )}
         </div>
       </CollapsibleSection>
+
+      {/* Image Modals */}
+      <ImageGalleryModal
+        isOpen={uucImagesModal.isOpen}
+        onClose={() => setUucImagesModal({ ...uucImagesModal, isOpen: false })}
+        title="UUC Images"
+        images={uucImagesModal.images}
+        isLoading={uucImagesModal.isLoading}
+        error={uucImagesModal.error}
+      />
+
+      <ReadingImagesViewModal
+        isOpen={readingImagesModal.isOpen}
+        onClose={() => setReadingImagesModal({ ...readingImagesModal, isOpen: false })}
+        certificateId={certificate.id}
+        parameters={readingImagesModal.parameters}
+        isLoading={readingImagesModal.isLoading}
+        error={readingImagesModal.error}
+      />
+
+      <ImageGalleryModal
+        isOpen={masterImagesModal.isOpen}
+        onClose={() => setMasterImagesModal({ ...masterImagesModal, isOpen: false })}
+        title="Master Instrument Images"
+        images={masterImagesModal.images}
+        isLoading={masterImagesModal.isLoading}
+        error={masterImagesModal.error}
+      />
     </div>
   )
 }

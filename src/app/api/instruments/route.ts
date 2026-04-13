@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('instruments')
 
 // GET /api/instruments - Get all active instruments for certificate forms
 export async function GET(request: NextRequest) {
@@ -26,6 +29,12 @@ export async function GET(request: NextRequest) {
       id: inst.legacyId || parseInt(inst.id.substring(0, 8), 16), // Use legacyId or generate from UUID
       dbId: inst.id, // Include the UUID for API calls
       type: inst.category,
+      parameter_group: inst.parameterGroup || '', // NEW: Sub-category filter
+      parameter: { // NEW: Structured parameter metadata
+        role: inst.parameterRoles || [],
+        capabilities: inst.parameterCapabilities || [],
+      },
+      sop_references: inst.sopReferences || [], // NEW: Array of SOP references
       instrument_desc: inst.description,
       make: inst.make,
       model: inst.model,
@@ -41,6 +50,8 @@ export async function GET(request: NextRequest) {
       remarks: inst.remarks || '',
     }))
 
+    logger.info({ category, count: transformedInstruments.length }, 'Instruments fetched')
+
     // Set cache headers for 5 minutes
     return NextResponse.json(transformedInstruments, {
       headers: {
@@ -48,7 +59,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching instruments:', error)
+    logger.error({ err: error }, 'Error fetching instruments')
     return NextResponse.json(
       { error: 'Failed to fetch instruments' },
       { status: 500 }

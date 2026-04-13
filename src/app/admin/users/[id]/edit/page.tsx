@@ -192,9 +192,9 @@ export default function EditUserPage({
   if (loading) {
     return (
       <div className="p-3 h-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden h-full">
           <div className="p-6 flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+            <Loader2 className="h-8 w-8 animate-spin text-slate-300" />
           </div>
         </div>
       </div>
@@ -204,7 +204,7 @@ export default function EditUserPage({
   if (!user) {
     return (
       <div className="p-3 h-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+        <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden h-full">
           <div className="p-6">
             <p className="text-red-600">User not found</p>
           </div>
@@ -214,9 +214,9 @@ export default function EditUserPage({
   }
 
   return (
-    <div className="p-3 h-full">
+    <div className="p-3 h-full bg-section-inner">
       {/* Master Bounding Box */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+      <div className="bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden h-full">
         <div className="p-6 overflow-auto h-full">
           {/* Back Link */}
           <Link
@@ -229,14 +229,14 @@ export default function EditUserPage({
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Form */}
-              <div className="lg:col-span-2">
+              <div className="lg:col-span-2 border border-slate-300 rounded-lg">
                 <Card className="h-full">
                   <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle>Edit Staff User</CardTitle>
                     {user.isActive ? (
                       <Button
                         variant="outline"
-                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        className="text-red-600 border-red-300 hover:bg-red-50"
                         onClick={() => setShowDeactivateDialog(true)}
                       >
                         Deactivate User
@@ -244,7 +244,7 @@ export default function EditUserPage({
                     ) : (
                       <Button
                         variant="outline"
-                        className="text-green-600 border-green-200 hover:bg-green-50"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
                         onClick={() => setShowReactivateDialog(true)}
                       >
                         Reactivate User
@@ -254,14 +254,14 @@ export default function EditUserPage({
                   <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
                       {error && (
-                        <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+                        <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-300">
                           {error}
                         </div>
                       )}
 
                       {/* Status Badge */}
                       {!user.isActive && (
-                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                        <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
                           <p className="text-sm text-amber-800">
                             This user is currently deactivated and cannot log in.
                           </p>
@@ -276,7 +276,7 @@ export default function EditUserPage({
                           type="email"
                           value={user.email}
                           disabled
-                          className="bg-slate-50"
+                          className="bg-slate-50 border border-slate-300"
                         />
                         <p className="text-xs text-slate-500">Email cannot be changed</p>
                       </div>
@@ -292,6 +292,7 @@ export default function EditUserPage({
                             setFormData((prev) => ({ ...prev, name: e.target.value }))
                           }
                           required
+                          className="border border-slate-300"
                         />
                       </div>
 
@@ -309,7 +310,7 @@ export default function EditUserPage({
                             }))
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="border border-slate-300">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -335,7 +336,7 @@ export default function EditUserPage({
                               setFormData((prev) => ({ ...prev, assignedAdminId: value }))
                             }
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="border border-slate-300">
                               <SelectValue placeholder="Select Admin..." />
                             </SelectTrigger>
                             <SelectContent>
@@ -361,7 +362,7 @@ export default function EditUserPage({
                               "flex-1 flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all",
                               formData.adminType === 'MASTER'
                                 ? "border-blue-500 bg-blue-50"
-                                : "border-slate-200 hover:border-slate-300"
+                                : "border-slate-300 hover:border-slate-300"
                             )}>
                               <input
                                 type="radio"
@@ -384,7 +385,7 @@ export default function EditUserPage({
                               "flex-1 flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all",
                               formData.adminType === 'WORKER'
                                 ? "border-blue-500 bg-blue-50"
-                                : "border-slate-200 hover:border-slate-300"
+                                : "border-slate-300 hover:border-slate-300"
                             )}>
                               <input
                                 type="radio"
@@ -414,12 +415,13 @@ export default function EditUserPage({
                           variant="outline"
                           onClick={() => router.push('/admin/users')}
                           disabled={saving}
+                          className="border border-slate-300"
                         >
                           Cancel
                         </Button>
                         <Button
                           type="submit"
-                          className="bg-green-600 hover:bg-green-700"
+                          className="bg-green-600 hover:bg-green-700 border border-green-600"
                           disabled={saving}
                         >
                           {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -434,7 +436,7 @@ export default function EditUserPage({
               {/* Sidebar Info - matches form height */}
               <div className="flex flex-col gap-4">
                 {/* User Info Card */}
-                <Card>
+                <Card className="border border-slate-300">
                   <CardHeader>
                     <CardTitle className="text-base">User Info</CardTitle>
                   </CardHeader>
@@ -463,10 +465,10 @@ export default function EditUserPage({
                 </Card>
 
                 {/* Stats Card - fills remaining space */}
-                <Card className="flex-1">
+                <Card className="flex-1 border border-slate-300">
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-slate-400" />
+                      <FileText className="h-4 w-4 text-slate-300" />
                       Certificates
                     </CardTitle>
                   </CardHeader>
@@ -479,13 +481,13 @@ export default function EditUserPage({
                         </div>
                         {Object.entries(stats.byStatus).map(([status, count]) => (
                           <div key={status} className="flex justify-between text-xs">
-                            <span className="text-slate-400">{status}</span>
+                            <span className="text-slate-300">{status}</span>
                             <span>{count}</span>
                           </div>
                         ))}
                       </>
                     ) : (
-                      <p className="text-slate-400 text-sm">No certificates yet</p>
+                      <p className="text-slate-300 text-sm">No certificates yet</p>
                     )}
                   </CardContent>
                 </Card>
@@ -495,7 +497,7 @@ export default function EditUserPage({
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Users className="h-4 w-4 text-slate-400" />
+                        <Users className="h-4 w-4 text-slate-300" />
                         Managed Engineers ({user.engineers.length})
                       </CardTitle>
                     </CardHeader>

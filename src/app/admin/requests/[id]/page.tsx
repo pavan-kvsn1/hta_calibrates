@@ -54,15 +54,69 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
       notFound()
     }
 
+    // Parse the request data (may be stored as JSON string)
+    const data = safeJsonParse<{ newPocUserId?: string; name?: string; email?: string; reason?: string }>(
+      customerRequest.data,
+      { name: '', email: '' }
+    )
+
     // For POC_CHANGE, fetch the new POC user
     let newPocUser = null
-    const data = customerRequest.data as { newPocUserId?: string; name?: string; email?: string; reason?: string }
     if (customerRequest.type === 'POC_CHANGE' && data.newPocUserId) {
       newPocUser = await prisma.user.findUnique({
         where: { id: data.newPocUserId },
         select: { id: true, name: true, email: true, isActive: true },
       })
     }
+
+    // Fetch company users for context
+    const companyUsers = await prisma.customerUser.findMany({
+      where: { customerAccountId: customerRequest.customerAccount.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isPoc: true,
+        isActive: true,
+      },
+      orderBy: [{ isPoc: 'desc' }, { name: 'asc' }],
+      take: 10,
+    })
+
+    // Fetch recent requests from this company
+    const recentRequests = await prisma.customerRequest.findMany({
+      where: {
+        customerAccountId: customerRequest.customerAccount.id,
+        id: { not: customerRequest.id },
+      },
+      select: {
+        id: true,
+        type: true,
+        status: true,
+        data: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    })
+
+    // Format recent requests
+    const formattedRecentRequests = recentRequests.map((req) => {
+      const reqData = safeJsonParse<{ name?: string; email?: string }>(req.data, {})
+      let details = ''
+      if (req.type === 'USER_ADDITION') {
+        details = `User Add: ${reqData.name || 'Unknown'}`
+      } else if (req.type === 'POC_CHANGE') {
+        details = 'POC Change'
+      }
+      return {
+        id: req.id,
+        type: req.type,
+        status: req.status,
+        details,
+        createdAt: req.createdAt.toISOString(),
+      }
+    })
 
     return (
       <CustomerRequestView
@@ -83,6 +137,8 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
           rejectionReason: customerRequest.rejectionReason,
           createdAt: customerRequest.createdAt.toISOString(),
         }}
+        companyUsers={companyUsers}
+        recentRequests={formattedRecentRequests}
       />
     )
   }
@@ -149,7 +205,7 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
   // From feedbacks
   const feedbackSections = cert.feedbacks
     .filter(f =>
-      (f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED') &&
+      (f.feedbackType === 'REVISION_REQUESTED' || f.feedbackType === 'REVISION_REQUEST' || f.feedbackType === 'CUSTOMER_REVISION_FORWARDED') &&
       f.targetSection
     )
     .map(f => f.targetSection)
@@ -233,6 +289,8 @@ export default async function RequestDetailPage({ params, searchParams }: Props)
         status: cert.status,
         customerName: cert.customerName,
         customerAddress: cert.customerAddress,
+        customerContactName: cert.customerContactName,
+        customerContactEmail: cert.customerContactEmail,
         calibratedAt: cert.calibratedAt,
         srfNumber: cert.srfNumber,
         srfDate: cert.srfDate?.toISOString() || null,

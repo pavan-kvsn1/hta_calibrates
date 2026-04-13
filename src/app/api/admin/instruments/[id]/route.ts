@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('instruments')
 
 // GET /api/admin/instruments/[id] - Get single instrument
 export async function GET(
@@ -59,7 +62,7 @@ export async function GET(
       rangeData: safeJsonParse<unknown[]>(instrument.rangeData, []),
     })
   } catch (error) {
-    console.error('Error fetching instrument:', error)
+    logger.error({ err: error }, 'Error fetching instrument')
     return NextResponse.json(
       { error: 'Failed to fetch instrument' },
       { status: 500 }
@@ -139,6 +142,11 @@ export async function PUT(
           remarks: body.remarks !== undefined ? (body.remarks || null) : existing.remarks,
           status: body.status !== undefined ? (body.status || null) : existing.status,
           isActive: body.isActive !== undefined ? body.isActive : existing.isActive,
+          // New parameter-related fields
+          parameterGroup: body.parameterGroup !== undefined ? (body.parameterGroup || null) : existing.parameterGroup,
+          parameterCapabilities: body.parameterCapabilities !== undefined ? body.parameterCapabilities : existing.parameterCapabilities,
+          parameterRoles: body.parameterRoles !== undefined ? body.parameterRoles : existing.parameterRoles,
+          sopReferences: body.sopReferences !== undefined ? body.sopReferences : existing.sopReferences,
           createdById: session!.user.id,
           changeReason: body.changeReason || 'Manual update',
           legacyId: existing.legacyId,
@@ -154,7 +162,7 @@ export async function PUT(
       instrument: newVersion,
     })
   } catch (error) {
-    console.error('Error updating instrument:', error)
+    logger.error({ err: error }, 'Error updating instrument')
     return NextResponse.json(
       { error: 'Failed to update instrument' },
       { status: 500 }
@@ -223,7 +231,7 @@ export async function DELETE(
       message: 'Instrument deactivated successfully',
     })
   } catch (error) {
-    console.error('Error deleting instrument:', error)
+    logger.error({ err: error }, 'Error deleting instrument')
     return NextResponse.json(
       { error: 'Failed to delete instrument' },
       { status: 500 }

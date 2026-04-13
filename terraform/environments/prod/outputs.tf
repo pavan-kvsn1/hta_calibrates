@@ -23,6 +23,11 @@ output "gke_cluster_endpoint" {
   sensitive   = true
 }
 
+output "gke_cluster_mode" {
+  description = "GKE cluster mode (autopilot)"
+  value       = module.gke.cluster_mode
+}
+
 output "get_credentials_command" {
   description = "Command to configure kubectl"
   value       = module.gke.get_credentials_command
@@ -50,6 +55,11 @@ output "database_password_secret" {
   value       = module.cloudsql.database_password_secret_id
 }
 
+output "database_url_secret" {
+  description = "Secret Manager ID for complete DATABASE_URL"
+  value       = google_secret_manager_secret.database_url.secret_id
+}
+
 # Storage Outputs
 output "certificates_bucket" {
   description = "Name of the certificates bucket"
@@ -72,6 +82,50 @@ output "app_service_account" {
   value       = module.iam.app_service_account_email
 }
 
+# Redis/Cache Outputs
+output "redis_host" {
+  description = "Redis host IP address"
+  value       = module.memorystore.redis_host
+  sensitive   = true
+}
+
+output "redis_port" {
+  description = "Redis port"
+  value       = module.memorystore.redis_port
+}
+
+output "redis_auth_secret_id" {
+  description = "Secret Manager ID for Redis AUTH string"
+  value       = module.memorystore.redis_auth_secret_id
+}
+
+output "redis_url_secret" {
+  description = "Secret Manager ID for complete REDIS_URL"
+  value       = google_secret_manager_secret.redis_url.secret_id
+}
+
+# Artifact Registry Outputs
+output "artifact_registry_repository" {
+  description = "Artifact Registry repository name"
+  value       = google_artifact_registry_repository.app.name
+}
+
+output "artifact_registry_url" {
+  description = "Artifact Registry URL for docker push"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.name}"
+}
+
+# Monitoring Outputs
+output "monitoring_dashboard_url" {
+  description = "URL to the Cloud Monitoring dashboard"
+  value       = var.enable_monitoring ? module.monitoring.dashboard_url : null
+}
+
+output "alert_notification_channel" {
+  description = "Notification channel for alerts"
+  value       = var.enable_monitoring ? module.monitoring.notification_channel_name : null
+}
+
 # Summary Output
 output "environment_summary" {
   description = "Summary of the deployed environment"
@@ -79,21 +133,24 @@ output "environment_summary" {
 
     ===== HTA Calibration - Production Environment =====
 
-    GKE Cluster: ${module.gke.cluster_name}
+    GKE Cluster: ${module.gke.cluster_name} (Autopilot)
     Database: ${module.cloudsql.instance_name}
+    Redis: ${module.memorystore.redis_host}:${module.memorystore.redis_port}
 
     To connect to the cluster:
     ${module.gke.get_credentials_command}
 
-    Database connection (from within GKE):
-    Host: ${module.cloudsql.private_ip_address}
-    Database: ${module.cloudsql.database_name}
-    User: ${module.cloudsql.database_user}
+    Container Registry:
+    ${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.app.name}
 
-    Storage Buckets:
-    - Certificates: ${module.storage.certificates_bucket_name}
-    - Signatures: ${module.storage.signatures_bucket_name}
-    - Uploads: ${module.storage.uploads_bucket_name}
+    Secrets (for K8s External Secrets):
+    - DATABASE_URL: ${google_secret_manager_secret.database_url.secret_id}
+    - REDIS_URL: ${google_secret_manager_secret.redis_url.secret_id}
+    - NEXTAUTH_SECRET: ${module.secrets.nextauth_secret_id}
+
+    Monitoring:
+    - Dashboard: ${var.enable_monitoring ? module.monitoring.dashboard_url : "Disabled"}
+    - Backup Alerts: Enabled (25hr threshold)
 
     ====================================================
   EOT

@@ -17,6 +17,7 @@ import {
   AlertCircle,
   CheckCircle,
   MessageSquare,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +27,12 @@ import { safeJsonParse } from '@/lib/utils/safe-json'
 import { getConclusionText } from '@/components/pdf/pdf-utils'
 import { CALIBRATION_STATUS_OPTIONS } from '@/components/forms/RemarksSection'
 import { FeedbackTimeline } from '@/components/feedback/shared'
+import {
+  ImageGalleryModal,
+  ReadingImagesViewModal,
+  type GalleryImage,
+  type ParameterReadingImages,
+} from '@/components/certificate'
 
 const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
   DRAFT: { label: 'Draft', className: 'bg-slate-50 text-slate-700 border-slate-200' },
@@ -72,6 +79,7 @@ interface ApiCertificate {
   dueDateNotApplicable: boolean
   customerName: string | null
   customerAddress: string | null
+  customerContactName: string | null
   uucDescription: string | null
   uucMake: string | null
   uucModel: string | null
@@ -147,6 +155,102 @@ export default function CertificateViewPage() {
     requestedAt: string
     revision?: number
   } | null>(null)
+
+  // Image modal state
+  const [uucImagesModal, setUucImagesModal] = useState<{
+    isOpen: boolean
+    images: GalleryImage[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, images: [], isLoading: false, error: null })
+
+  const [readingImagesModal, setReadingImagesModal] = useState<{
+    isOpen: boolean
+    parameters: ParameterReadingImages[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, parameters: [], isLoading: false, error: null })
+
+  // Fetch UUC images
+  const fetchUucImages = async () => {
+    setUucImagesModal({ isOpen: true, images: [], isLoading: true, error: null })
+    try {
+      const response = await fetch(`/api/certificates/${certificateId}/images?type=UUC`)
+      if (!response.ok) throw new Error('Failed to fetch images')
+      const data = await response.json()
+      setUucImagesModal({
+        isOpen: true,
+        images: data.images || [],
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setUucImagesModal({
+        isOpen: true,
+        images: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
+  }
+
+  // Fetch reading images for all parameters
+  const fetchReadingImages = async () => {
+    if (!certificate) return
+    setReadingImagesModal({ isOpen: true, parameters: [], isLoading: true, error: null })
+    try {
+      // Fetch all reading images
+      const [uucResponse, masterResponse] = await Promise.all([
+        fetch(`/api/certificates/${certificateId}/images?type=READING_UUC`),
+        fetch(`/api/certificates/${certificateId}/images?type=READING_MASTER`),
+      ])
+
+      if (!uucResponse.ok || !masterResponse.ok) throw new Error('Failed to fetch images')
+
+      const [uucData, masterData] = await Promise.all([
+        uucResponse.json(),
+        masterResponse.json(),
+      ])
+
+      // Build parameter structure with images
+      const parameters: ParameterReadingImages[] = certificate.parameters.map((param, paramIndex) => ({
+        parameterIndex: paramIndex,
+        parameterName: param.parameterName,
+        parameterUnit: param.parameterUnit,
+        points: param.results.map((result) => {
+          const uucImage = uucData.images?.find(
+            (img: { parameterIndex: number; pointNumber: number }) =>
+              img.parameterIndex === paramIndex && img.pointNumber === result.pointNumber
+          )
+          const masterImage = masterData.images?.find(
+            (img: { parameterIndex: number; pointNumber: number }) =>
+              img.parameterIndex === paramIndex && img.pointNumber === result.pointNumber
+          )
+          return {
+            pointNumber: result.pointNumber,
+            standardReading: result.standardReading,
+            uucReading: result.beforeAdjustment,
+            uucImage: uucImage || null,
+            masterImage: masterImage || null,
+          }
+        }),
+      }))
+
+      setReadingImagesModal({
+        isOpen: true,
+        parameters,
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setReadingImagesModal({
+        isOpen: true,
+        parameters: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
+  }
 
   useEffect(() => {
     async function fetchCertificate() {
@@ -328,7 +432,7 @@ export default function CertificateViewPage() {
 
           {/* Content Area - Scrollable */}
           <div className="flex-1 overflow-auto bg-slate-50/30">
-            <div className="p-6 space-y-3">
+            <div className="p-6 space-y-3 bg-section-inner">
               {/* Out of Limit Warning */}
               {hasOutOfLimitResults && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
@@ -369,9 +473,10 @@ export default function CertificateViewPage() {
                     }
                   />
                   <div className="md:col-span-2 lg:col-span-3 border-t pt-4 mt-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <InfoField label="Customer Name" value={certificate.customerName} />
                       <InfoField label="Customer Address" value={certificate.customerAddress} />
+                      <InfoField label="Customer's Reviewer Name" value={certificate.customerContactName} />
                     </div>
                   </div>
                 </div>
@@ -382,6 +487,19 @@ export default function CertificateViewPage() {
                 title="Section 2: UUC Details"
                 isExpanded={expandedSections.section2}
                 onToggle={() => toggleSection('section2')}
+                actionButton={
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      fetchUucImages()
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+                  >
+                    <ImageIcon className="size-3.5" />
+                    View Images
+                  </button>
+                }
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="md:col-span-2">
@@ -403,23 +521,23 @@ export default function CertificateViewPage() {
                 {certificate.masterInstruments.length === 0 ? (
                   <p className="text-slate-500 text-xs">No master instruments listed.</p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
                     <table className="w-full text-sm">
-                      <thead className="bg-slate-50">
+                      <thead className="bg-section-inner">
                         <tr>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
                             Description
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
                             Make
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
                             Model
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
                             Serial No.
                           </th>
-                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">
+                          <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700 uppercase">
                             Cal. Due Date
                           </th>
                         </tr>
@@ -470,6 +588,21 @@ export default function CertificateViewPage() {
                     </span>
                   ) : undefined
                 }
+                actionButton={
+                  certificate.parameters.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        fetchReadingImages()
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+                    >
+                      <ImageIcon className="size-3.5" />
+                      View Images
+                    </button>
+                  ) : undefined
+                }
               >
                 {certificate.parameters.length === 0 ? (
                   <p className="text-slate-500 text-xs">No results recorded.</p>
@@ -477,11 +610,11 @@ export default function CertificateViewPage() {
                   <div className="space-y-4">
                     {certificate.parameters.map((param) => (
                       <div key={param.id} className="border border-slate-200 rounded-lg overflow-hidden">
-                        <div className="bg-slate-50 px-4 py-2 border-b border-slate-200">
-                          <span className="font-medium text-slate-900 text-sm">
+                        <div className="bg-primary/10 px-4 py-2 border-b border-slate-200">
+                          <span className="font-medium text-primary text-sm">
                             {param.parameterName}
                             {param.parameterUnit && (
-                              <span className="text-slate-500 font-normal ml-1 text-sm">
+                              <span className="text-primary/70 font-normal ml-1 text-sm">
                                 ({param.parameterUnit})
                               </span>
                             )}
@@ -489,26 +622,26 @@ export default function CertificateViewPage() {
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm">
-                            <thead className="bg-slate-50">
+                            <thead className="bg-section-inner">
                               <tr>
-                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700">
                                   Point
                                 </th>
-                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700">
                                   Standard Reading
                                 </th>
-                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700">
                                   UUC Reading
                                 </th>
                                 {param.showAfterAdjustment && (
-                                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">
+                                  <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700">
                                     After Adjustment
                                   </th>
                                 )}
-                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-500">
+                                <th className="px-4 py-2 text-left text-xs font-semibold text-slate-700">
                                   Error
                                 </th>
-                                <th className="px-4 py-2 text-center text-xs font-semibold text-slate-500">
+                                <th className="px-4 py-2 text-center text-xs font-semibold text-slate-700">
                                   Status
                                 </th>
                               </tr>
@@ -709,6 +842,25 @@ export default function CertificateViewPage() {
           )}
         </div>
       </div>
+
+      {/* Image Modals */}
+      <ImageGalleryModal
+        isOpen={uucImagesModal.isOpen}
+        onClose={() => setUucImagesModal({ ...uucImagesModal, isOpen: false })}
+        title="UUC Images"
+        images={uucImagesModal.images}
+        isLoading={uucImagesModal.isLoading}
+        error={uucImagesModal.error}
+      />
+
+      <ReadingImagesViewModal
+        isOpen={readingImagesModal.isOpen}
+        onClose={() => setReadingImagesModal({ ...readingImagesModal, isOpen: false })}
+        certificateId={certificateId}
+        parameters={readingImagesModal.parameters}
+        isLoading={readingImagesModal.isLoading}
+        error={readingImagesModal.error}
+      />
     </div>
   )
 }
@@ -720,30 +872,41 @@ function CollapsibleSection({
   onToggle,
   children,
   badge,
+  actionButton,
 }: {
   title: string
   isExpanded: boolean
   onToggle: () => void
   children: React.ReactNode
   badge?: React.ReactNode
+  actionButton?: React.ReactNode
 }) {
   return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-700 text-sm">{title}</span>
-          {badge}
-        </div>
-        {isExpanded ? (
-          <ChevronUp className="h-5 w-5 text-slate-400" />
-        ) : (
-          <ChevronDown className="h-5 w-5 text-slate-400" />
+    <div className="rounded-lg border border-slate-200 overflow-hidden shadow-sm">
+      {/* Section Header - Primary Color */}
+      <div className="flex items-center justify-between bg-primary">
+        <button
+          onClick={onToggle}
+          className="flex-1 px-4 py-3 flex items-center justify-between hover:bg-primary/90 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-primary-foreground text-sm">{title}</span>
+            {badge}
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="h-5 w-5 text-primary-foreground/70" />
+          ) : (
+            <ChevronDown className="h-5 w-5 text-primary-foreground/70" />
+          )}
+        </button>
+        {actionButton && (
+          <div className="pr-3">
+            {actionButton}
+          </div>
         )}
-      </button>
-      {isExpanded && <div className="p-4">{children}</div>}
+      </div>
+      {/* Section Content - White Background */}
+      {isExpanded && <div className="p-4 bg-white">{children}</div>}
     </div>
   )
 }
@@ -757,7 +920,7 @@ function InfoField({
 }) {
   return (
     <div>
-      <dt className="text-xs font-semibold text-slate-500 tracking-wider">{label}</dt>
+      <dt className="text-xs font-semibold text-slate-600 tracking-wider">{label}</dt>
       <dd className="mt-1 text-xs text-slate-900">{value || '-'}</dd>
     </div>
   )

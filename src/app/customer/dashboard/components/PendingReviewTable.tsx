@@ -68,9 +68,8 @@ export function PendingReviewTable({ certificates, isLoading }: PendingReviewTab
   }
 
   const getReviewLink = (cert: PendingCertificate) => {
-    if (cert.hasToken && cert.tokenId) {
-      return `/customer/review/${cert.tokenId}`
-    }
+    // Always use the cert route for logged-in users
+    // Token route is only for unauthenticated email link access
     return `/customer/review/cert/${cert.id}`
   }
 

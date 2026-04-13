@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
-import { auth, hashPassword, canAccessAdmin } from '@/lib/auth'
+import { auth, canAccessAdmin } from '@/lib/auth'
+import { enqueue } from '@/lib/services/queue'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('users')
 
 // GET /api/admin/users - List staff users
 export async function GET(request: NextRequest) {
@@ -65,6 +70,7 @@ export async function GET(request: NextRequest) {
         authProvider: user.authProvider,
         assignedAdmin: user.assignedAdmin,
         certificateCount: user._count.createdCertificates,
+        activatedAt: user.activatedAt?.toISOString() || null,
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString(),
       })),
@@ -76,12 +82,12 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching users:', error)
+    logger.error({ err: error }, 'Failed to fetch users')
     return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
   }
 }
 
-// POST /api/admin/users - Create staff user
+// POST /api/admin/users - Create staff user (sends activation email)
 export async function POST(request: NextRequest) {
   try {
     const session = await auth()
@@ -90,12 +96,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, name, password, role, assignedAdminId, adminType } = body
+    const { email, name, role, assignedAdminId, adminType } = body
 
     // Validation
-    if (!email || !name || !password || !role) {
+    if (!email || !name || !role) {
       return NextResponse.json(
-        { error: 'Email, name, password, and role are required' },
+        { error: 'Email, name, and role are required' },
         { status: 400 }
       )
     }
@@ -103,21 +109,6 @@ export async function POST(request: NextRequest) {
     if (!['ENGINEER', 'ADMIN'].includes(role)) {
       return NextResponse.json(
         { error: 'Invalid role. Must be ENGINEER or ADMIN' },
-        { status: 400 }
-      )
-    }
-
-    // Password validation
-    if (password.length < 8) {
-      return NextResponse.json(
-        { error: 'Password must be at least 8 characters' },
-        { status: 400 }
-      )
-    }
-
-    if (!/\d/.test(password)) {
-      return NextResponse.json(
-        { error: 'Password must contain at least one number' },
         { status: 400 }
       )
     }
@@ -163,24 +154,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create user
-    const passwordHash = await hashPassword(password)
+    // Generate activation token
+    const activationToken = crypto.randomUUID()
+    const activationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
 
+    // Create user (inactive, no password)
     const user = await prisma.user.create({
       data: {
         email,
         name,
-        passwordHash,
         role,
         authProvider: 'PASSWORD',
-        assignedAdminId: role === 'ENGINEER' ? assignedAdminId : null,
+        assignedAdmin: role === 'ENGINEER' && assignedAdminId
+          ? { connect: { id: assignedAdminId } }
+          : undefined,
         adminType: role === 'ADMIN' ? (adminType || 'WORKER') : null,
-        isActive: true,
+        isActive: false,
+        activationToken,
+        activationExpiry,
       },
       include: {
         assignedAdmin: {
           select: { id: true, name: true },
         },
+      },
+    })
+
+    // Send activation email
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const activationUrl = `${baseUrl}/activate/${activationToken}`
+
+    await enqueue('email:send', {
+      to: email,
+      template: 'staff-activation',
+      templateData: {
+        userName: name,
+        activationUrl,
       },
     })
 
@@ -193,10 +202,12 @@ export async function POST(request: NextRequest) {
         role: user.role,
         adminType: user.adminType,
         assignedAdmin: user.assignedAdmin,
+        isActive: user.isActive,
       },
+      message: `Activation email sent to ${email}`,
     })
   } catch (error) {
-    console.error('Error creating user:', error)
+    logger.error({ err: error }, 'Failed to create user')
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })
   }
 }

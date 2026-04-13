@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 // POST /api/customer/team/request - Submit a user addition or POC change request
 export async function POST(request: NextRequest) {
@@ -76,7 +79,7 @@ export async function POST(request: NextRequest) {
       })
 
       const duplicateRequest = existingRequests.find((req) => {
-        const reqData = req.data as { email?: string }
+        const reqData = JSON.parse(req.data) as { email?: string }
         return reqData.email?.toLowerCase() === data.email.toLowerCase()
       })
 
@@ -135,7 +138,7 @@ export async function POST(request: NextRequest) {
         type,
         customerAccountId: customerAccount.id,
         requestedById: session.user.id,
-        data: data || {},
+        data: JSON.stringify(data || {}),
         status: 'PENDING',
       },
     })
@@ -150,7 +153,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error creating request:', error)
+    logger.error({ err: error }, 'Failed to create customer request')
     return NextResponse.json(
       { error: 'Failed to create request' },
       { status: 500 }

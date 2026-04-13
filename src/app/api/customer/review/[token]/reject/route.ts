@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { notifyReviewerOnCustomerRevision } from '@/lib/services/notifications'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 // Format section feedbacks into readable notes
 function formatFeedbackNotes(
@@ -165,7 +168,7 @@ export async function POST(
         certificateId: tokenRecord.certificateId,
         certificateNumber: tokenRecord.certificate.certificateNumber,
         reviewerId: tokenRecord.certificate.reviewerId,
-      }).catch((err) => console.error('Failed to send notification:', err))
+      }).catch((err) => logger.error({ err }, 'Failed to send reviewer notification'))
     }
 
     return NextResponse.json({
@@ -173,7 +176,7 @@ export async function POST(
       message: 'Revision request submitted successfully',
     })
   } catch (error) {
-    console.error('Error rejecting certificate:', error)
+    logger.error({ err: error }, 'Error rejecting certificate')
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
       { error: `Failed to submit revision request: ${errorMessage}` },
@@ -290,7 +293,7 @@ async function handleSessionBasedReject(
       certificateId: certificate.id,
       certificateNumber: certificate.certificateNumber,
       reviewerId: certificate.reviewerId,
-    }).catch((err) => console.error('Failed to send notification:', err))
+    }).catch((err) => logger.error({ err }, 'Failed to send reviewer notification'))
   }
 
   return NextResponse.json({

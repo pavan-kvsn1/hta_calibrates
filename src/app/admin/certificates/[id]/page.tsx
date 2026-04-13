@@ -191,6 +191,8 @@ export default async function AdminCertificatePage({ params }: Props) {
         status: certificate.status,
         customerName: certificate.customerName,
         customerAddress: certificate.customerAddress,
+        customerContactName: certificate.customerContactName,
+        customerContactEmail: certificate.customerContactEmail,
         calibratedAt: certificate.calibratedAt,
         srfNumber: certificate.srfNumber,
         srfDate: certificate.srfDate?.toISOString() || null,

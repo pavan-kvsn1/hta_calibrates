@@ -46,6 +46,21 @@ spec:
                 secretKeyRef:
                   name: hta-secrets
                   key: nextauth-secret
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hta-secrets
+                  key: redis-url
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hta-secrets
+                  key: resend-api-key
+            - name: EMAIL_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: hta-secrets
+                  key: email-from
           resources:
             requests:
               cpu: 250m

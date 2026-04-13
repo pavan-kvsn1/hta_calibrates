@@ -6,7 +6,10 @@ import { GET, POST } from '../admin/users/route'
 vi.mock('@/lib/auth', () => ({
   auth: vi.fn(),
   canAccessAdmin: vi.fn(),
-  hashPassword: vi.fn(),
+}))
+
+vi.mock('@/lib/services/queue', () => ({
+  enqueue: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -21,7 +24,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-import { auth, canAccessAdmin, hashPassword } from '@/lib/auth'
+import { auth, canAccessAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 function createRequest(url: string, options?: RequestInit): NextRequest {
@@ -174,7 +177,7 @@ describe('Admin Users API', () => {
 
       const request = createRequest('/api/admin/users', {
         method: 'POST',
-        body: JSON.stringify({ email: 'test@test.com', name: 'Test', password: 'Password123', role: 'ENGINEER' }),
+        body: JSON.stringify({ email: 'test@test.com', name: 'Test', role: 'ENGINEER' }),
       })
       const response = await POST(request)
       const data = await response.json()
@@ -198,7 +201,7 @@ describe('Admin Users API', () => {
       const data = await response.json()
 
       expect(response.status).toBe(400)
-      expect(data.error).toBe('Email, name, password, and role are required')
+      expect(data.error).toBe('Email, name, and role are required')
     })
 
     it('should return 400 for invalid role', async () => {
@@ -213,7 +216,6 @@ describe('Admin Users API', () => {
         body: JSON.stringify({
           email: 'test@test.com',
           name: 'Test',
-          password: 'Password123',
           role: 'INVALID_ROLE',
         }),
       })
@@ -222,52 +224,6 @@ describe('Admin Users API', () => {
 
       expect(response.status).toBe(400)
       expect(data.error).toBe('Invalid role. Must be ENGINEER or ADMIN')
-    })
-
-    it('should return 400 when password is too short', async () => {
-      vi.mocked(auth).mockResolvedValue({
-        user: { id: 'admin-123', role: 'ADMIN' },
-        expires: new Date().toISOString(),
-      })
-      vi.mocked(canAccessAdmin).mockReturnValue(true)
-
-      const request = createRequest('/api/admin/users', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'test@test.com',
-          name: 'Test',
-          password: 'short',
-          role: 'ENGINEER',
-        }),
-      })
-      const response = await POST(request)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.error).toBe('Password must be at least 8 characters')
-    })
-
-    it('should return 400 when password has no number', async () => {
-      vi.mocked(auth).mockResolvedValue({
-        user: { id: 'admin-123', role: 'ADMIN' },
-        expires: new Date().toISOString(),
-      })
-      vi.mocked(canAccessAdmin).mockReturnValue(true)
-
-      const request = createRequest('/api/admin/users', {
-        method: 'POST',
-        body: JSON.stringify({
-          email: 'test@test.com',
-          name: 'Test',
-          password: 'PasswordNoNumber',
-          role: 'ENGINEER',
-        }),
-      })
-      const response = await POST(request)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data.error).toBe('Password must contain at least one number')
     })
 
     it('should return 400 when email already exists', async () => {
@@ -283,7 +239,6 @@ describe('Admin Users API', () => {
         body: JSON.stringify({
           email: 'existing@test.com',
           name: 'Test',
-          password: 'Password123',
           role: 'ADMIN',
         }),
       })
@@ -307,7 +262,6 @@ describe('Admin Users API', () => {
         body: JSON.stringify({
           email: 'engineer@test.com',
           name: 'Engineer',
-          password: 'Password123',
           role: 'ENGINEER',
         }),
       })
@@ -332,7 +286,6 @@ describe('Admin Users API', () => {
         body: JSON.stringify({
           email: 'engineer@test.com',
           name: 'Engineer',
-          password: 'Password123',
           role: 'ENGINEER',
           assignedAdminId: 'invalid-admin-id',
         }),
@@ -351,23 +304,22 @@ describe('Admin Users API', () => {
       })
       vi.mocked(canAccessAdmin).mockReturnValue(true)
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
-      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'admin-1', role: 'ADMIN', isActive: true })
-      vi.mocked(hashPassword).mockResolvedValue('hashed-password')
+      vi.mocked(prisma.user.findFirst).mockResolvedValue({ id: 'admin-1', role: 'ADMIN', isActive: true } as any)
       vi.mocked(prisma.user.create).mockResolvedValue({
         id: 'new-user-id',
         email: 'engineer@test.com',
         name: 'New Engineer',
         role: 'ENGINEER',
         adminType: null,
+        isActive: false,
         assignedAdmin: { id: 'admin-1', name: 'Admin' },
-      })
+      } as any)
 
       const request = createRequest('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify({
           email: 'engineer@test.com',
           name: 'New Engineer',
-          password: 'Password123',
           role: 'ENGINEER',
           assignedAdminId: 'admin-1',
         }),
@@ -388,22 +340,21 @@ describe('Admin Users API', () => {
       })
       vi.mocked(canAccessAdmin).mockReturnValue(true)
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null)
-      vi.mocked(hashPassword).mockResolvedValue('hashed-password')
       vi.mocked(prisma.user.create).mockResolvedValue({
         id: 'new-admin-id',
         email: 'newadmin@test.com',
         name: 'New Admin',
         role: 'ADMIN',
         adminType: 'WORKER',
+        isActive: false,
         assignedAdmin: null,
-      })
+      } as any)
 
       const request = createRequest('/api/admin/users', {
         method: 'POST',
         body: JSON.stringify({
           email: 'newadmin@test.com',
           name: 'New Admin',
-          password: 'Password123',
           role: 'ADMIN',
           adminType: 'WORKER',
         }),
@@ -430,7 +381,6 @@ describe('Admin Users API', () => {
         body: JSON.stringify({
           email: 'test@test.com',
           name: 'Test',
-          password: 'Password123',
           role: 'ADMIN',
         }),
       })

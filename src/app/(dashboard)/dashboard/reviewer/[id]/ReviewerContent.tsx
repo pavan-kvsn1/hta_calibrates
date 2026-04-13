@@ -8,6 +8,7 @@ import {
   CheckCircle,
   CheckCircle2,
   MessageSquare,
+  Image as ImageIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CollapsibleSection } from '@/components/certificate/CollapsibleSection'
@@ -22,6 +23,12 @@ import {
   isEngineerResponse as isAssigneeResponse,
   SECTION_CONFIG,
 } from '@/components/feedback/shared'
+import {
+  ImageGalleryModal,
+  ReadingImagesViewModal,
+  type GalleryImage,
+  type ParameterReadingImages,
+} from '@/components/certificate'
 
 interface Parameter {
   id: string
@@ -103,6 +110,7 @@ interface CertificateData {
   status: string
   customerName: string | null
   customerAddress: string | null
+  customerContactName: string | null
   calibratedAt: string | null
   srfNumber: string | null
   srfDate: string | null
@@ -154,8 +162,102 @@ export function ReviewerContent({
     feedback: feedbacks.length > 0,
   })
 
+  // Image modal state
+  const [uucImagesModal, setUucImagesModal] = useState<{
+    isOpen: boolean
+    images: GalleryImage[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, images: [], isLoading: false, error: null })
+
+  const [readingImagesModal, setReadingImagesModal] = useState<{
+    isOpen: boolean
+    parameters: ParameterReadingImages[]
+    isLoading: boolean
+    error: string | null
+  }>({ isOpen: false, parameters: [], isLoading: false, error: null })
+
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
+
+  // Fetch UUC images
+  const fetchUucImages = async () => {
+    setUucImagesModal({ isOpen: true, images: [], isLoading: true, error: null })
+    try {
+      const response = await fetch(`/api/certificates/${certificate.id}/images?type=UUC`)
+      if (!response.ok) throw new Error('Failed to fetch images')
+      const data = await response.json()
+      setUucImagesModal({
+        isOpen: true,
+        images: data.images || [],
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setUucImagesModal({
+        isOpen: true,
+        images: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
+  }
+
+  // Fetch reading images for all parameters
+  const fetchReadingImages = async () => {
+    setReadingImagesModal({ isOpen: true, parameters: [], isLoading: true, error: null })
+    try {
+      const [uucResponse, masterResponse] = await Promise.all([
+        fetch(`/api/certificates/${certificate.id}/images?type=READING_UUC`),
+        fetch(`/api/certificates/${certificate.id}/images?type=READING_MASTER`),
+      ])
+
+      if (!uucResponse.ok || !masterResponse.ok) throw new Error('Failed to fetch images')
+
+      const [uucData, masterData] = await Promise.all([
+        uucResponse.json(),
+        masterResponse.json(),
+      ])
+
+      // Build parameter structure with images
+      const parameters: ParameterReadingImages[] = certificate.parameters.map((param, paramIndex) => ({
+        parameterIndex: paramIndex,
+        parameterName: param.parameterName,
+        parameterUnit: param.parameterUnit,
+        points: param.results.map((result) => {
+          const uucImage = uucData.images?.find(
+            (img: { parameterIndex: number; pointNumber: number }) =>
+              img.parameterIndex === paramIndex && img.pointNumber === result.pointNumber
+          )
+          const masterImage = masterData.images?.find(
+            (img: { parameterIndex: number; pointNumber: number }) =>
+              img.parameterIndex === paramIndex && img.pointNumber === result.pointNumber
+          )
+          return {
+            pointNumber: result.pointNumber,
+            standardReading: result.standardReading,
+            uucReading: result.beforeAdjustment,
+            uucImage: uucImage || null,
+            masterImage: masterImage || null,
+          }
+        }),
+      }))
+
+      setReadingImagesModal({
+        isOpen: true,
+        parameters,
+        isLoading: false,
+        error: null,
+      })
+    } catch (err) {
+      setReadingImagesModal({
+        isOpen: true,
+        parameters: [],
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load images',
+      })
+    }
   }
 
   const formatDate = (dateStr: string | null) => {
@@ -233,9 +335,10 @@ export function ReviewerContent({
             }
           />
           <div className="md:col-span-2 lg:col-span-3 border-t pt-4 mt-2">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InfoField label="Customer Name" value={certificate.customerName} />
               <InfoField label="Customer Address" value={certificate.customerAddress} />
+              <InfoField label="Customer's Reviewer Name" value={certificate.customerContactName} />
             </div>
           </div>
         </div>
@@ -254,6 +357,19 @@ export function ReviewerContent({
             currentRevision={certificate.currentRevision}
             certificateStatus={certificate.status}
           />
+        }
+        actionButton={
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              fetchUucImages()
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+          >
+            <ImageIcon className="size-3.5" />
+            View Images
+          </button>
         }
       >
         <div className="space-y-6">
@@ -458,6 +574,21 @@ export function ReviewerContent({
             certificateStatus={certificate.status}
           />
         }
+        actionButton={
+          certificate.parameters.length > 0 ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                fetchReadingImages()
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary bg-white/90 border border-white/20 rounded-lg hover:bg-white transition-colors"
+            >
+              <ImageIcon className="size-3.5" />
+              View Images
+            </button>
+          ) : undefined
+        }
       >
         <CalibrationResultsTable parameters={certificate.parameters} />
       </CollapsibleSection>
@@ -562,6 +693,25 @@ export function ReviewerContent({
           customerFeedback={customerFeedback}
         />
       )}
+
+      {/* Image Modals */}
+      <ImageGalleryModal
+        isOpen={uucImagesModal.isOpen}
+        onClose={() => setUucImagesModal({ ...uucImagesModal, isOpen: false })}
+        title="UUC Images"
+        images={uucImagesModal.images}
+        isLoading={uucImagesModal.isLoading}
+        error={uucImagesModal.error}
+      />
+
+      <ReadingImagesViewModal
+        isOpen={readingImagesModal.isOpen}
+        onClose={() => setReadingImagesModal({ ...readingImagesModal, isOpen: false })}
+        certificateId={certificate.id}
+        parameters={readingImagesModal.parameters}
+        isLoading={readingImagesModal.isLoading}
+        error={readingImagesModal.error}
+      />
     </div>
   )
 }

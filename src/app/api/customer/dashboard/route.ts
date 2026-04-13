@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { cached, CacheKeys, CacheTTL } from '@/lib/cache'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 export async function GET() {
   try {
@@ -12,6 +16,11 @@ export async function GET() {
     }
 
     const customerEmail = session.user.email!
+
+    // Cache customer dashboard data for 30 seconds - data changes when certificates update
+    const dashboardData = await cached(
+      CacheKeys.customerDashboard(customerEmail),
+      async () => {
 
     // Get customer's company name for matching certificates
     const customer = await prisma.customerUser.findUnique({
@@ -315,7 +324,7 @@ export async function GET() {
       traceability: traceability.length,
     }
 
-    return NextResponse.json({
+    return {
       counts,
       pending,
       awaiting,
@@ -325,9 +334,14 @@ export async function GET() {
       isPrimaryPoc,
       companyName,
       userCount,
-    })
+    }
+      },
+      { ttl: CacheTTL.VERY_SHORT } // 30 seconds - customer data changes with certificate updates
+    )
+
+    return NextResponse.json(dashboardData)
   } catch (error) {
-    console.error('Error fetching customer dashboard data:', error)
+    logger.error({ err: error }, 'Failed to fetch customer dashboard data')
     return NextResponse.json(
       { error: 'Failed to fetch dashboard data' },
       { status: 500 }

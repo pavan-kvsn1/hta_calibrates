@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('requests')
 
 // POST /api/internal-requests - Create a new internal request (e.g., section unlock)
 export async function POST(request: NextRequest) {
@@ -141,7 +144,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error creating internal request:', error)
+    logger.error({ err: error }, 'Failed to create internal request')
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return NextResponse.json(
       { error: `Failed to create internal request: ${errorMessage}` },

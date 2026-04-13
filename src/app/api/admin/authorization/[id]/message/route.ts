@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -68,7 +69,7 @@ export async function POST(
       },
     })
   } catch (error) {
-    console.error('Error sending admin message:', error)
+    logger.error({ err: error }, 'Failed to send admin message')
     return NextResponse.json(
       { error: 'Failed to send message' },
       { status: 500 }

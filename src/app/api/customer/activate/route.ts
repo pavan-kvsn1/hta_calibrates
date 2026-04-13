@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 // GET /api/customer/activate?token=xxx - Validate activation token
 export async function GET(request: NextRequest) {
@@ -51,7 +54,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error validating activation token:', error)
+    logger.error({ err: error }, 'Error validating activation token')
     return NextResponse.json(
       { error: 'Failed to validate activation token' },
       { status: 500 }
@@ -153,7 +156,7 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error activating account:', error)
+    logger.error({ err: error }, 'Error activating account')
     return NextResponse.json(
       { error: 'Failed to activate account' },
       { status: 500 }

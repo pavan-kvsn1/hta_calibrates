@@ -108,7 +108,7 @@ export function ReviewerSelect({
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'w-full justify-between h-12 px-4 rounded-xl font-medium',
+          'w-full justify-between h-12 px-4 rounded-xl font-medium border-slate-300',
           error && 'border-red-500 focus:ring-red-500',
           !selectedReviewer && 'text-slate-400'
         )}
@@ -142,7 +142,7 @@ export function ReviewerSelect({
           />
 
           {/* Dropdown */}
-          <div className="absolute z-50 w-full mt-2 bg-white border rounded-xl shadow-lg max-h-64 overflow-auto">
+          <div className="absolute z-50 w-full mt-2 bg-white border border-slate-300 rounded-xl shadow-lg max-h-64 overflow-auto">
             {reviewers.map((reviewer) => (
               <button
                 key={reviewer.id}

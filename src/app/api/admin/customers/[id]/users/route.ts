@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
 import { enqueue } from '@/lib/services/queue'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customers')
 
 // GET /api/admin/customers/[id]/users - List users for a customer account
 export async function GET(
@@ -47,7 +50,7 @@ export async function GET(
       })),
     })
   } catch (error) {
-    console.error('Error fetching customer users:', error)
+    logger.error({ err: error }, 'Error fetching customer users')
     return NextResponse.json(
       { error: 'Failed to fetch customer users' },
       { status: 500 }
@@ -165,7 +168,7 @@ export async function POST(
       message: 'User created. Invite email will be sent.',
     })
   } catch (error) {
-    console.error('Error adding customer user:', error)
+    logger.error({ err: error }, 'Error adding customer user')
     return NextResponse.json(
       { error: 'Failed to add customer user' },
       { status: 500 }

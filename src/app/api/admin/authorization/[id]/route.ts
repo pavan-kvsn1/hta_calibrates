@@ -4,6 +4,7 @@ import { auth, canAccessAdmin } from '@/lib/auth'
 import { parseUserAgent, type SigningMetadata } from '@/components/pdf/pdf-utils'
 import { safeJsonParse } from '@/lib/utils/safe-json'
 import type { ParameterBin } from '@/lib/stores/certificate-store'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RevisionHistoryItem {
   id: string
@@ -316,7 +317,7 @@ export async function GET(
       revisionHistory,
     })
   } catch (error) {
-    console.error('Error fetching certificate for authorization:', error)
+    logger.error({ err: error }, 'Failed to fetch certificate for authorization')
     return NextResponse.json(
       { error: 'Failed to fetch certificate' },
       { status: 500 }

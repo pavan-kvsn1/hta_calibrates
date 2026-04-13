@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,6 +18,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -35,6 +43,7 @@ import {
   AlertCircle,
   User,
   PenTool,
+  ArrowRightLeft,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import TypedSignature, { TypedSignatureHandle } from '@/components/signatures/TypedSignature'
@@ -86,6 +95,13 @@ export default function UsersPage() {
   const [signatureConsent, setSignatureConsent] = useState(false)
   const [signatureReady, setSignatureReady] = useState(false)
 
+  // POC Change Dialog
+  const [pocChangeOpen, setPocChangeOpen] = useState(false)
+  const [newPocUserId, setNewPocUserId] = useState('')
+  const [pocChangeReason, setPocChangeReason] = useState('')
+  const [pocChangeSubmitting, setPocChangeSubmitting] = useState(false)
+  const [pocChangeError, setPocChangeError] = useState('')
+
   // Get current user's name for signature
   const currentUserName = teamData?.users.find(u => u.id === teamData.currentUserId)?.name || ''
 
@@ -111,6 +127,16 @@ export default function UsersPage() {
   useEffect(() => {
     fetchTeamData()
   }, [])
+
+  const resetAddUserForm = () => {
+    setAddUserOpen(false)
+    setAddUserName('')
+    setAddUserEmail('')
+    setSignatureConsent(false)
+    setSignatureReady(false)
+    signatureRef.current?.clear()
+    setAddUserError('')
+  }
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -148,27 +174,64 @@ export default function UsersPage() {
 
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit request')
+        throw new Error(data.error || `Failed to submit request (${res.status})`)
       }
 
       // Refresh data and close dialog
       await fetchTeamData()
       resetAddUserForm()
     } catch (err) {
+      console.error('Add user error:', err)
       setAddUserError(err instanceof Error ? err.message : 'Failed to submit request')
     } finally {
       setAddUserSubmitting(false)
     }
   }
 
-  const resetAddUserForm = () => {
-    setAddUserOpen(false)
-    setAddUserName('')
-    setAddUserEmail('')
-    setSignatureConsent(false)
-    setSignatureReady(false)
-    signatureRef.current?.clear()
+  const handlePocChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPocChangeError('')
+    setPocChangeSubmitting(true)
+
+    try {
+      const res = await fetch('/api/customer/team/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'POC_CHANGE',
+          data: {
+            newPocUserId,
+            reason: pocChangeReason,
+          },
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to submit request')
+      }
+
+      // Refresh data and close dialog
+      await fetchTeamData()
+      setPocChangeOpen(false)
+      setNewPocUserId('')
+      setPocChangeReason('')
+    } catch (err) {
+      setPocChangeError(err instanceof Error ? err.message : 'Failed to submit request')
+    } finally {
+      setPocChangeSubmitting(false)
+    }
   }
+
+  // Get eligible users for POC transfer (active users except current user)
+  const eligiblePocUsers = teamData?.users.filter(
+    (user) => user.id !== teamData.currentUserId && user.isActive
+  ) || []
+
+  // Check if there's a pending POC change request
+  const hasPendingPocChange = teamData?.pendingRequests.some(
+    (req) => req.type === 'POC_CHANGE'
+  ) || false
 
   if (loading) {
     return (
@@ -209,174 +272,264 @@ export default function UsersPage() {
                 Manage team members for {teamData.account.companyName}
               </p>
             </div>
-            {teamData.isPrimaryPoc && (
-              <Dialog open={addUserOpen} onOpenChange={(open) => {
-                if (!open) resetAddUserForm()
-                else setAddUserOpen(true)
-              }}>
-                <DialogTrigger asChild>
-                  <Button className="bg-green-600 hover:bg-green-700">
-                    <UserPlus className="h-4 w-4 mr-2" />
-                    + Request User
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-3xl">
-                  <form onSubmit={handleAddUser}>
-                    <DialogHeader>
-                      <DialogTitle className="text-xl">Request New User</DialogTitle>
-                      <DialogDescription>
-                        Submit a request to add a new user to your organization. Your signature is required to authorize this request.
-                      </DialogDescription>
-                    </DialogHeader>
+            <div className="flex items-center gap-3">
+              {/* POC Transfer Button */}
+              {teamData.isPrimaryPoc && eligiblePocUsers.length > 0 && !hasPendingPocChange && (
+                <Dialog open={pocChangeOpen} onOpenChange={setPocChangeOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <ArrowRightLeft className="h-4 w-4 mr-2" />
+                      Transfer POC
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <form onSubmit={handlePocChange}>
+                      <DialogHeader>
+                        <DialogTitle>Request POC Transfer</DialogTitle>
+                        <DialogDescription>
+                          Request to transfer your Primary Point of Contact role to another team member.
+                          HTA admin will review and approve the request.
+                        </DialogDescription>
+                      </DialogHeader>
 
-                    {addUserError && (
-                      <div className="my-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
-                        {addUserError}
-                      </div>
-                    )}
-
-                    <div className="space-y-6 my-6">
-                      {/* New User Details Section */}
-                      <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                          <UserPlus className="h-4 w-4" />
-                          New User Details
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="name">Full Name</Label>
-                            <Input
-                              id="name"
-                              value={addUserName}
-                              onChange={(e) => setAddUserName(e.target.value)}
-                              placeholder="John Smith"
-                              required
-                              disabled={addUserSubmitting}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="email">Email Address</Label>
-                            <Input
-                              id="email"
-                              type="email"
-                              value={addUserEmail}
-                              onChange={(e) => setAddUserEmail(e.target.value)}
-                              placeholder="john.smith@company.com"
-                              required
-                              disabled={addUserSubmitting}
-                            />
-                          </div>
+                      {pocChangeError && (
+                        <div className="my-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+                          {pocChangeError}
                         </div>
-                      </div>
+                      )}
 
-                      {/* Divider */}
-                      <div className="border-t border-slate-200" />
-
-                      {/* POC Signature Section */}
-                      <div className="space-y-4">
-                        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                          <PenTool className="h-4 w-4" />
-                          POC Authorization Signature
-                        </h3>
-
-                        {/* Signature Preview - uses logged-in user's name */}
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                          <Label className="text-xs text-slate-500 mb-2 block">
-                            Signing as: <span className="font-semibold text-slate-700">{currentUserName}</span>
-                          </Label>
-                          <TypedSignature
-                            ref={signatureRef}
-                            name={currentUserName}
-                            width={500}
-                            height={120}
-                            onSignatureReady={setSignatureReady}
+                      <div className="space-y-4 my-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="newPoc">New POC</Label>
+                          <Select value={newPocUserId} onValueChange={setNewPocUserId}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a team member" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {eligiblePocUsers.map((user) => (
+                                <SelectItem key={user.id} value={user.id}>
+                                  {user.name} ({user.email})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reason">Reason (optional)</Label>
+                          <Textarea
+                            id="reason"
+                            value={pocChangeReason}
+                            onChange={(e) => setPocChangeReason(e.target.value)}
+                            placeholder="e.g., Role change, leaving company..."
+                            rows={3}
+                            disabled={pocChangeSubmitting}
                           />
                         </div>
+                      </div>
 
-                        {/* Consent Checkbox */}
-                        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                          <Checkbox
-                            id="consent"
-                            checked={signatureConsent}
-                            onCheckedChange={(checked) => setSignatureConsent(checked === true)}
-                            disabled={addUserSubmitting}
-                            className="mt-0.5 shrink-0"
-                          />
-                          <Label htmlFor="consent" className="text-sm text-amber-800 cursor-pointer leading-relaxed">
-                            I, {currentUserName}, as the Primary Point of Contact for {teamData.account.companyName}, authorize this request to add a new user to our organization&apos;s HTA portal account. I understand this request will be reviewed by HTA administration.
-                          </Label>
+                      <DialogFooter>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setPocChangeOpen(false)}
+                          disabled={pocChangeSubmitting}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="bg-purple-600 hover:bg-purple-700"
+                          disabled={pocChangeSubmitting || !newPocUserId}
+                        >
+                          {pocChangeSubmitting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Submitting...
+                            </>
+                          ) : (
+                            'Submit Request'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+
+              {/* Add User Button */}
+              {teamData.isPrimaryPoc && (
+                <Dialog open={addUserOpen} onOpenChange={(open) => {
+                  if (!open) resetAddUserForm()
+                  else setAddUserOpen(true)
+                }}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-green-600 hover:bg-green-700">
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      + Request User
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl">
+                    <form onSubmit={handleAddUser}>
+                      <DialogHeader>
+                        <DialogTitle className="text-xl">Request New User</DialogTitle>
+                        <DialogDescription>
+                          Submit a request to add a new user to your organization. Your signature is required to authorize this request.
+                        </DialogDescription>
+                      </DialogHeader>
+
+                      {addUserError && (
+                        <div className="my-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+                          {addUserError}
+                        </div>
+                      )}
+
+                      <div className="space-y-6 my-6">
+                        {/* New User Details Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <UserPlus className="h-4 w-4" />
+                            New User Details
+                          </h3>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="name">Full Name</Label>
+                              <Input
+                                id="name"
+                                value={addUserName}
+                                onChange={(e) => setAddUserName(e.target.value)}
+                                placeholder="John Smith"
+                                required
+                                disabled={addUserSubmitting}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="email">Email Address</Label>
+                              <Input
+                                id="email"
+                                type="email"
+                                value={addUserEmail}
+                                onChange={(e) => setAddUserEmail(e.target.value)}
+                                placeholder="john.smith@company.com"
+                                required
+                                disabled={addUserSubmitting}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Divider */}
+                        <div className="border-t border-slate-200" />
+
+                        {/* POC Signature Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                            <PenTool className="h-4 w-4" />
+                            POC Authorization Signature
+                          </h3>
+
+                          {/* Signature Preview - uses logged-in user's name */}
+                          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                            <Label className="text-xs text-slate-500 mb-2 block">
+                              Signing as: <span className="font-semibold text-slate-700">{currentUserName}</span>
+                            </Label>
+                            <TypedSignature
+                              ref={signatureRef}
+                              name={currentUserName}
+                              width={500}
+                              height={120}
+                              onSignatureReady={setSignatureReady}
+                            />
+                          </div>
+
+                          {/* Consent Checkbox */}
+                          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                            <Checkbox
+                              id="consent"
+                              checked={signatureConsent}
+                              onCheckedChange={(checked) => setSignatureConsent(checked === true)}
+                              disabled={addUserSubmitting}
+                              className="mt-0.5 shrink-0 h-5 w-5 border-2 border-amber-600 data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                            />
+                            <Label htmlFor="consent" className="text-sm text-amber-800 cursor-pointer leading-relaxed">
+                              I, {currentUserName}, as the Primary Point of Contact for {teamData.account.companyName}, authorize this request to add a new user to our organization&apos;s HTA portal account. I understand this request will be reviewed by HTA administration.
+                            </Label>
+                          </div>
+                        </div>
+
+                        {/* Info Note */}
+                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                          <p className="text-sm text-blue-700">
+                            <strong>Note:</strong> This request will be reviewed by HTA admin before the user is added. You will be notified once the request is processed.
+                          </p>
                         </div>
                       </div>
 
-                      {/* Info Note */}
-                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <p className="text-sm text-blue-700">
-                          <strong>Note:</strong> This request will be reviewed by HTA admin before the user is added. You will be notified once the request is processed.
-                        </p>
-                      </div>
-                    </div>
-
-                    <DialogFooter className="gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={resetAddUserForm}
-                        disabled={addUserSubmitting}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        type="submit"
-                        className="bg-green-600 hover:bg-green-700"
-                        disabled={addUserSubmitting || !signatureConsent || !signatureReady}
-                      >
-                        {addUserSubmitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Submitting...
-                          </>
-                        ) : (
-                          'Submit Request'
-                        )}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
+                      <DialogFooter className="gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={resetAddUserForm}
+                          disabled={addUserSubmitting}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={addUserSubmitting || !signatureConsent || !signatureReady}
+                        >
+                          {addUserSubmitting ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Submitting...
+                            </>
+                          ) : (
+                            'Submit Request'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
           </div>
 
           {/* Pending Requests */}
-          {teamData.pendingRequests.filter(r => r.type === 'USER_ADDITION').length > 0 && (
+          {teamData.pendingRequests.length > 0 && (
             <Card className="mb-6 border-amber-200 bg-amber-50">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2 text-amber-800">
                   <Clock className="h-4 w-4" />
-                  Pending User Requests
+                  Pending Requests
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {teamData.pendingRequests
-                  .filter(r => r.type === 'USER_ADDITION')
-                  .map((req) => (
-                    <div
-                      key={req.id}
-                      className="flex items-center justify-between bg-white p-3 rounded-lg border border-amber-200"
-                    >
-                      <div className="flex items-center gap-3">
+                {teamData.pendingRequests.map((req) => (
+                  <div
+                    key={req.id}
+                    className="flex items-center justify-between bg-white p-3 rounded-lg border border-amber-200"
+                  >
+                    <div className="flex items-center gap-3">
+                      {req.type === 'USER_ADDITION' ? (
                         <UserPlus className="h-5 w-5 text-blue-600" />
-                        <div>
-                          <p className="font-medium text-slate-900">
-                            {req.data.name} ({req.data.email})
-                          </p>
-                          <p className="text-sm text-slate-500">
-                            Submitted {format(new Date(req.createdAt), 'PPP')}
-                          </p>
-                        </div>
+                      ) : (
+                        <ArrowRightLeft className="h-5 w-5 text-purple-600" />
+                      )}
+                      <div>
+                        <p className="font-medium text-slate-900">
+                          {req.type === 'USER_ADDITION'
+                            ? `Add: ${req.data.name} (${req.data.email})`
+                            : 'POC Transfer Request'}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          Submitted {format(new Date(req.createdAt), 'PPP')}
+                        </p>
                       </div>
-                      <Badge className="bg-amber-100 text-amber-700">Pending Review</Badge>
                     </div>
-                  ))}
+                    <Badge className="bg-amber-100 text-amber-700">Pending Review</Badge>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}
@@ -472,7 +625,7 @@ export default function UsersPage() {
                 <div>
                   <p className="font-medium text-blue-800">View Only</p>
                   <p className="text-sm text-blue-700 mt-1">
-                    Only the Primary Point of Contact can request new team members.
+                    Only the Primary Point of Contact can request new team members or transfer the POC role.
                     Contact {teamData.primaryPoc?.name || 'your POC'} if you need to make changes.
                   </p>
                 </div>

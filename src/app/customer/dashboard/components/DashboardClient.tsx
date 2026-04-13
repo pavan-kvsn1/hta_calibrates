@@ -11,7 +11,8 @@ import {
   AuthorizedTable,
   AuthorizedCertificate,
 } from './index'
-import { Bell, MessageSquare, CheckCircle, FileText, Crown, Loader2 } from 'lucide-react'
+import { Bell, MessageSquare, CheckCircle, FileText, Crown, Loader2, Users } from 'lucide-react'
+import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 type ViewType = 'pending' | 'awaiting' | 'completed' | 'authorized'
@@ -155,15 +156,29 @@ export function DashboardClient() {
         <div className="p-6 overflow-auto h-full">
           {/* Header with Company Name and POC Badge */}
           <div className="mb-6">
-            <div className="flex items-center gap-3 mb-1">
-              {data?.companyName && (
-                <span className="text-sm text-slate-500">{data.companyName}</span>
-              )}
-              {data?.isPrimaryPoc && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                  <Crown className="h-3 w-3" />
-                  Primary POC
-                </span>
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-3">
+                {data?.companyName && (
+                  <span className="text-sm text-slate-500">{data.companyName}</span>
+                )}
+                {data?.isPrimaryPoc && (
+                  <Link
+                    href="/customer/users"
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+                  >
+                    <Crown className="h-3 w-3" />
+                    Primary POC
+                  </Link>
+                )}
+              </div>
+              {data && (
+                <Link
+                  href="/customer/users"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  <Users className="h-4 w-4" />
+                  Team ({data.userCount})
+                </Link>
               )}
             </div>
             <h1 className="text-2xl font-bold text-slate-900">{viewTitles[activeView]}</h1>

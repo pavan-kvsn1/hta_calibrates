@@ -151,6 +151,12 @@ export default async function CustomerCertReviewPage({ params }: Props) {
   // Get chat thread
   const chatThread = certificate.chatThreads[0] || null
 
+  // Get approval token for TAT tracking (if exists)
+  const approvalToken = await prisma.approvalToken.findFirst({
+    where: { certificateId: certificate.id },
+    orderBy: { createdAt: 'desc' },
+  })
+
   // Get status config
   const statusConfig = STATUS_CONFIG[certificate.status] || { label: certificate.status, className: 'bg-gray-50 text-gray-600 border-gray-100' }
 
@@ -161,6 +167,8 @@ export default async function CustomerCertReviewPage({ params }: Props) {
     status: certificate.status,
     customerName: certificate.customerName,
     customerAddress: certificate.customerAddress,
+    customerContactName: certificate.customerContactName,
+    customerContactEmail: certificate.customerContactEmail,
     calibratedAt: certificate.calibratedAt,
     srfNumber: certificate.srfNumber,
     srfDate: certificate.srfDate?.toISOString() || null,
@@ -250,6 +258,8 @@ export default async function CustomerCertReviewPage({ params }: Props) {
       signatures={signatures}
       chatThreadId={chatThread?.id || null}
       headerData={headerData}
+      expiresAt={approvalToken?.expiresAt?.toISOString() || null}
+      sentAt={approvalToken?.createdAt?.toISOString() || null}
     />
   )
 }

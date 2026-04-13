@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { parseUserAgent, type SigningMetadata } from '@/components/pdf/pdf-utils'
 import { safeJsonParse } from '@/lib/utils/safe-json'
 import type { ParameterBin } from '@/lib/stores/certificate-store'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function GET(
   request: NextRequest,
@@ -43,12 +44,26 @@ export async function GET(
       return NextResponse.json({ error: 'Certificate not found' }, { status: 404 })
     }
 
-    // Check access - allow creator, reviewer, or ADMIN
+    // Check access - allow creator, reviewer, ADMIN, or CUSTOMER with matching company
     const isCreator = certificate.createdBy.id === session.user.id
     const isReviewer = certificate.reviewer?.id === session.user.id
     const isAdmin = session.user.role === 'ADMIN'
+    const isCustomer = session.user.role === 'CUSTOMER'
 
-    if (!isCreator && !isReviewer && !isAdmin) {
+    let hasCustomerAccess = false
+    if (isCustomer && session.user.email) {
+      // Check if customer's company matches certificate's customer name
+      const customer = await prisma.customerUser.findUnique({
+        where: { email: session.user.email },
+        include: { customerAccount: true },
+      })
+      if (customer) {
+        const companyName = customer.customerAccount?.companyName || customer.companyName || ''
+        hasCustomerAccess = companyName.toLowerCase() === certificate.customerName?.toLowerCase()
+      }
+    }
+
+    if (!isCreator && !isReviewer && !isAdmin && !hasCustomerAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -180,6 +195,7 @@ export async function GET(
       dueDateNotApplicable: certificate.dueDateNotApplicable || false,
       customerName: certificate.customerName || '',
       customerAddress: certificate.customerAddress || '',
+      customerContactName: certificate.customerContactName || '',
 
       // Section 2: UUC Details
       uucDescription: certificate.uucDescription || '',
@@ -258,7 +274,7 @@ export async function GET(
       engineerNotes: '',
     })
   } catch (error) {
-    console.error('Error fetching certificate PDF data:', error)
+    logger.error({ err: error }, 'Error fetching certificate PDF data')
     return NextResponse.json(
       { error: 'Failed to fetch certificate data' },
       { status: 500 }

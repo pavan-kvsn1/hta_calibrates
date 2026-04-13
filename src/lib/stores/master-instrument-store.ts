@@ -6,6 +6,9 @@ import {
   enrichInstrument,
   canMeasureParameter,
   getSimpleValue,
+  getParameterGroupsForCategory,
+  filterByParameterGroup,
+  getSopReferences,
 } from '@/lib/master-instruments'
 
 // Import the JSON data as fallback
@@ -40,6 +43,12 @@ interface MasterInstrumentStore {
   getCategories: () => InstrumentCategory[]
   getMakes: (category?: InstrumentCategory) => string[]
   getModels: (category?: InstrumentCategory, make?: string) => string[]
+
+  // NEW: Parameter group getters
+  getParameterGroups: (category: InstrumentCategory) => string[]
+  getInstrumentsByParameterGroup: (category: InstrumentCategory, parameterGroup?: string) => MasterInstrument[]
+  getSopReferencesForInstrument: (instrument: MasterInstrument) => string[]
+  getDescriptions: (category: InstrumentCategory, parameterGroup?: string) => string[]
 
   // Stats
   getStats: () => {
@@ -216,6 +225,36 @@ export const useMasterInstrumentStore = create<MasterInstrumentStore>((set, get)
     })
 
     return Array.from(models).sort()
+  },
+
+  // NEW: Parameter group getters
+  getParameterGroups: (category) => {
+    const { instruments } = get()
+    return getParameterGroupsForCategory(instruments, category)
+  },
+
+  getInstrumentsByParameterGroup: (category, parameterGroup) => {
+    const { instruments } = get()
+    return filterByParameterGroup(instruments, category, parameterGroup)
+  },
+
+  getSopReferencesForInstrument: (instrument) => {
+    return getSopReferences(instrument)
+  },
+
+  getDescriptions: (category, parameterGroup) => {
+    const { instruments } = get()
+    const descriptions = new Set<string>()
+
+    let filtered = filterByParameterGroup(instruments, category, parameterGroup)
+
+    filtered.forEach(inst => {
+      if (inst.instrument_desc) {
+        descriptions.add(inst.instrument_desc)
+      }
+    })
+
+    return Array.from(descriptions).sort()
   },
 
   getStats: () => {

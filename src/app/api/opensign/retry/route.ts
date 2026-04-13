@@ -8,6 +8,9 @@ import {
   withRetry,
 } from '@/lib/services/opensign'
 import { generateSignedPDF, getPageCountFromBuffer } from '@/lib/services/pdf/generator'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('opensign')
 
 /**
  * POST /api/opensign/retry
@@ -154,7 +157,7 @@ export async function POST(request: NextRequest) {
       results,
     })
   } catch (error) {
-    console.error('OpenSign retry error:', error)
+    logger.error({ err: error }, 'Failed to retry OpenSign signing')
     return NextResponse.json(
       { error: 'Failed to retry OpenSign signing', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

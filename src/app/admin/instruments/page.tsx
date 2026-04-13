@@ -227,9 +227,9 @@ export default function InstrumentsPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4 mb-6">
-          <Card className="cursor-pointer hover:border-slate-400" onClick={() => setStatusFilter('ALL')}>
-            <CardContent className="pt-4 pb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+          <Card className="cursor-pointer" onClick={() => setStatusFilter('ALL')}>
+            <CardContent className="pt-4 pb-4 border border-slate-300 rounded-lg hover:border-slate-500">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-slate-100 rounded-lg">
                   <Gauge className="h-5 w-5 text-slate-600" />
@@ -242,8 +242,8 @@ export default function InstrumentsPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:border-green-400" onClick={() => setStatusFilter('valid')}>
-            <CardContent className="pt-4 pb-4">
+          <Card className="cursor-pointer" onClick={() => setStatusFilter('valid')}>
+            <CardContent className="pt-4 pb-4 border border-green-300 rounded-lg hover:border-green-500">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-green-100 rounded-lg">
                   <CheckCircle className="h-5 w-5 text-green-600" />
@@ -256,8 +256,8 @@ export default function InstrumentsPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:border-amber-400" onClick={() => setStatusFilter('expiring')}>
-            <CardContent className="pt-4 pb-4">
+          <Card className="cursor-pointer" onClick={() => setStatusFilter('expiring')}>
+            <CardContent className="pt-4 pb-4 border border-amber-300 rounded-lg hover:border-amber-500">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 rounded-lg">
                   <Clock className="h-5 w-5 text-amber-600" />
@@ -270,8 +270,8 @@ export default function InstrumentsPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:border-red-400" onClick={() => setStatusFilter('expired')}>
-            <CardContent className="pt-4 pb-4">
+          <Card className="cursor-pointer" onClick={() => setStatusFilter('expired')}>
+            <CardContent className="pt-4 pb-4 border border-red-300 rounded-lg hover:border-red-500">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-red-100 rounded-lg">
                   <AlertCircle className="h-5 w-5 text-red-600" />
@@ -284,8 +284,8 @@ export default function InstrumentsPage() {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:border-blue-400" onClick={() => setStatusFilter('underRecal')}>
-            <CardContent className="pt-4 pb-4">
+          <Card className="cursor-pointer" onClick={() => setStatusFilter('underRecal')}>
+            <CardContent className="pt-4 pb-4 border border-blue-300 rounded-lg hover:border-blue-500">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Wrench className="h-5 w-5 text-blue-600" />
@@ -312,12 +312,12 @@ export default function InstrumentsPage() {
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="pl-10"
+                  className="pl-10 border-slate-300"
                 />
               </div>
             </div>
             <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-48 border-slate-300">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -329,7 +329,7 @@ export default function InstrumentsPage() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40 border-slate-300">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -346,7 +346,7 @@ export default function InstrumentsPage() {
       </Card>
 
       {/* Instruments Table */}
-      <Card>
+      <Card className="border-slate-300">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gauge className="h-5 w-5 text-slate-400" />
@@ -366,7 +366,7 @@ export default function InstrumentsPage() {
             <>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="border border-slate-300 rounded-lg">
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Make / Model</TableHead>
@@ -379,7 +379,7 @@ export default function InstrumentsPage() {
                   {instruments.map((inst) => (
                     <TableRow
                       key={inst.id}
-                      className="cursor-pointer hover:bg-slate-50"
+                      className="cursor-pointer hover:bg-slate-300 border border-slate-300 rounded-lg"
                       onClick={() => (window.location.href = `/admin/instruments/${inst.id}`)}
                     >
                       <TableCell className="text-sm text-slate-600">

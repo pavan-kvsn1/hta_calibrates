@@ -14,6 +14,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { processJobs, cleanupJobs, resetStuckJobs, getJobCounts } from '@/lib/services/queue'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('queue')
 
 // Secret for authenticating cron/webhook calls
 const QUEUE_SECRET = process.env.QUEUE_PROCESS_SECRET || 'dev-secret'
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
       ...result,
     })
   } catch (error) {
-    console.error('[Queue API] Process error:', error)
+    logger.error({ err: error }, 'Failed to process jobs')
     return NextResponse.json(
       { error: 'Failed to process jobs' },
       { status: 500 }
@@ -69,7 +72,7 @@ export async function GET(req: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('[Queue API] Status error:', error)
+    logger.error({ err: error }, 'Failed to get queue status')
     return NextResponse.json(
       { error: 'Failed to get queue status' },
       { status: 500 }

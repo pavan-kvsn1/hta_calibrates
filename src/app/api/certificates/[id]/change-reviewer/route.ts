@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { notifyReviewerOnSubmit } from '@/lib/services/notifications'
+import { certificateLogger as logger } from '@/lib/logger'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       certificateNumber: result.certificateNumber,
       assigneeName: session.user.name || 'Engineer',
       reviewerId: newReviewerId,
-    }).catch((err) => console.error('Failed to send notification:', err))
+    }).catch((err) => logger.error({ err }, 'Failed to send reviewer notification'))
 
     return NextResponse.json({
       success: true,
@@ -180,7 +181,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     })
   } catch (error) {
-    console.error('[Change Reviewer API] Error:', error)
+    logger.error({ err: error }, 'Error changing certificate reviewer')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

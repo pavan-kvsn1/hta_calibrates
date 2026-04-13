@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
 import { appendSigningEvidence, collectServerEvidence, CONSENT_TEXT, CONSENT_VERSION } from '@/lib/stores/signing-evidence'
+import { enqueue } from '@/lib/services/queue'
+import { certificateLogger as logger } from '@/lib/logger'
 
 export async function POST(
   request: NextRequest,
@@ -15,13 +18,31 @@ export async function POST(
 
     const { id } = await params
     const body = await request.json()
-    const { signatureData, signerName, clientEvidence } = body
+    const {
+      signatureData,
+      signerName,
+      clientEvidence,
+      // Optional: send download link to customer
+      sendDownloadLink,
+      customerEmail,
+      customerName,
+    } = body
 
     if (!signatureData || !signerName) {
       return NextResponse.json(
         { error: 'Signature data and signer name are required' },
         { status: 400 }
       )
+    }
+
+    // Validate customer info if sending download link
+    if (sendDownloadLink) {
+      if (!customerEmail?.trim() || !customerName?.trim()) {
+        return NextResponse.json(
+          { error: 'Customer email and name are required to send download link' },
+          { status: 400 }
+        )
+      }
     }
 
     // Get certificate
@@ -131,8 +152,103 @@ export async function POST(
           result.certificate.currentRevision
         )
       } catch (evidenceError) {
-        console.error('Failed to append signing evidence:', evidenceError)
+        logger.error({ err: evidenceError }, 'Failed to append signing evidence')
         // Don't fail the request if evidence capture fails
+      }
+    }
+
+    // Generate signed PDF and send download link if requested
+    let downloadLinkResult = null
+    if (sendDownloadLink && customerEmail && customerName) {
+      try {
+        // Generate the signed PDF first
+        const { generateSignedPDF } = await import('@/lib/services/pdf/generator')
+        const { storePDF } = await import('@/lib/services/pdf/storage')
+
+        const pdfBuffer = await generateSignedPDF(id)
+        const pdfPath = await storePDF(id, pdfBuffer)
+
+        // Update certificate with signed PDF path
+        await prisma.certificate.update({
+          where: { id },
+          data: { signedPdfPath: pdfPath },
+        })
+
+        // Create download token
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const token = crypto.randomUUID()
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+
+        const downloadToken = await prisma.downloadToken.create({
+          data: {
+            token,
+            certificateId: id,
+            customerEmail: customerEmail.toLowerCase().trim(),
+            customerName: customerName.trim(),
+            expiresAt,
+            maxDownloads: 5,
+            sentById: session.user.id,
+          },
+        })
+
+        // Log the download link sent event
+        const lastEvent = await prisma.certificateEvent.findFirst({
+          where: { certificateId: id },
+          orderBy: { sequenceNumber: 'desc' },
+        })
+
+        await prisma.certificateEvent.create({
+          data: {
+            certificateId: id,
+            sequenceNumber: (lastEvent?.sequenceNumber || 0) + 1,
+            revision: result.certificate.currentRevision,
+            eventType: 'DOWNLOAD_LINK_SENT',
+            eventData: JSON.stringify({
+              customerEmail: customerEmail.toLowerCase().trim(),
+              customerName: customerName.trim(),
+              tokenId: downloadToken.id,
+              expiresAt: expiresAt.toISOString(),
+              sentBy: session.user.name,
+            }),
+            userId: session.user.id,
+            userRole: session.user.role,
+          },
+        })
+
+        const downloadUrl = `${baseUrl}/customer/download/${token}`
+
+        // Send email to customer
+        await enqueue('email:send', {
+          to: customerEmail.toLowerCase().trim(),
+          template: 'certificate-download-ready',
+          templateData: {
+            customerName: customerName.trim(),
+            certificateNumber: certificate.certificateNumber,
+            instrumentDescription: certificate.uucDescription || 'Calibration Certificate',
+            serialNumber: certificate.uucSerialNumber || '',
+            calibrationDate: certificate.dateOfCalibration
+              ? new Date(certificate.dateOfCalibration).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })
+              : '',
+            downloadUrl,
+          },
+        })
+
+        downloadLinkResult = {
+          sent: true,
+          downloadUrl,
+          customerEmail: customerEmail.toLowerCase().trim(),
+        }
+      } catch (downloadLinkError) {
+        logger.error({ err: downloadLinkError }, 'Failed to send download link')
+        // Don't fail the authorization if download link fails
+        downloadLinkResult = {
+          sent: false,
+          error: 'Failed to send download link. You can send it manually later.',
+        }
       }
     }
 
@@ -142,9 +258,10 @@ export async function POST(
         id: result.certificate.id,
         status: result.certificate.status,
       },
+      downloadLink: downloadLinkResult,
     })
   } catch (error) {
-    console.error('Error authorizing certificate:', error)
+    logger.error({ err: error }, 'Error authorizing certificate')
     return NextResponse.json(
       { error: 'Failed to authorize certificate' },
       { status: 500 }

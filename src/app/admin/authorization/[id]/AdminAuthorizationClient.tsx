@@ -27,6 +27,8 @@ interface AdminAuthorizationClientProps {
   feedbacks: Feedback[]
   events: CertificateEvent[]
   headerData: HeaderData
+  customerEmail?: string | null
+  customerContactName?: string | null
 }
 
 export function AdminAuthorizationClient({
@@ -36,6 +38,8 @@ export function AdminAuthorizationClient({
   feedbacks,
   events,
   headerData,
+  customerEmail,
+  customerContactName,
 }: AdminAuthorizationClientProps) {
   // View mode state: 'details' shows certificate content, 'pdf' shows PDF preview
   const [viewMode, setViewMode] = useState<'details' | 'pdf'>('details')
@@ -74,7 +78,7 @@ export function AdminAuthorizationClient({
   }, [certificate.id, certificate.certificateNumber])
 
   return (
-    <div className="flex h-full bg-slate-100 p-3 gap-3 overflow-hidden">
+    <div className="flex h-full bg-slate-100 overflow-hidden">
       {/* Left Side - Header + Signatures + Content (Scrollable) */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Certificate Card - Bounding Box */}
@@ -97,8 +101,8 @@ export function AdminAuthorizationClient({
           {/* Content Area - Scrollable */}
           <div className="flex-1 overflow-auto bg-slate-50/30">
             {viewMode === 'details' ? (
-              <div className="p-6 space-y-6">
-                <AdminAuthContent formData={formData} />
+              <div className="p-3 space-y-6 bg-section-inner">
+                <AdminAuthContent formData={formData} certificateId={certificate.id} />
 
                 {/* Audit History Section - at the bottom */}
                 <AdminHistorySection
@@ -118,7 +122,7 @@ export function AdminAuthorizationClient({
       </div>
 
       {/* Right Panel - Chat & Authorization */}
-      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+      <div className="w-[380px] flex-shrink-0 flex flex-col p-2 overflow-y-auto bg-section-inner">
         {/* Chat Panel */}
         <AdminAuthChatPanel
           certificateId={certificate.id}
@@ -132,6 +136,8 @@ export function AdminAuthorizationClient({
           isAuthorized={isAuthorized}
           currentRevision={certificate.currentRevision}
           createdByName={certificate.createdBy?.name || null}
+          customerName={customerContactName || certificate.customerName}
+          customerEmail={customerEmail}
         />
       </div>
     </div>

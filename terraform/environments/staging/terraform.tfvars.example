@@ -6,3 +6,15 @@ project_id = "your-gcp-project-id"
 
 # OPTIONAL: Override the default region (asia-south1)
 # region = "asia-south1"
+
+# ============================================
+# Email Configuration (optional for staging)
+# ============================================
+# resend_api_key = "re_xxxxxxxx"
+# email_from = "HTA Calibration Staging <noreply-staging@htacalibration.com>"
+
+# ============================================
+# Monitoring Configuration
+# ============================================
+enable_monitoring = true
+alert_email       = "staging-alerts@yourcompany.com"

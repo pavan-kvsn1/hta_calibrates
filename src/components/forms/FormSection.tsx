@@ -35,7 +35,7 @@ export function FormSection({
     <section className="scroll-mt-32" id={id}>
       <div className={cn(
         "bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden",
-        disabled && "border-slate-300 bg-slate-50/50",
+        disabled && "border-slate-200 bg-slate-50/50",
         className
       )}>
         <button
@@ -45,7 +45,7 @@ export function FormSection({
             "w-full px-8 py-5 flex items-center justify-between text-left group border-b border-slate-100",
             isDark
               ? "bg-slate-900 text-white"
-              : "bg-gradient-to-r from-slate-50 to-white",
+              : "bg-primary",
             disabled && "bg-slate-100",
             headerClassName
           )}
@@ -59,14 +59,14 @@ export function FormSection({
             <div>
               <span className={cn(
                 "text-[10px] font-extrabold uppercase tracking-widest mb-1 block",
-                isDark ? "text-primary" : "text-primary",
+                isDark ? "text-primary" : "text-white/80",
                 disabled && "text-slate-400"
               )}>
                 {sectionNumber}
               </span>
               <h2 className={cn(
                 "text-xl font-extrabold tracking-tight",
-                isDark ? "text-white" : "text-slate-900",
+                isDark ? "text-white" : "text-white",
                 disabled && "text-slate-500"
               )}>
                 {title}
@@ -80,7 +80,7 @@ export function FormSection({
             <ChevronDown
               className={cn(
                 "size-5 transition-transform duration-200",
-                isDark ? "text-slate-400" : "text-slate-400 group-hover:text-primary",
+                isDark ? "text-slate-400" : "text-white/70 group-hover:text-white",
                 !isExpanded && "-rotate-90"
               )}
             />
@@ -91,11 +91,11 @@ export function FormSection({
           <>
             {/* Feedback slot - renders inside the section, below header */}
             {feedbackSlot && (
-              <div className="px-8 pt-4">
+              <div className="px-8 pt-4  border border-slate-300 bg-section-inner">
                 {feedbackSlot}
               </div>
             )}
-            <div className={cn("p-8 pt-4 relative", disabled && "pointer-events-none")}>
+            <div className={cn("p-8 pt-4 relative  border border-slate-300 bg-section-inner", disabled && "pointer-events-none")}>
               {children}
               {/* Disabled overlay */}
               {disabled && (

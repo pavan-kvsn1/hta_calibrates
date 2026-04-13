@@ -5,7 +5,8 @@ metadata:
   namespace: hta-calibration
 data:
   NODE_ENV: "production"
-  NEXTAUTH_URL: "https://htacalibration.com"
+  NEXTAUTH_URL: "https://hta-calibration.com"
+  AUTH_URL: "https://hta-calibration.com"
   GCS_CERTIFICATES_BUCKET: "hta-calibration-prod-certificates-prod"
   GCS_SIGNATURES_BUCKET: "hta-calibration-prod-signatures-prod"
   GCS_UPLOADS_BUCKET: "hta-calibration-prod-uploads-prod"

@@ -3,6 +3,11 @@ import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 import { REFRESH_TOKEN_CONFIG } from './refresh-token'
+import {
+  isAccountLocked,
+  recordFailedLoginAttempt,
+  clearFailedLoginAttempts,
+} from './security'
 
 // Determine if we're in production
 const isProduction = process.env.NODE_ENV === 'production'
@@ -45,11 +50,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
+        const email = (credentials.email as string).toLowerCase()
+        const accountKey = `staff:${email}`
+
+        // Check if account is locked due to too many failed attempts
+        const lockStatus = await isAccountLocked(accountKey)
+        if (lockStatus.locked) {
+          // Account is locked - don't even check credentials
+          return null
+        }
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
         })
 
         if (!user || !user.isActive || !user.passwordHash) {
+          // Record failed attempt even for non-existent users (prevents enumeration)
+          await recordFailedLoginAttempt(accountKey)
           return null
         }
 
@@ -59,8 +76,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         )
 
         if (!isPasswordValid) {
+          // Record failed login attempt
+          await recordFailedLoginAttempt(accountKey)
           return null
         }
+
+        // Successful login - clear any failed attempts
+        await clearFailedLoginAttempts(accountKey)
 
         return {
           id: user.id,
@@ -84,19 +106,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
+        const email = (credentials.email as string).toLowerCase()
+        const accountKey = `customer:${email}`
+
+        // Check if account is locked due to too many failed attempts
+        const lockStatus = await isAccountLocked(accountKey)
+        if (lockStatus.locked) {
+          // Account is locked - don't even check credentials
+          return null
+        }
+
         const customer = await prisma.customerUser.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
           include: {
             customerAccount: true,
           },
         })
 
         if (!customer || !customer.isActive) {
+          // Record failed attempt even for non-existent users (prevents enumeration)
+          await recordFailedLoginAttempt(accountKey)
           return null
         }
 
         // If no password hash, account not yet activated
         if (!customer.passwordHash) {
+          await recordFailedLoginAttempt(accountKey)
           return null
         }
 
@@ -106,8 +141,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         )
 
         if (!isPasswordValid) {
+          // Record failed login attempt
+          await recordFailedLoginAttempt(accountKey)
           return null
         }
+
+        // Successful login - clear any failed attempts
+        await clearFailedLoginAttempts(accountKey)
 
         // Get company name and account ID from customerAccount if available
         const companyName = customer.customerAccount?.companyName || customer.companyName || undefined

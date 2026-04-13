@@ -9,6 +9,7 @@ import {
   revokeRefreshToken,
   REFRESH_TOKEN_CONFIG,
 } from '@/lib/refresh-token'
+import { authLogger as logger } from '@/lib/logger'
 
 const isProduction = process.env.NODE_ENV === 'production'
 
@@ -186,7 +187,7 @@ export async function POST(request: NextRequest) {
 
     return response
   } catch (error) {
-    console.error('Token refresh error:', error)
+    logger.error({ err: error }, 'Token refresh error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -220,7 +221,7 @@ export async function DELETE() {
 
     return response
   } catch (error) {
-    console.error('Logout error:', error)
+    logger.error({ err: error }, 'Logout error')
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

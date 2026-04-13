@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { auth, canAccessAdmin } from '@/lib/auth'
 import { safeJsonParse } from '@/lib/utils/safe-json'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('instruments')
 
 // GET /api/admin/instruments - List instruments with filters and pagination
 export async function GET(request: NextRequest) {
@@ -128,7 +131,7 @@ export async function GET(request: NextRequest) {
       stats,
     })
   } catch (error) {
-    console.error('Error fetching instruments:', error)
+    logger.error({ err: error }, 'Error fetching admin instruments')
     return NextResponse.json(
       { error: 'Failed to fetch instruments' },
       { status: 500 }
@@ -191,6 +194,11 @@ export async function POST(request: NextRequest) {
           : null,
         rangeData: body.rangeData ? body.rangeData : Prisma.DbNull,
         remarks: body.remarks || null,
+        // NEW fields
+        parameterGroup: body.parameterGroup || null,
+        parameterRoles: body.parameterRoles || [],
+        parameterCapabilities: body.parameterCapabilities || [],
+        sopReferences: body.sopReferences || [],
         isActive: true,
         createdById: session!.user.id,
         changeReason: 'Manual creation',
@@ -202,7 +210,7 @@ export async function POST(request: NextRequest) {
       instrument,
     })
   } catch (error) {
-    console.error('Error creating instrument:', error)
+    logger.error({ err: error }, 'Error creating instrument')
     return NextResponse.json(
       { error: 'Failed to create instrument' },
       { status: 500 }

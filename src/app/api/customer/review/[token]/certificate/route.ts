@@ -4,6 +4,9 @@ import { auth } from '@/lib/auth'
 import { parseUserAgent, type SigningMetadata } from '@/components/pdf/pdf-utils'
 import { safeJsonParse } from '@/lib/utils/safe-json'
 import type { ParameterBin } from '@/lib/stores/certificate-store'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 export async function GET(
   request: NextRequest,
@@ -53,7 +56,7 @@ export async function GET(
 
     return NextResponse.json(certificate)
   } catch (error) {
-    console.error('Error fetching certificate for customer review:', error)
+    logger.error({ err: error }, 'Error fetching certificate for customer review')
     return NextResponse.json(
       { error: 'Failed to fetch certificate data' },
       { status: 500 }

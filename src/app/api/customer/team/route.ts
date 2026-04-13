@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('customer')
 
 // GET /api/customer/team - Get team members for the logged-in user's company
 export async function GET() {
@@ -67,14 +70,14 @@ export async function GET() {
       pendingRequests: pendingRequests.map((req) => ({
         id: req.id,
         type: req.type,
-        data: req.data,
+        data: JSON.parse(req.data),
         createdAt: req.createdAt,
       })),
       currentUserId: session.user.id,
       isPrimaryPoc: customerAccount.primaryPocId === session.user.id,
     })
   } catch (error) {
-    console.error('Error fetching team:', error)
+    logger.error({ err: error }, 'Failed to fetch team')
     return NextResponse.json(
       { error: 'Failed to fetch team' },
       { status: 500 }

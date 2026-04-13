@@ -1,5 +1,5 @@
 # Production Environment - Main Configuration
-# Provisions all infrastructure for the production environment
+# Provisions all infrastructure for the production environment using GKE Autopilot
 
 terraform {
   required_version = ">= 1.5.0"
@@ -36,7 +36,7 @@ provider "google-beta" {
   region  = var.region
 }
 
-# Enable required APIs (shared APIs like iam, artifactregistry are in terraform/shared)
+# Enable required APIs
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "compute.googleapis.com",
@@ -46,6 +46,8 @@ resource "google_project_service" "required_apis" {
     "secretmanager.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
+    "redis.googleapis.com",
+    "artifactregistry.googleapis.com",
   ])
 
   project = var.project_id
@@ -77,7 +79,7 @@ module "storage" {
   project_id   = var.project_id
   location     = "ASIA"
   environment  = "prod"
-  cors_origins = ["https://htacalibration.com", "https://www.htacalibration.com"]
+  cors_origins = ["https://hta-calibration.com", "https://www.hta-calibration.com"]
 
   depends_on = [google_project_service.required_apis]
 }
@@ -123,34 +125,58 @@ module "secrets" {
   project_id                = var.project_id
   environment               = "prod"
   app_service_account_email = module.iam.app_service_account_email
-  nextauth_url              = "https://htacalibration.com"
+  nextauth_url              = "https://hta-calibration.com"
+
+  # Email configuration
+  resend_api_key = var.resend_api_key
+  email_from     = var.email_from
+
+  # Queue configuration
+  create_queue_secret = true
 
   depends_on = [module.iam]
 }
 
-# GKE Module - Using Regional Standard cluster (multi-zone, high availability)
+# Memorystore (Redis) Module for caching
+module "memorystore" {
+  source = "../../modules/memorystore"
+
+  project_id  = var.project_id
+  region      = var.region
+  environment = "prod"
+  vpc_id      = module.vpc.vpc_id
+
+  # Production settings - HA with more memory
+  tier           = "STANDARD_HA"
+  memory_size_gb = 2
+  redis_version  = "REDIS_7_0"
+
+  # Security
+  auth_enabled            = true
+  transit_encryption_mode = "SERVER_AUTHENTICATION"
+
+  # Grant access to app service account
+  app_service_account_email = module.iam.app_service_account_email
+
+  depends_on = [module.vpc, module.iam]
+}
+
+# GKE Module - Using Autopilot (Google manages nodes)
 module "gke" {
   source = "../../modules/gke"
 
   project_id             = var.project_id
   region                 = var.region
   environment            = "prod"
-  cluster_mode           = "regional"  # Multi-zone cluster for high availability
+  cluster_mode           = "autopilot"  # Google manages nodes - simpler & cost-effective
   vpc_name               = module.vpc.vpc_name
   gke_subnet_name        = module.vpc.gke_subnet_name
   gke_pod_range_name     = module.vpc.gke_pod_range_name
   gke_service_range_name = module.vpc.gke_service_range_name
   master_ipv4_cidr_block = "172.16.2.0/28"
 
-  # Production-specific settings (high availability)
-  node_count                = 3
-  min_node_count            = 3
-  max_node_count            = 10
-  machine_type              = "e2-standard-2"  # 2 vCPU, 8GB RAM
-  disk_size_gb              = 100
-  node_service_account      = module.iam.gke_node_service_account_email
-  release_channel           = "STABLE"  # More stable releases for prod
-  enable_managed_prometheus = true
+  # Autopilot doesn't need node configuration - Google manages it
+  release_channel = "STABLE"  # More stable releases for prod
 
   # Restrict master access in production
   master_authorized_networks = [
@@ -172,4 +198,151 @@ resource "google_service_account_iam_member" "app_workload_identity" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[hta-calibration/hta-app]"
 
   depends_on = [module.gke]
+}
+
+# ============================================
+# DATABASE_URL Secret
+# Complete connection string for the application
+# ============================================
+
+data "google_secret_manager_secret_version" "db_password" {
+  secret  = module.cloudsql.database_password_secret_id
+  project = var.project_id
+
+  depends_on = [module.cloudsql]
+}
+
+resource "google_secret_manager_secret" "database_url" {
+  secret_id = "${var.project_id}-database-url-prod"
+  project   = var.project_id
+
+  labels = {
+    environment = "prod"
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "database_url" {
+  secret      = google_secret_manager_secret.database_url.id
+  secret_data = "postgresql://${module.cloudsql.database_user}:${data.google_secret_manager_secret_version.db_password.secret_data}@${module.cloudsql.private_ip_address}:5432/${module.cloudsql.database_name}"
+
+  depends_on = [module.cloudsql]
+}
+
+resource "google_secret_manager_secret_iam_member" "database_url_access" {
+  secret_id = google_secret_manager_secret.database_url.secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.iam.app_service_account_email}"
+}
+
+# ============================================
+# REDIS_URL Secret
+# ============================================
+
+data "google_secret_manager_secret_version" "redis_auth" {
+  count   = module.memorystore.redis_auth_enabled ? 1 : 0
+  secret  = module.memorystore.redis_auth_secret_id
+  project = var.project_id
+
+  depends_on = [module.memorystore]
+}
+
+resource "google_secret_manager_secret" "redis_url" {
+  secret_id = "${var.project_id}-redis-url-prod"
+  project   = var.project_id
+
+  labels = {
+    environment = "prod"
+    managed_by  = "terraform"
+    app         = "hta-calibration"
+  }
+
+  replication {
+    auto {}
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_secret_manager_secret_version" "redis_url" {
+  secret      = google_secret_manager_secret.redis_url.id
+  secret_data = module.memorystore.redis_auth_enabled ? "redis://:${data.google_secret_manager_secret_version.redis_auth[0].secret_data}@${module.memorystore.redis_host}:${module.memorystore.redis_port}" : "redis://${module.memorystore.redis_host}:${module.memorystore.redis_port}"
+
+  depends_on = [module.memorystore]
+}
+
+resource "google_secret_manager_secret_iam_member" "redis_url_access" {
+  secret_id = google_secret_manager_secret.redis_url.secret_id
+  project   = var.project_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.iam.app_service_account_email}"
+}
+
+# ============================================
+# Artifact Registry (for container images)
+# ============================================
+
+resource "google_artifact_registry_repository" "app" {
+  location      = var.region
+  repository_id = "hta-calibration"
+  description   = "Docker repository for HTA Calibration"
+  format        = "DOCKER"
+
+  labels = {
+    environment = "prod"
+    managed_by  = "terraform"
+  }
+
+  depends_on = [google_project_service.required_apis]
+}
+
+resource "google_artifact_registry_repository_iam_member" "cicd_writer" {
+  location   = google_artifact_registry_repository.app.location
+  repository = google_artifact_registry_repository.app.name
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${module.iam.cicd_service_account_email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "app_reader" {
+  location   = google_artifact_registry_repository.app.location
+  repository = google_artifact_registry_repository.app.name
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${module.iam.app_service_account_email}"
+}
+
+# ============================================
+# Monitoring Module - Dashboard and Alerts
+# ============================================
+
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  project_id             = var.project_id
+  environment            = "prod"
+  region                 = var.region
+  cloud_run_service_name = "hta-calibration"
+
+  # Alert configuration
+  alert_email           = var.alert_email
+  error_rate_threshold  = 10      # Alert if > 10 5xx errors in 5 minutes
+  latency_threshold_ms  = 2000    # Alert if p95 > 2 seconds
+  cpu_threshold_percent = 80      # Alert if CPU > 80% for 10 minutes
+
+  # Disaster Recovery - Backup monitoring
+  enable_backup_alerts   = var.enable_monitoring
+  cloudsql_instance_name = module.cloudsql.instance_name
+  backup_alert_hours     = 25  # Alert if no backup in 25 hours
+
+  enable_dashboard = var.enable_monitoring
+  enable_alerts    = var.enable_monitoring
+
+  depends_on = [google_project_service.required_apis, module.cloudsql]
 }

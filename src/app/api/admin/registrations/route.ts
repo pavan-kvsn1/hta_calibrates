@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth, isMasterAdmin } from '@/lib/auth'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('registrations')
 
 // GET /api/admin/registrations - List customer registrations (Master Admin only)
 export async function GET(request: NextRequest) {
@@ -59,7 +62,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching registrations:', error)
+    logger.error({ err: error }, 'Failed to fetch registrations')
     return NextResponse.json(
       { error: 'Failed to fetch registrations' },
       { status: 500 }

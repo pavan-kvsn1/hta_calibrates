@@ -44,3 +44,13 @@ output "backups_bucket_name" {
   description = "Name of the backups bucket (prod only)"
   value       = var.environment == "prod" ? google_storage_bucket.backups[0].name : null
 }
+
+output "images_bucket_name" {
+  description = "Name of the certificate images bucket"
+  value       = google_storage_bucket.images.name
+}
+
+output "images_bucket_url" {
+  description = "URL of the certificate images bucket"
+  value       = google_storage_bucket.images.url
+}

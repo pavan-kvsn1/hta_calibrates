@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -33,6 +32,8 @@ import {
 } from '@/components/ui/dialog'
 import {
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   Users,
   FileText,
@@ -42,6 +43,13 @@ import {
   Eye,
   Plus,
   Bell,
+  Mail,
+  Phone,
+  MapPin,
+  UserCog,
+  Clock,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { format, formatDistanceToNow } from 'date-fns'
@@ -100,8 +108,6 @@ interface Admin {
   adminType: string | null
 }
 
-type TabType = 'info' | 'users' | 'requests' | 'certificates'
-
 export default function CustomerDetailPage({
   params,
 }: {
@@ -112,7 +118,6 @@ export default function CustomerDetailPage({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState<TabType>('info')
   const [account, setAccount] = useState<CustomerAccount | null>(null)
   const [users, setUsers] = useState<CustomerUser[]>([])
   const [pendingRequests, setPendingRequests] = useState<CustomerRequest[]>([])
@@ -123,6 +128,10 @@ export default function CustomerDetailPage({
   const [showAddUserDialog, setShowAddUserDialog] = useState(false)
   const [addingUser, setAddingUser] = useState(false)
   const [newUser, setNewUser] = useState({ name: '', email: '' })
+
+  // Collapsible states
+  const [isUsersExpanded, setIsUsersExpanded] = useState(true)
+  const [isCertificatesExpanded, setIsCertificatesExpanded] = useState(true)
 
   const [formData, setFormData] = useState({
     companyName: '',
@@ -234,13 +243,18 @@ export default function CustomerDetailPage({
     }
   }
 
+  // Compute stats
+  const activeUsers = users.filter((u) => u.isActive).length
+  const pendingUsers = users.filter((u) => !u.isActive).length
+  const inProgressCerts = recentCertificates.filter(
+    (c) => c.status !== 'CUSTOMER_APPROVED' && c.status !== 'REJECTED'
+  ).length
+
   if (loading) {
     return (
-      <div className="p-3 h-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-          <div className="p-6 flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-          </div>
+      <div className="flex h-full bg-slate-100 p-3 gap-3 overflow-hidden">
+        <div className="flex-1 flex items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm">
+          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
         </div>
       </div>
     )
@@ -248,41 +262,44 @@ export default function CustomerDetailPage({
 
   if (!account) {
     return (
-      <div className="p-3 h-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-          <div className="p-6">
-            <p className="text-red-600">Customer account not found</p>
-          </div>
+      <div className="flex h-full bg-slate-100 p-3 gap-3 overflow-hidden">
+        <div className="flex-1 flex items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm">
+          <p className="text-red-600">Customer account not found</p>
         </div>
       </div>
     )
   }
 
-  const tabs = [
-    { id: 'info' as TabType, label: 'Account Info', icon: Building2 },
-    { id: 'users' as TabType, label: `Users (${users.length})`, icon: Users },
-    { id: 'requests' as TabType, label: `Pending Requests (${pendingRequests.length})`, icon: Bell, highlight: pendingRequests.length > 0 },
-    { id: 'certificates' as TabType, label: `Certificates`, icon: FileText },
-  ]
-
   return (
-    <div className="p-3 h-full">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
-        <div className="p-6 overflow-auto h-full">
+    <div className="flex h-full p-3 gap-3 overflow-hidden bg-section-inner border shadow-sm">
+      {/* Left Panel - Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
-            <div>
+          <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Link
                   href="/admin/customers"
                   className="text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  <ChevronLeft className="size-6" strokeWidth={2} />
+                  <ChevronLeft className="size-5" strokeWidth={2} />
                 </Link>
                 <span className="text-slate-300 text-xl">|</span>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{account.companyName}</h1>
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Building2 className="size-5 text-blue-600" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                    {account.companyName}
+                  </h1>
+                  <p className="text-xs text-slate-500">
+                    Created {format(new Date(account.createdAt), 'PPP')}
+                  </p>
+                </div>
                 <Badge
                   className={cn(
+                    'ml-2',
                     account.isActive
                       ? 'bg-green-100 text-green-800'
                       : 'bg-slate-100 text-slate-500'
@@ -291,102 +308,56 @@ export default function CustomerDetailPage({
                   {account.isActive ? 'Active' : 'Inactive'}
                 </Badge>
               </div>
+              {!isEditing && (
+                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                  Edit Details
+                </Button>
+              )}
             </div>
-            {activeTab === 'info' && !isEditing && (
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
-                Edit
-              </Button>
-            )}
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'px-4 py-2.5 text-sm font-medium rounded-t-lg flex items-center gap-2 transition-colors border border-b-0',
-                  activeTab === tab.id
-                    ? 'bg-white text-blue-600 border-slate-200 relative z-10'
-                    : 'bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-50 border-transparent',
-                  tab.highlight && activeTab !== tab.id && 'text-amber-600 bg-amber-50 hover:bg-amber-100'
-                )}
-              >
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab Content Panel */}
-          <div className="border border-slate-200 rounded-b-lg rounded-tr-lg bg-white p-6 -mt-px">
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-auto p-6 space-y-6">
             {error && (
-              <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+              <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
                 {error}
               </div>
             )}
 
-            {/* Account Info Tab */}
-            {activeTab === 'info' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold">Company Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {isEditing ? (
-                    <div className="space-y-4">
+            {/* Company Information */}
+            <div className="bg-white rounded-xl border border-slate-300 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <Building2 className="size-4 text-slate-500" />
+                  <h3 className="font-semibold text-slate-900">Company Information</h3>
+                </div>
+              </div>
+              <div className="p-5">
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label className="font-bold text-base">Company Name</Label>
+                        <Label className="text-xs font-semibold text-slate-600">Company Name *</Label>
                         <Input
                           value={formData.companyName}
                           onChange={(e) =>
                             setFormData((prev) => ({ ...prev, companyName: e.target.value }))
                           }
-                          className='text-xs font-semibold'
+                          className="text-sm border border-slate-300 rounded-lg"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="font-bold text-base">Address</Label>
-                        <Textarea
-                          value={formData.address}
-                          onChange={(e) =>
-                            setFormData((prev) => ({ ...prev, address: e.target.value }))
-                          }
-                          rows={2}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Contact Email</Label>
-                          <Input
-                            type="email"
-                            value={formData.contactEmail}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, contactEmail: e.target.value }))
-                            }
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Contact Phone</Label>
-                          <Input
-                            value={formData.contactPhone}
-                            onChange={(e) =>
-                              setFormData((prev) => ({ ...prev, contactPhone: e.target.value }))
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Assigned Admin</Label>
+                        <Label className="text-xs font-semibold text-slate-600">Assigned Admin</Label>
                         <Select
                           value={formData.assignedAdminId || 'none'}
                           onValueChange={(value) =>
-                            setFormData((prev) => ({ ...prev, assignedAdminId: value === 'none' ? '' : value }))
+                            setFormData((prev) => ({
+                              ...prev,
+                              assignedAdminId: value === 'none' ? '' : value,
+                            }))
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="text-sm border border-slate-300 rounded-lg">
                             <SelectValue placeholder="Select Admin..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -399,333 +370,463 @@ export default function CustomerDetailPage({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="flex gap-2 pt-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsEditing(false)}
-                          disabled={saving}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={handleSave}
-                          disabled={saving}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                          Save Changes
-                        </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-semibold text-slate-600">Address</Label>
+                      <Textarea
+                        value={formData.address}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, address: e.target.value }))
+                        }
+                        rows={2}
+                        className="text-sm border-slate-300"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-600">Contact Email</Label>
+                        <Input
+                          type="email"
+                          value={formData.contactEmail}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, contactEmail: e.target.value }))
+                          }
+                          className="text-sm border-slate-300"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-600">Contact Phone</Label>
+                        <Input
+                          value={formData.contactPhone}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, contactPhone: e.target.value }))
+                          }
+                          className="text-sm border-slate-300"
+                        />
                       </div>
                     </div>
-                  ) : (
-                    <dl className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Company Name</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.companyName}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Status</dt>
-                          <dd className="mt-0.5">
-                            <Badge
-                              className={cn(
-                                'text-xs',
-                                account.isActive
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-slate-100 text-slate-500'
-                              )}
-                            >
-                              {account.isActive ? 'Active' : 'Inactive'}
-                            </Badge>
-                          </dd>
-                        </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditing(false)}
+                        disabled={saving}
+                        className='border-slate-300'
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Save Changes
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                          Company Name
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                          {account.companyName}
+                        </p>
                       </div>
                       {account.address && (
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Address</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.address}</dd>
+                        <div className="flex items-start gap-2">
+                          <MapPin className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                              Address
+                            </p>
+                            <p className="text-sm text-slate-700 mt-0.5">{account.address}</p>
+                          </div>
                         </div>
                       )}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Contact Email</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.contactEmail || '-'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Contact Phone</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.contactPhone || '-'}</dd>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Assigned Admin</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.assignedAdmin?.name || 'Not assigned'}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Created</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{format(new Date(account.createdAt), 'PPP')}</dd>
-                        </div>
-                      </div>
-                    </dl>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Primary POC Card */}
-              {account.primaryPoc ? (
-                <Card className="h-fit">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Crown className="h-5 w-5 text-amber-500" />
-                      Primary Point of Contact
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-start gap-4">
-                      <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <Crown className="h-6 w-6 text-amber-600" />
-                      </div>
-                      <dl className="space-y-3 flex-1">
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Name</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.primaryPoc.name}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Email</dt>
-                          <dd className="text-xs text-slate-600 mt-0.5">{account.primaryPoc.email}</dd>
-                        </div>
-                        <div>
-                          <dt className="text-sm font-semibold text-slate-700">Status</dt>
-                          <dd className="mt-0.5 flex items-center gap-2">
-                            <Badge
-                              className={cn(
-                                'text-xs',
-                                account.primaryPoc.isActive
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-amber-100 text-amber-700'
-                              )}
-                            >
-                              {account.primaryPoc.isActive ? 'Active' : 'Pending Activation'}
-                            </Badge>
-                            {account.primaryPoc.activatedAt && (
-                              <span className="text-xs text-slate-500">
-                                Activated {format(new Date(account.primaryPoc.activatedAt), 'PPP')}
-                              </span>
-                            )}
-                          </dd>
-                        </div>
-                      </dl>
                     </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="h-fit">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Crown className="h-5 w-5 text-slate-300" />
-                      Primary Point of Contact
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-slate-500">No primary POC assigned</p>
-                  </CardContent>
-                </Card>
-              )}
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-2">
+                        <Mail className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                            Contact Email
+                          </p>
+                          <p className="text-sm text-slate-700 mt-0.5">
+                            {account.contactEmail || '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <Phone className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                            Contact Phone
+                          </p>
+                          <p className="text-sm text-slate-700 mt-0.5">
+                            {account.contactPhone || '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                       <UserCog className="size-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                            Assigned Admin
+                          </p>
+                          <p className="text-sm text-slate-700 mt-0.5">
+                            {account.assignedAdmin?.name || 'Not assigned'}
+                          </p>
+                        </div>
+                      </div>
+                  </div>
+                )}
+              </div>
             </div>
-            )}
 
-            {/* Users Tab */}
-            {activeTab === 'users' && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold">Users</h3>
-                <Button onClick={() => setShowAddUserDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
+            {/* Primary POC */}
+            <div className="bg-white rounded-xl border border-slate-300 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 bg-amber-50/50">
+                <div className="flex items-center gap-2">
+                  <Crown className="size-4 text-amber-600" />
+                  <h3 className="font-semibold text-slate-900">Primary Point of Contact</h3>
+                </div>
+              </div>
+              <div className="p-5">
+                {account.primaryPoc ? (
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <Crown className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div className="flex-1 grid grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                          Name
+                        </p>
+                        <p className="text-sm font-semibold text-slate-900 mt-0.5">
+                          {account.primaryPoc.name}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                          Email
+                        </p>
+                        <p className="text-sm text-slate-700 mt-0.5">{account.primaryPoc.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                          Status
+                        </p>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <Badge
+                            className={cn(
+                              'text-xs',
+                              account.primaryPoc.isActive
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-amber-100 text-amber-700'
+                            )}
+                          >
+                            {account.primaryPoc.isActive ? 'Active' : 'Pending'}
+                          </Badge>
+                          {account.primaryPoc.activatedAt && (
+                            <span className="text-xs text-slate-500">
+                              since {format(new Date(account.primaryPoc.activatedAt), 'PP')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-slate-500">
+                    <Crown className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                    <p className="text-sm">No primary POC assigned</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Users Section - Collapsible */}
+            <div className="bg-white rounded-xl border border-slate-300 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <button
+                  onClick={() => setIsUsersExpanded(!isUsersExpanded)}
+                  className="flex items-center gap-2 hover:bg-slate-100 -ml-2 px-2 py-1 rounded transition-colors"
+                >
+                  {isUsersExpanded ? (
+                    <ChevronDown className="size-4 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="size-4 text-slate-400" />
+                  )}
+                  <Users className="size-4 text-slate-500" />
+                  <h3 className="font-semibold text-slate-900">Users</h3>
+                  <Badge variant="secondary" className="ml-2">
+                    {users.length}
+                  </Badge>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowAddUserDialog(true)}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
                   Add User
                 </Button>
               </div>
-
-              {users.length === 0 ? (
-                <div className="text-center py-12 text-slate-500">
-                  <Users className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                  <p>No users registered yet</p>
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Joined</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {users.map((user) => (
-                        <TableRow key={user.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {user.isPoc && <Crown className="h-4 w-4 text-amber-500" />}
-                              {user.name}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-slate-500">{user.email}</TableCell>
-                          <TableCell>
-                            {user.isPoc ? (
-                              <Badge className="bg-amber-100 text-amber-700">POC</Badge>
-                            ) : (
-                              <Badge variant="secondary">User</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              className={cn(
-                                user.isActive
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-amber-100 text-amber-700'
-                              )}
-                            >
-                              {user.isActive ? 'Active' : 'Pending'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500 text-sm">
-                            {format(new Date(user.createdAt), 'PP')}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              {isUsersExpanded && (
+                <div className="p-5">
+                  {users.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <Users className="h-10 w-10 mx-auto mb-2 text-slate-300" />
+                      <p className="text-sm">No users registered yet</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        onClick={() => setShowAddUserDialog(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add First User
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-100/50">
+                            <TableHead className="text-xs font-semibold">Name</TableHead>
+                            <TableHead className="text-xs font-semibold">Email</TableHead>
+                            <TableHead className="text-xs font-semibold">Role</TableHead>
+                            <TableHead className="text-xs font-semibold">Status</TableHead>
+                            <TableHead className="text-xs font-semibold">Joined</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {users.map((user) => (
+                            <TableRow key={user.id} className="bg-white">
+                              <TableCell className="font-medium text-sm">
+                                <div className="flex items-center gap-2">
+                                  {user.isPoc && <Crown className="h-4 w-4 text-amber-500" />}
+                                  {user.name}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-slate-500 text-sm">{user.email}</TableCell>
+                              <TableCell>
+                                {user.isPoc ? (
+                                  <Badge className="bg-amber-100 text-amber-700 text-xs">POC</Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-xs">
+                                    User
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={cn(
+                                    'text-xs',
+                                    user.isActive
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-amber-100 text-amber-700'
+                                  )}
+                                >
+                                  {user.isActive ? 'Active' : 'Pending'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-slate-500 text-xs">
+                                {format(new Date(user.createdAt), 'PP')}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
               )}
-
-              {/* Legend */}
-              <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-500">
-                <div className="flex items-center gap-1">
-                  <Crown className="h-3 w-3 text-amber-500" /> = Primary POC
-                </div>
-                <div className="flex items-center gap-1">
-                  <Badge className="bg-amber-100 text-amber-700 text-[10px] px-1.5 py-0">Pending</Badge> = Awaiting activation
-                </div>
-              </div>
             </div>
-            )}
 
-            {/* Pending Requests Tab */}
-            {activeTab === 'requests' && (
-              <div>
-              {pendingRequests.length === 0 ? (
-                <div className="text-center py-12 text-slate-500">
-                  <Bell className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                  <p>No pending requests</p>
+            {/* Certificates Section - Collapsible */}
+            <div className="bg-white rounded-xl border border-slate-300 overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                <button
+                  onClick={() => setIsCertificatesExpanded(!isCertificatesExpanded)}
+                  className="flex items-center gap-2 hover:bg-slate-100 -ml-2 px-2 py-1 rounded transition-colors"
+                >
+                  {isCertificatesExpanded ? (
+                    <ChevronDown className="size-4 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="size-4 text-slate-400" />
+                  )}
+                  <FileText className="size-4 text-slate-500" />
+                  <h3 className="font-semibold text-slate-900">Recent Certificates</h3>
+                  <Badge variant="secondary" className="ml-2">
+                    {certificateCount}
+                  </Badge>
+                </button>
+                {certificateCount > 10 && (
+                  <span className="text-xs text-slate-500">Showing 10 of {certificateCount}</span>
+                )}
+              </div>
+              {isCertificatesExpanded && (
+                <div className="p-5">
+                  {recentCertificates.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <FileText className="h-10 w-10 mx-auto mb-2 text-slate-300" />
+                      <p className="text-sm">No certificates yet</p>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-slate-100/50">
+                            <TableHead className="text-xs font-semibold">Certificate #</TableHead>
+                            <TableHead className="text-xs font-semibold">Description</TableHead>
+                            <TableHead className="text-xs font-semibold">Status</TableHead>
+                            <TableHead className="text-xs font-semibold">Created</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {recentCertificates.map((cert) => (
+                            <TableRow key={cert.id} className="bg-white">
+                              <TableCell className="font-medium text-sm">
+                                {cert.certificateNumber}
+                              </TableCell>
+                              <TableCell className="text-slate-500 text-sm max-w-xs truncate">
+                                {cert.uucDescription || '-'}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="text-xs">
+                                  {cert.status.replace(/_/g, ' ')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-slate-500 text-xs">
+                                {format(new Date(cert.createdAt), 'PP')}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {pendingRequests.map((request) => (
-                    <div
-                      key={request.id}
-                      className="p-4 bg-slate-50 rounded-lg border flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          'p-2 rounded-lg',
-                          request.type === 'USER_ADDITION' ? 'bg-blue-100' : 'bg-purple-100'
-                        )}>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Right Panel - Quick Stats, Pending Requests, Quick Actions */}
+      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+        {/* Pending Requests */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="size-4 text-slate-500" />
+              <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Pending Requests
+              </h3>
+            </div>
+            {pendingRequests.length > 0 && (
+              <Badge className="bg-amber-100 text-amber-700 text-xs">
+                {pendingRequests.length}
+              </Badge>
+            )}
+          </div>
+          <div className="p-4">
+            {pendingRequests.length === 0 ? (
+              <div className="text-center py-6 text-slate-500">
+                <Bell className="h-8 w-8 mx-auto mb-2 text-slate-300" />
+                <p className="text-sm">No pending requests</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {pendingRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="p-3 bg-slate-50 rounded-lg border border-slate-200"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2">
+                        <div
+                          className={cn(
+                            'p-1.5 rounded',
+                            request.type === 'USER_ADDITION' ? 'bg-blue-100' : 'bg-purple-100'
+                          )}
+                        >
                           {request.type === 'USER_ADDITION' ? (
-                            <UserPlus className="h-5 w-5 text-blue-600" />
+                            <UserPlus className="h-3.5 w-3.5 text-blue-600" />
                           ) : (
-                            <Crown className="h-5 w-5 text-purple-600" />
+                            <Crown className="h-3.5 w-3.5 text-purple-600" />
                           )}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <Badge className={cn(
+                          <Badge
+                            className={cn(
+                              'text-[10px]',
                               request.type === 'USER_ADDITION'
                                 ? 'bg-blue-100 text-blue-700'
                                 : 'bg-purple-100 text-purple-700'
-                            )}>
-                              {request.type === 'USER_ADDITION' ? 'User Addition' : 'POC Change'}
-                            </Badge>
-                          </div>
-                          {request.type === 'USER_ADDITION' && (
-                            <p className="text-sm mt-1">
-                              {request.data.name} ({request.data.email})
+                            )}
+                          >
+                            {request.type === 'USER_ADDITION' ? 'User Addition' : 'POC Change'}
+                          </Badge>
+                          {request.type === 'USER_ADDITION' && request.data.name && (
+                            <p className="text-xs font-medium text-slate-700 mt-1">
+                              {request.data.name}
                             </p>
                           )}
-                          {request.type === 'POC_CHANGE' && (
-                            <p className="text-sm mt-1">
-                              POC change requested
-                            </p>
-                          )}
-                          <p className="text-xs text-slate-500 mt-1">
-                            {request.requestedBy
-                              ? `Requested by ${request.requestedBy.name}`
-                              : 'Admin initiated'}{' '}
+                          <p className="text-[10px] text-slate-500 mt-0.5">
                             {formatDistanceToNow(new Date(request.createdAt), { addSuffix: true })}
                           </p>
                         </div>
                       </div>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => router.push(`/admin/customers/requests/${request.id}`)}
+                        className="h-7 text-xs px-2"
+                        onClick={() => router.push(`/admin/requests/${request.id}?type=customer`)}
                       >
-                        <Eye className="h-4 w-4 mr-1" />
+                        <Eye className="h-3 w-3 mr-1" />
                         View
                       </Button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
               </div>
             )}
+          </div>
+        </div>
 
-            {/* Certificates Tab */}
-            {activeTab === 'certificates' && (
-              <div>
-              <p className="text-sm text-slate-500 mb-4">
-                Showing {Math.min(10, certificateCount)} of {certificateCount} certificates
-              </p>
-              {recentCertificates.length === 0 ? (
-                <div className="text-center py-12 text-slate-500">
-                  <FileText className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                  <p>No certificates yet</p>
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Certificate #</TableHead>
-                        <TableHead>Description</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Created</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentCertificates.map((cert) => (
-                        <TableRow key={cert.id}>
-                          <TableCell className="font-medium">{cert.certificateNumber}</TableCell>
-                          <TableCell className="text-slate-500 max-w-xs truncate">
-                            {cert.uucDescription || '-'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {cert.status.replace(/_/g, ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-slate-500 text-sm">
-                            {format(new Date(cert.createdAt), 'PP')}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </div>
-            )}
+        {/* Quick Actions */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Quick Actions
+            </h3>
+          </div>
+          <div className="p-4 space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start text-sm"
+              onClick={() => setShowAddUserDialog(true)}
+            >
+              <UserPlus className="h-4 w-4 mr-2 text-blue-600" />
+              Add New User
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start text-sm"
+              onClick={() => router.push(`/admin/certificates?customer=${encodeURIComponent(account.companyName)}`)}
+            >
+              <FileText className="h-4 w-4 mr-2 text-purple-600" />
+              View All Certificates
+            </Button>
           </div>
         </div>
       </div>
@@ -734,7 +835,7 @@ export default function CustomerDetailPage({
       <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add User</DialogTitle>
+            <DialogTitle>Add User to {account.companyName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">

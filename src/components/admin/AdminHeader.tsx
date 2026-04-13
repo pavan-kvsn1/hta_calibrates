@@ -10,7 +10,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ showEngineerSwitch = false }: AdminHeaderProps) {
   return (
-    <header className="sticky top-0 z-[60] h-16 bg-blue-600 flex items-center justify-between px-4">
+    <header className="flex items-center justify-between whitespace-nowrap bg-[#222D7C] px-4 sm:px-6 h-16 sticky top-0 z-[60]">
       {/* Left Side - Mobile Menu & Title */}
       <div className="flex items-center gap-3">
         {/* Mobile Menu Button */}

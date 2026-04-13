@@ -1,55 +1,49 @@
-import { test, expect } from '@playwright/test'
+import { test, takeSnapshot } from '@chromatic-com/playwright'
+import { expect } from '@playwright/test'
 import { loginAsEngineer, loginAsAdmin, loginAsCustomer } from '../fixtures/test-utils'
 
 /**
  * Visual Regression Tests
  *
  * These tests capture screenshots of key pages for visual comparison.
- * Run nightly to detect unintended visual changes.
+ * Uses Chromatic for cloud-based visual testing with automatic baseline management.
  *
  * Usage:
- * - First run: Creates baseline screenshots
- * - Subsequent runs: Compares against baselines
+ * - Run tests: npx playwright test tests/e2e/evals/visual-regression.spec.ts
+ * - Upload to Chromatic: npm run chromatic
  *
- * To update baselines:
- *   npx playwright test tests/e2e/visual/ --update-snapshots
- *
- * Note: Baselines were generated on Linux using Docker to match CI environment.
- * To update baselines: npm run test:visual:docker
+ * Chromatic handles:
+ * - Baseline storage in the cloud
+ * - Cross-browser consistency
+ * - AI-powered diff detection
+ * - Visual review dashboard
  */
 
-// Configure snapshot options
-const snapshotOptions = {
-  maxDiffPixels: 100, // Allow small pixel differences
-  threshold: 0.2, // 20% threshold for pixel comparison
-}
-
 test.describe('Visual Regression - Public Pages', () => {
-  test('login page visual snapshot', async ({ page }) => {
+  test('login page visual snapshot', async ({ page }, testInfo) => {
     await page.goto('/login')
     await page.waitForLoadState('networkidle')
-
-    // Wait for any animations to complete
     await page.waitForTimeout(500)
 
-    await expect(page).toHaveScreenshot('login-page.png', snapshotOptions)
+    await takeSnapshot(page, 'login-page', testInfo)
   })
 
-  test('customer login page visual snapshot', async ({ page }) => {
+  test('customer login page visual snapshot', async ({ page }, testInfo) => {
     await page.goto('/customer/login')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
-    await expect(page).toHaveScreenshot('customer-login-page.png', snapshotOptions)
+    await takeSnapshot(page, 'customer-login-page', testInfo)
   })
 })
 
 test.describe('Visual Regression - Engineer Dashboard', () => {
+  // Requires seeded database with test users (npm run db:seed)
   test.beforeEach(async ({ page }) => {
     await loginAsEngineer(page)
   })
 
-  test('engineer dashboard visual snapshot', async ({ page }) => {
+  test('engineer dashboard visual snapshot', async ({ page }, testInfo) => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
@@ -60,23 +54,21 @@ test.describe('Visual Regression - Engineer Dashboard', () => {
       })
     })
 
-    await expect(page).toHaveScreenshot('engineer-dashboard.png', snapshotOptions)
+    await takeSnapshot(page, 'engineer-dashboard', testInfo)
   })
 
-  test('new certificate form visual snapshot', async ({ page }) => {
+  test('new certificate form visual snapshot', async ({ page }, testInfo) => {
     await page.goto('/dashboard/certificates/new')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
     // Mask dynamic content (certificate number contains timestamp)
     await page.evaluate(() => {
-      // Mask certificate number in header (DRAFT-timestamp format)
       document.querySelectorAll('h1, h2, h3').forEach(el => {
         if (el.textContent?.includes('DRAFT-')) {
           el.textContent = 'DRAFT-XXXXXXXX'
         }
       })
-      // Mask any displayed certificate number fields
       document.querySelectorAll('input[name="certificateNumber"], input[id="certificateNumber"]').forEach(el => {
         const input = el as HTMLInputElement
         if (input.value.includes('DRAFT-')) {
@@ -85,100 +77,92 @@ test.describe('Visual Regression - Engineer Dashboard', () => {
       })
     })
 
-    // Higher threshold due to dynamic content (certificate number, "Saved Xs ago")
-    await expect(page).toHaveScreenshot('new-certificate-form.png', {
-      maxDiffPixels: 500,
-      threshold: 0.2,
-    })
+    await takeSnapshot(page, 'new-certificate-form', testInfo)
   })
 })
 
 test.describe('Visual Regression - Admin Dashboard', () => {
+  // Requires seeded database with test users (npm run db:seed)
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page)
   })
 
-  test('Admin dashboard visual snapshot', async ({ page }) => {
+  test('Admin dashboard visual snapshot', async ({ page }, testInfo) => {
     await page.goto('/admin')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
-    // Mask dynamic content
     await page.evaluate(() => {
       document.querySelectorAll('[data-testid="timestamp"], time').forEach(el => {
         el.textContent = '2026-01-01 00:00'
       })
     })
 
-    await expect(page).toHaveScreenshot('admin-dashboard.png', snapshotOptions)
+    await takeSnapshot(page, 'admin-dashboard', testInfo)
   })
 })
 
 test.describe('Visual Regression - Customer Portal', () => {
+  // Requires seeded database with test users (npm run db:seed)
   test.beforeEach(async ({ page }) => {
     await loginAsCustomer(page)
   })
 
-  test('customer dashboard visual snapshot', async ({ page }) => {
+  test('customer dashboard visual snapshot', async ({ page }, testInfo) => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
-    // Mask dynamic content
     await page.evaluate(() => {
       document.querySelectorAll('[data-testid="timestamp"], time').forEach(el => {
         el.textContent = '2026-01-01 00:00'
       })
     })
 
-    await expect(page).toHaveScreenshot('customer-dashboard.png', snapshotOptions)
+    await takeSnapshot(page, 'customer-dashboard', testInfo)
   })
 })
 
 test.describe('Visual Regression - Responsive Design', () => {
-  test('login page mobile view', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 }) // iPhone SE
+  test('login page mobile view', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 375, height: 667 })
     await page.goto('/login')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
-    await expect(page).toHaveScreenshot('login-page-mobile.png', snapshotOptions)
+    await takeSnapshot(page, 'login-page-mobile', testInfo)
   })
 
-  test('login page tablet view', async ({ page }) => {
-    await page.setViewportSize({ width: 768, height: 1024 }) // iPad
+  test('login page tablet view', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 768, height: 1024 })
     await page.goto('/login')
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(500)
 
-    await expect(page).toHaveScreenshot('login-page-tablet.png', snapshotOptions)
+    await takeSnapshot(page, 'login-page-tablet', testInfo)
   })
 })
 
 test.describe('Visual Regression - Component States', () => {
-  test('login form with validation error', async ({ page }) => {
+  test('login form with validation error', async ({ page }, testInfo) => {
     await page.goto('/login')
     await page.waitForLoadState('networkidle')
 
-    // Submit empty form to trigger validation
     await page.click('button[type="submit"]')
     await page.waitForTimeout(500)
 
-    // Higher threshold due to browser native validation tooltip positioning
-    await expect(page).toHaveScreenshot('login-form-validation-error.png', {
-      maxDiffPixels: 2000,
-      threshold: 0.2,
-    })
+    await takeSnapshot(page, 'login-form-validation-error', testInfo)
   })
 
-  test('login form with invalid credentials error', async ({ page }) => {
+  test('login form with invalid credentials error', async ({ page }, testInfo) => {
     await page.goto('/login')
     await page.fill('input[type="email"], input[name="email"]', 'invalid@test.com')
     await page.fill('input[type="password"]', 'wrongpassword')
     await page.click('button[type="submit"]')
 
-    // Wait for error message
-    await page.waitForTimeout(2000)
+    // Wait for error message to appear (or page to settle after auth attempt)
+    await page.waitForLoadState('networkidle')
+    await page.waitForTimeout(1000)
 
-    await expect(page).toHaveScreenshot('login-form-invalid-credentials.png', snapshotOptions)
+    await takeSnapshot(page, 'login-form-invalid-credentials', testInfo)
   })
 })

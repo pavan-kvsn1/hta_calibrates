@@ -85,7 +85,7 @@ export function AdminCertificateClient({
   }, [certificate.id, certificate.certificateNumber])
 
   return (
-    <div className="flex h-full bg-slate-100 p-3 gap-3 overflow-hidden">
+    <div className="flex h-full bg-slate-100 overflow-hidden">
       {/* Left Side - Header + Content (Scrollable) */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Certificate Card - Bounding Box */}
@@ -103,7 +103,7 @@ export function AdminCertificateClient({
           {/* Content Area - Scrollable */}
           <div className="flex-1 overflow-auto bg-slate-50/30">
             {viewMode === 'details' ? (
-              <div className="p-6 space-y-6">
+              <div className="p-3 space-y-6] bg-section-inner">
                 <AdminCertificateContent
                   certificate={certificate}
                   assignee={assignee}
@@ -125,7 +125,7 @@ export function AdminCertificateClient({
       </div>
 
       {/* Right Panel - Collapsible Chat, Edit & Review */}
-      <div className="w-[380px] flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+      <div className="w-[380px] flex-shrink-0 flex flex-col p-3 overflow-y-auto bg-section-inner">
         {/* Chat Section */}
         <div className={cn(
           'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden',

@@ -27,7 +27,7 @@ export function AdminCertificateHeader({
   isDownloading = false,
 }: AdminCertificateHeaderProps) {
   return (
-    <div className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
+    <div className="flex-shrink-0 border-b border-slate-200 px-8 py-6">
       {/* Header Content */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

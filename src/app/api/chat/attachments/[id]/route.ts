@@ -9,6 +9,9 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('chat')
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'chat-attachments')
 
@@ -72,7 +75,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('[Chat Attachment File API] GET error:', error)
+    logger.error({ err: error }, 'Failed to get chat attachment')
     return NextResponse.json(
       { error: 'Failed to get attachment' },
       { status: 500 }

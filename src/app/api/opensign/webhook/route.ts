@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { downloadSignedPdf, type WebhookPayload } from '@/lib/services/opensign'
 import { storePDF } from '@/lib/services/pdf/storage'
+import { createLogger } from '@/lib/logger'
+
+const logger = createLogger('opensign')
 
 /**
  * POST /api/opensign/webhook
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (!openSignDoc) {
       // Document not tracked by us — could be from a different system or stale
-      console.warn(`OpenSign webhook: unknown document ${payload.documentId}`)
+      logger.warn({ documentId: payload.documentId }, 'OpenSign webhook received for unknown document')
       return NextResponse.json({ received: true, ignored: true })
     }
 
@@ -63,12 +66,12 @@ export async function POST(request: NextRequest) {
       }
 
       default:
-        console.warn(`OpenSign webhook: unhandled event type '${payload.event}'`)
+        logger.warn({ event: payload.event }, 'OpenSign webhook received unhandled event type')
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
-    console.error('OpenSign webhook error:', error)
+    logger.error({ err: error }, 'OpenSign webhook processing failed')
     return NextResponse.json(
       { error: 'Webhook processing failed' },
       { status: 500 }
@@ -98,7 +101,7 @@ async function handleDocumentCompleted(
         data: { signedPdfPath: storedPath },
       })
     } catch (pdfError) {
-      console.error('Failed to download/store OpenSign PDF:', pdfError)
+      logger.error({ err: pdfError, certificateId: openSignDoc.certificateId }, 'Failed to download/store OpenSign PDF')
       // The locally-generated PDF still exists as fallback
     }
   }
