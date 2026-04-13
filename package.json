@@ -38,6 +38,7 @@
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@google-cloud/secret-manager": "^6.1.1",
     "@google-cloud/storage": "^7.19.0",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",

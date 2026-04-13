@@ -1,9 +1,9 @@
 # HTA Calibr8s - Production Readiness Plan
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Created:** April 2026
-**Last Updated:** 2026-04-09
-**Status:** Draft - Phase 5 Complete
+**Last Updated:** 2026-04-13
+**Status:** Draft - Phase 6 Complete
 
 ---
 
@@ -18,13 +18,13 @@ This document outlines the implementation plan for twelve critical production fe
 4. **Caching Strategy** - Performance optimization and cost reduction ✅
 
 **Security & Operations (In Progress):**
-5. **Secrets Management** - GCP Secret Manager integration and rotation ⚠️
+5. **Secrets Management** - GCP Secret Manager integration and rotation ✅
 6. **Security** - Rate limiting, CSP headers, account lockout ✅
 7. **Monitoring & Observability** - Error tracking, structured logging, alerting ✅
 8. **Disaster Recovery** - Backups, RTO/RPO targets, recovery procedures ✅
 
 **Infrastructure & Compliance (Planned):**
-9. **CI/CD Pipeline** - Automated testing and deployment ✅ CI / ⚠️ CD
+9. **CI/CD Pipeline** - Automated testing and deployment ✅
 10. **Environment Management** - Dev/staging/prod separation ✅
 11. **Performance Testing** - Load testing and capacity planning ⚠️
 12. **Compliance & Data Privacy** - GDPR, privacy policy, data retention ⚠️
@@ -1479,7 +1479,7 @@ export async function onEntityChange(
 
 ### Current State
 
-**Status: ⚠️ PARTIALLY IMPLEMENTED**
+**Status: ✅ IMPLEMENTED (April 2026)**
 
 #### 5.0.1 What's Implemented ✅
 
@@ -1498,23 +1498,62 @@ export async function onEntityChange(
 - Service account for secret access
 - IAM bindings for Cloud Run/GKE workloads
 
+**K8s External Secrets Integration (GKE):**
+- `k8s/base/external-secrets.yaml` - ExternalSecret CRDs for runtime secret syncing
+- `k8s/overlays/dev/external-secrets-patch.yaml` - Dev environment secret mappings
+- `k8s/overlays/prod/external-secrets-patch.yaml` - Prod environment secret mappings
+- Secrets synced from GCP Secret Manager to K8s Secrets at runtime (1-hour refresh)
+
+**Application-Level Secret Fetching (Cloud Run/Universal):**
+- `src/lib/secrets/gcp-secrets.ts` - Runtime secret fetching from GCP Secret Manager
+- `src/lib/secrets/index.ts` - Barrel exports with typed accessors
+- 5-minute cache with automatic refresh, zero-downtime rotation
+- Automatic fallback to environment variables for local development
+- Version pinning support for rollback scenarios
+
+**CD Pipelines:**
+- `.github/workflows/deploy-dev.yml` - Auto-deploys to Cloud Run on merge to main
+- `.github/workflows/deploy-prod.yml` - Manual trigger deployment to GKE with approval gates
+- `.github/workflows/backup-test.yml` - Monthly automated backup restore verification
+
+**Smoke Tests & Health Endpoints:**
+- `src/app/api/smoke-test/route.ts` - Comprehensive post-deployment validation
+- `src/app/api/health/route.ts` - Liveness probe (basic health)
+- `src/app/api/health/ready/route.ts` - Readiness probe (DB + cache checks)
+- `scripts/smoke-tests.sh` - Shell script for local/CI smoke testing
+
+**Documentation:**
+- `docs/runbooks/secrets-rotation.md` - Step-by-step rotation procedures with rollback
+
 **Files:**
 | File | Description |
 |------|-------------|
 | `.env.example` | Comprehensive env var documentation |
 | `terraform/modules/secrets/main.tf` | Secret Manager resources |
 | `terraform/modules/secrets/variables.tf` | Secret configuration |
+| `k8s/base/external-secrets.yaml` | K8s External Secrets CRDs |
+| `k8s/overlays/*/external-secrets-patch.yaml` | Environment-specific secret mappings |
+| `src/lib/secrets/gcp-secrets.ts` | Runtime secret fetching with caching |
+| `src/lib/secrets/index.ts` | Barrel exports with typed accessors |
+| `.github/workflows/deploy-dev.yml` | Dev CD pipeline (Cloud Run) |
+| `.github/workflows/deploy-prod.yml` | Prod CD pipeline (GKE) |
+| `.github/workflows/backup-test.yml` | Monthly backup verification |
+| `src/app/api/smoke-test/route.ts` | Post-deployment smoke tests |
+| `src/app/api/health/route.ts` | Liveness probe endpoint |
+| `src/app/api/health/ready/route.ts` | Readiness probe endpoint |
+| `scripts/smoke-tests.sh` | Smoke test runner script |
+| `docs/runbooks/secrets-rotation.md` | Secrets rotation runbook |
+| `tests/unit/secrets.test.ts` | Unit tests for secrets module |
 
-#### 5.0.2 What's Missing 🚨
+#### 5.0.2 What's Remaining 📋
 
 | Item | Priority | Description |
 |------|----------|-------------|
-| Runtime Secret Fetching | HIGH | Application doesn't fetch secrets from Secret Manager at runtime |
-| Secrets Rotation | MEDIUM | No automated rotation for API keys, DB passwords |
-| Secret Versioning | LOW | No strategy for managing secret versions |
-| Local Development Secrets | LOW | No encrypted local secrets (using plaintext .env) |
+| Local Development Secrets | LOW | Using plaintext .env (acceptable for local dev) |
+| Automated Secret Rotation | LOW | Currently manual with documented procedures |
+| Secret Versioning Strategy | LOW | Currently using `latest`, can pin versions for rollback |
 
-### 5.1 Recommended Architecture
+### 5.1 Implemented Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1544,28 +1583,32 @@ export async function onEntityChange(
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### 5.2 Implementation Plan
+### 5.2 Implementation Details ✅ IMPLEMENTED
 
-**Step 1: Create Secret Fetching Utility**
+**Secret Fetching Utility** (`src/lib/secrets/gcp-secrets.ts`):
 ```typescript
-// src/lib/secrets.ts
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager'
+import { getSecret, secrets, initializeSecrets } from '@/lib/secrets'
 
-const client = new SecretManagerServiceClient()
+// Generic getter with options
+const apiKey = await getSecret('resend-api-key')
+const dbUrl = await getSecret('database-url', { version: '2' }) // Pin to version
+const fresh = await getSecret('nextauth-secret', { bypassCache: true }) // Force refresh
 
-export async function getSecret(name: string): Promise<string> {
-  if (process.env.NODE_ENV !== 'production') {
-    return process.env[name] || ''
-  }
+// Type-safe getters
+const secret = await secrets.nextAuthSecret()
+const resend = await secrets.resendApiKey()
 
-  const projectId = process.env.GCP_PROJECT_ID
-  const [version] = await client.accessSecretVersion({
-    name: `projects/${projectId}/secrets/${name}/versions/latest`,
-  })
-
-  return version.payload?.data?.toString() || ''
-}
+// Pre-fetch at startup (optional, improves latency)
+await initializeSecrets()
 ```
+
+**Features:**
+- 5-minute cache with automatic refresh
+- Fallback to environment variables in development/test
+- Version pinning support (`{ version: '2' }`)
+- Cache bypass for instant rotation (`{ bypassCache: true }`)
+- Lazy-loaded SDK (no import errors in dev)
+- Type-safe accessors via `secrets.*` object
 
 **Step 2: Secrets to Migrate to Secret Manager**
 
@@ -2304,7 +2347,7 @@ logger.error({ err, endpoint }, 'API request failed')
 | Item | Priority | Description | Status |
 |------|----------|-------------|--------|
 | Backup failure alerting | HIGH | Alert when backups fail | ✅ Done (Phase 5) |
-| Automated backup testing | MEDIUM | Restore and validate backup integrity monthly | ⏳ Phase 6 |
+| Automated backup testing | MEDIUM | Restore and validate backup integrity monthly | ✅ Done (Phase 6) |
 | Cross-region replication | LOW | Single region failure risk | ⏳ Phase 9 |
 | DR drills schedule | LOW | Regular recovery testing | ⏳ Phase 9 |
 | Runbook automation | LOW | Manual recovery steps | ⏳ Phase 9 |
@@ -2803,17 +2846,19 @@ interface UserDataExport {
 - Distributed tracing (not needed until API separation)
 - APM detailed traces (not needed until microservices)
 - PagerDuty/Slack integration (email sufficient for now)
-- DR backup restore testing (monthly drills)
-- Recovery time documentation
 - Cross-region DR setup
 
-### Phase 6: Secrets & Infrastructure (Week 8-9)
+**Completed in Phase 6:**
+- DR backup restore testing (monthly drills) - `.github/workflows/backup-test.yml`
+- Recovery time documentation - `docs/runbooks/secrets-rotation.md`
 
-- [ ] Implement runtime Secret Manager fetching
-- [ ] Create CD pipeline for staging/production deployment
-- [ ] Add smoke tests post-deployment
-- [ ] Document secrets rotation procedures
-- [ ] Set up automated backup testing
+### Phase 6: Secrets & Infrastructure (Week 8-9) ✅ COMPLETE
+
+- [x] Implement runtime Secret Manager fetching (K8s External Secrets)
+- [x] Create CD pipeline for staging/production deployment (`deploy-dev.yml`, `deploy-prod.yml`)
+- [x] Add smoke tests post-deployment (`/api/smoke-test`, `scripts/smoke-tests.sh`)
+- [x] Document secrets rotation procedures (`docs/runbooks/secrets-rotation.md`)
+- [x] Set up automated backup testing (`backup-test.yml` monthly workflow)
 
 ### Phase 7: Performance & Load Testing (Week 9-10)
 

@@ -40,6 +40,7 @@ After implementing Phase 6, you will have:
 ### Implementation Checklist
 
 - [x] Implement runtime Secret Manager fetching (via K8s External Secrets)
+- [x] Implement application-level secret fetching (`src/lib/secrets/`)
 - [x] Create CD pipeline for dev/production deployment
 - [x] Add smoke tests post-deployment
 - [x] Document secrets rotation procedures (`docs/runbooks/secrets-rotation.md`)
@@ -49,7 +50,8 @@ After implementing Phase 6, you will have:
 
 | Component | File(s) Created | Description |
 |-----------|-----------------|-------------|
-| **Secret Fetching** | `k8s/base/external-secrets.yaml`, `k8s/overlays/*/external-secrets-patch.yaml` | K8s External Secrets Operator syncs secrets from GCP Secret Manager |
+| **Secret Fetching (K8s)** | `k8s/base/external-secrets.yaml`, `k8s/overlays/*/external-secrets-patch.yaml` | K8s External Secrets Operator syncs secrets from GCP Secret Manager (GKE) |
+| **Secret Fetching (App)** | `src/lib/secrets/gcp-secrets.ts`, `src/lib/secrets/index.ts` | Runtime secret fetching with 5-min cache, env var fallback (Cloud Run/local) |
 | **CD - Dev** | `.github/workflows/deploy-dev.yml` | Auto-deploys to Cloud Run on merge to main, strict smoke tests |
 | **CD - Prod** | `.github/workflows/deploy-prod.yml` | Manual trigger to GKE with confirmation, auto-detect smoke test mode |
 | **Smoke Tests API** | `src/app/api/smoke-test/route.ts` | Comprehensive endpoint with strict/lenient/auto modes |
@@ -415,15 +417,29 @@ resource "google_cloud_run_v2_service" "app" {
 }
 ```
 
-### 3.3 Recommended Approach
+### 3.3 Implemented Approach
 
-Use **Option B (Cloud Run Secret Mounts)** for simplicity:
-- Automatic secret injection by Cloud Run
-- No code changes needed
-- Terraform manages the configuration
-- Still allows rotation (deploy new revision)
+**Both options are now implemented:**
 
-Add **Option A (Runtime Fetching)** later if zero-downtime rotation is required.
+**Option A (Runtime Fetching) - `src/lib/secrets/`:**
+- Application-level secret fetching from GCP Secret Manager
+- 5-minute cache with automatic refresh
+- Fallback to environment variables for local development
+- Zero-downtime secret rotation
+- Works on Cloud Run and GKE
+
+**Option B (K8s External Secrets) - `k8s/base/external-secrets.yaml`:**
+- Kubernetes-native secret syncing for GKE
+- 1-hour refresh interval (configurable)
+- Managed by External Secrets Operator
+
+**When to use each:**
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| GKE production | K8s External Secrets (no code changes needed) |
+| Cloud Run | App-level fetching OR Cloud Run secret mounts |
+| Local development | Environment variables (automatic fallback) |
+| Need instant rotation | App-level fetching with `bypassCache: true` |
 
 ### 3.4 Required Dependencies
 
